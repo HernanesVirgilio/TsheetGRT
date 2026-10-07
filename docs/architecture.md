@@ -40,9 +40,10 @@ A arquitetura do **SI Holdings Timesheet** assenta numa abordagem moderna e desa
 
 ## 3. Módulos Funcionais
 
-- **Módulo de Autenticação (`/login`, `/alterar-palavra-passe`):**
-  - Autenticação com e-mail institucional e palavra-passe.
-  - Bloqueio imediato de contas com flag `must_change_password` até redefinição segura.
+- **Módulo de Autenticação (`/login`, `/forgot-password`, `/reset-password`, `/alterar-palavra-passe`):**
+  - Supabase Auth com e-mail institucional e palavra-passe (mínimo 12 carateres).
+  - Contas criadas apenas por convite (Edge Function `admin-create-user`); o utilizador define a própria palavra-passe.
+  - Após o login, o perfil, o perfil de acesso e as permissões são lidos da base de dados; contas desativadas ficam bloqueadas.
 - **Módulo de Timesheet (`/timesheets`):**
   - Gestão de ciclos de apuração periódicos (normalmente mensais).
   - Lançamento diário de apontamentos de ponto associados a atividades autorizadas.
@@ -52,9 +53,10 @@ A arquitetura do **SI Holdings Timesheet** assenta numa abordagem moderna e desa
   - Revisão analítica dos lançamentos dos colaboradores do departamento.
   - Rejeição obriga a fundamentação textual auditada.
   - Regra de ouro: Um gestor não pode aprovar a sua própria folha de horas.
-- **Módulo de Administração (`/users`, `/departments`, `/roles`):**
-  - Criação e manutenção de contas e atribuição de perfis.
-  - Desativação suave (*soft-disable*) via `is_active: false`.
+- **Módulo de Administração (`/users`, `/departments`, `/roles`, `/settings`, `/reports`):**
+  - Criação (por convite) e manutenção de contas, atribuição de perfis de acesso e departamentos.
+  - Desativação suave (*soft-disable*) via `is_active: false`, com proteção do último administrador.
+  - Gestão de departamentos, matriz de permissões, configurações institucionais e relatórios consolidados.
 - **Módulo de Auditoria & Saúde (`/audit`, `/system-health`):**
   - Histórico imutável de eventos operacionais.
   - Diagnóstico em tempo real da plataforma.

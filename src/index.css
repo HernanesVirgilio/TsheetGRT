@@ -1,38 +1,83 @@
 @import "tailwindcss";
 
+/*
+ * Design System TsheetGRT · SI Holdings
+ * Fonte única dos tokens visuais. Os componentes usam apenas as classes semânticas
+ * geradas a partir daqui (bg-primary, text-text-secondary, border-border, ...).
+ *
+ * Contraste (WCAG AA):
+ *   - text-on-primary (#1A1A1A) sobre primary (#47B255) = 6,4:1
+ *   - branco sobre primary-hover (#0B8043) = 5,0:1
+ *   - branco sobre sidebar (#0F7A6B) = 5,2:1; sidebar-muted sobre sidebar = 4,6:1
+ *   - border-input (#7D8A96) sobre branco = 3,5:1 (limite de componentes ≥ 3:1)
+ */
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+
+  /* Marca */
+  --color-primary: #47B255;
+  --color-primary-hover: #0B8043;
+  --color-on-primary: #1A1A1A;
+  --color-primary-soft: #EAF6EC;
+
+  /* Estrutura */
+  --color-sidebar: #0F7A6B;
+  --color-sidebar-hover: #126B5E;
+  --color-sidebar-muted: #E6F4F2;
+
+  /* Superfícies */
+  --color-background: #F8F9FA;
+  --color-surface: #FFFFFF;
+  --color-surface-muted: #F1F4F6;
+
+  /* Texto */
+  --color-text: #1A1A1A;
+  --color-text-secondary: #333333;
+  --color-text-muted: #5B6670;
+
+  /* Linhas */
+  --color-border: #D9E0E7;
+  --color-border-input: #7D8A96;
+
+  /* Foco: verde-folha garante 5:1 sobre branco */
+  --color-focus: #0B8043;
+
+  /* Estados */
+  --color-success: #0B8043;
+  --color-success-soft: #EAF6EC;
+  --color-warning: #8A4B00;
+  --color-warning-soft: #FFF4E0;
+  --color-danger: #C0392B;
+  --color-danger-hover: #A93226;
+  --color-danger-soft: #FDECEA;
+  --color-info: #0F7A6B;
+  --color-info-soft: #E6F4F2;
+}
+
 @layer base {
-  :root {
-    --grt-primary: #47B255;
-    --grt-leaf: #0B8043;
-    --grt-turquoise: #0F7A6B;
-    --grt-bg: #F8F9FA;
-    --grt-surface: #FFFFFF;
-    --grt-text: #1A1A1A;
-    --grt-text-muted: #333333;
-    --grt-border: #DCE3E8;
-    --grt-warning: #D97706;
-    --grt-danger: #C0392B;
+  html {
+    -webkit-text-size-adjust: 100%;
   }
 
   body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background-color: #F8F9FA;
-    color: #1A1A1A;
+    @apply bg-background font-sans text-text antialiased;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
   }
 }
 
-/* Custom scrollbars for corporate tables */
+/* Barras de deslocamento discretas para tabelas e painéis */
 .custom-scrollbar::-webkit-scrollbar {
   height: 6px;
   width: 6px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: #F1F5F9;
+  background: var(--color-surface-muted);
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #CBD5E1;
+  background: var(--color-border-input);
   border-radius: 3px;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #94A3B8;
 }

@@ -14,10 +14,10 @@ A base de dados é normalizada e implementada em PostgreSQL através do Supabase
 
 ### `public.profiles`
 - `id` (UUID, PK)
-- `auth_user_id` (UUID, UNIQUE, FK $\to$ `auth.users`)
-- `employee_number` (VARCHAR(50), UNIQUE)
+- `auth_user_id` (UUID, UNIQUE, FK $\to$ `auth.users`, `ON DELETE SET NULL` para preservar o histórico)
+- `employee_number` (VARCHAR(50), UNIQUE, gerado no servidor: `SIH-0001`, `SIH-0002`, …)
 - `full_name` (VARCHAR(255))
-- `email` (VARCHAR(255), UNIQUE)
+- `email` (VARCHAR(255), UNIQUE, sempre em minúsculas)
 - `phone` (VARCHAR(50))
 - `department_id` (UUID, FK $\to$ `departments.id`)
 - `job_title` (VARCHAR(150))
@@ -31,7 +31,7 @@ A base de dados é normalizada e implementada em PostgreSQL através do Supabase
 - `roles`: `id`, `code` (`ADMIN`, `IT`, `MANAGER`, `EMPLOYEE`), `name`, `description`
 - `permissions`: `id`, `code` (ex.: `SELF_TIMESHEET_READ`, `TEAM_TIMESHEET_APPROVE`), `name`, `module`
 - `role_permissions`: `id`, `role_id`, `permission_id` (UNIQUE composto)
-- `user_roles`: `id`, `user_id`, `role_id` (UNIQUE composto)
+- `user_roles`: `id`, `user_id` (UNIQUE: um perfil de acesso por utilizador), `role_id`
 
 ### `public.timesheets`
 - `id` (UUID, PK)
@@ -85,9 +85,19 @@ NEW.total_minutes := ((EXTRACT(HOUR FROM NEW.end_time) * 60) + EXTRACT(MINUTE FR
 
 ---
 
-## 3. Ficheiros de Migração
+## 3. Outras regras de integridade
 
-Todas as migrações encontram-se em `supabase/migrations/`:
-1. `20261001000000_initial_schema.sql`: Definição de tabelas, constrangimentos e índices.
-2. `20261001000001_rls_policies.sql`: Funções de segurança e políticas Row Level Security.
-3. `20261001000002_seed_data.sql`: Carga inicial de departamentos, roles, permissões e contas de desenvolvimento.
+- `departments.code`: 2 a 20 carateres (`A-Z`, `0-9`, `-`, `_`), imutável depois de criado.
+- `timesheets`: período único por colaborador, rejeição exige motivo e ninguém aprova o próprio timesheet.
+- `timesheet_entries`: o apontamento pertence ao colaborador do timesheet e cai dentro do período.
+- `manager_scopes`: cada linha aponta para um colaborador **ou** para um departamento, sem duplicados.
+- `updated_at` é mantido por trigger em todas as tabelas que o têm.
+
+## 4. Ficheiros de Migração (fonte única de verdade)
+
+Todas as migrações encontram-se em `supabase/migrations/` e são executadas por ordem (ver `docs/supabase-setup.md`):
+1. `20261001000000_initial_schema.sql`: tabelas, constraints, índices e triggers de integridade.
+2. `20261001000001_rls_policies.sql`: funções de segurança, proteção do último administrador, auditoria, privilégios e políticas RLS.
+3. `20261001000002_seed_data.sql`: departamentos, perfis de acesso, permissões, atividades e configurações. **Não cria utilizadores.**
+
+O primeiro administrador é configurado com `supabase/scripts/bootstrap_first_admin.sql`.

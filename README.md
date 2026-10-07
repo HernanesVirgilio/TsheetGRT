@@ -1,4 +1,4 @@
-# SI HOLDINGS TIMESHEET
+# TsheetGRT · SI Holdings
 
 Plataforma corporativa interna para gestão de operações, folhas de horas (*timesheets*), aprovações e auditoria da **SI Holdings**.
 
@@ -19,102 +19,85 @@ O produto foi desenhado segundo os seguintes princípios:
 
 ## 2. Tecnologias Utilizadas
 
-- **Frontend:** React 19, TypeScript, Vite, React Router v7.
-- **Estilos:** Tailwind CSS v4 com identidade institucional SI Holdings (`#1F5FAD` azul institucional, `#12304A` azul-marinho, `#F5F7FA` fundo claro).
+- **Frontend:** React 19, TypeScript (modo `strict`), Vite, React Router v7.
+- **Estilos:** Tailwind CSS v4 com o Design System global definido em `src/index.css` (`@theme`).
 - **Ícones:** Lucide React.
-- **Base de Dados & Auth:** Supabase (PostgreSQL, Supabase Auth, Row Level Security, Edge Functions).
+- **Backend:** Supabase (PostgreSQL, Supabase Auth, Row Level Security, Edge Functions).
+
+### Design System
+
+Tokens semânticos partilhados por todas as dashboards (nunca usar cores hexadecimais diretamente nos componentes):
+
+| Token | Valor | Uso |
+| :--- | :--- | :--- |
+| `primary` | `#47B255` | Botões primários (texto `on-primary`), estados ativos, destaques |
+| `primary-hover` | `#0B8043` | Hover, links e foco (contraste AA sobre branco) |
+| `sidebar` | `#0F7A6B` | Sidebar, cabeçalhos de tabela, ícones institucionais |
+| `background` / `surface` | `#F8F9FA` / `#FFFFFF` | Fundo da aplicação / cartões, modais, tabelas |
+| `text` / `text-secondary` | `#1A1A1A` / `#333333` | Texto principal / secundário |
+| `border` / `border-input` | `#D9E0E7` / `#7D8A96` | Divisórias / contorno de campos (≥ 3:1) |
+
+Componentes base em `src/components/ui`: `Button`, `IconButton`, `TextField`, `SelectField`, `TextAreaField`, `Modal`, `ConfirmDialog`, `Alert`, `LoadingState`, `ErrorState`, `EmptyState`, `Panel`, `DataTable` (tabela no desktop, cartões no mobile), `Pagination`, `StatusBadge`.
 
 ---
 
-## 3. Contas de Desenvolvimento & Testes
+## 3. Configuração
 
-Para efeitos de validação de funcionalidades em ambiente de desenvolvimento, estão pré-configuradas 4 contas correspondentes aos diferentes perfis operacionais:
+Siga [docs/supabase-setup.md](docs/supabase-setup.md) para preparar o projeto Supabase (migrations, autenticação, Edge Function e primeiro administrador).
 
-| Perfil | E-mail de Desenvolvimento | Nome de Exibição | Palavra-passe Inicial |
-| :--- | :--- | :--- | :--- |
-| **ADMIN** | `admin@siholdings-mz.com` | Administrador SI Holdings | `123456` |
-| **IT** | `it@siholdings-mz.com` | Hernanes Virgilio | `123456` |
-| **MANAGER** | `manager@siholdings-mz.com` | Manager de Teste | `123456` |
-| **COLABORADOR** | `colaborador@siholdings-mz.com` | Colaborador de Teste | `123456` |
-
-> **Nota de Segurança:** As contas com palavra-passe inicial `123456` têm o sinalizador `must_change_password` ativo. O sistema redireciona automaticamente para `/alterar-palavra-passe` no primeiro acesso. O seletor de perfil na barra lateral permite alternar instantaneamente entre perfis durante a validação.
-
----
-
-## 4. Variáveis de Ambiente & Supabase
-
-Consulte o ficheiro `.env` e `.env.example`:
+Variáveis do frontend (`.env`, a partir de `.env.example`):
 
 ```bash
-# Supabase Configuration
-VITE_SUPABASE_URL=https://iahgopefwixbprfzcwbd.supabase.co
-VITE_SUPABASE_ANON_KEY=sb_publishable_6cX3j02MOIURRS4xEVf3ww_74CjQUCs
-VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_6cX3j02MOIURRS4xEVf3ww_74CjQUCs
-
-# Informação de infraestrutura
-SUPABASE_URL=https://iahgopefwixbprfzcwbd.supabase.co
-SUPABASE_PUBLISHABLE_KEY=sb_publishable_6cX3j02MOIURRS4xEVf3ww_74CjQUCs
-SUPABASE_JWKS_URL=https://iahgopefwixbprfzcwbd.supabase.co/auth/v1/.well-known/jwks.json
+VITE_SUPABASE_URL=https://<project-ref>.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=<publishable-key>
 ```
 
-### Inicialização do Esquema no Supabase
-1. Abra o [SQL Editor no Supabase Dashboard](https://supabase.com/dashboard/project/iahgopefwixbprfzcwbd/sql/new).
-2. Cole e execute o script consolidado em `supabase/schema_full.sql` (ou clique no botão **"Copiar SQL Completo"** disponível diretamente em `/system-health`).
-3. O script cria automaticamente todas as 12 tabelas, extensões UUID, triggers de cálculo de horas e as políticas Row Level Security (RLS).
-
-**Regras de Segurança:**
-- Nunca exponha a `SUPABASE_SECRET_KEY` no pacote da aplicação web cliente.
-- A anon key / publishable key pública comunica de forma segura com o Supabase com suporte a RLS.
+Apenas a chave pública (publishable) é usada no frontend. A `service_role` existe exclusivamente no ambiente da Edge Function.
 
 ---
 
-## 5. Como Executar Localmente
+## 4. Como Executar Localmente
 
-### Pré-requisitos
-- Node.js 18+ ou 20+
-- npm 9+
-
-### Instalação e Execução
 ```bash
-# 1. Instalar dependências
 npm install
-
-# 2. Iniciar servidor de desenvolvimento (porta 3000)
-npm run dev
-
-# 3. Compilação e verificação de tipagem TypeScript
-npm run build
-npm run lint
+npm run dev        # http://localhost:3000
+npm run typecheck  # TypeScript strict
+npm test           # testes de regras e utilitários
+npm run build      # build de produção
 ```
 
 ---
 
-## 6. Estrutura do Projeto
+## 5. Estrutura do Projeto
 
 ```
 src/
 ├── components/
-│   ├── layout/       # AppShell, Header, Sidebar, ProtectedRoute, NotificationDropdown
-│   └── ui/           # PageHeader, StatCard, StatusBadge, ConfirmDialog, UserAvatar, EmptyState
+│   ├── admin/        # Formulário de utilizador, atribuição de perfil, ativação/desativação
+│   ├── layout/       # AppShell, Header, Sidebar, ProtectedRoute, AuthLayout
+│   └── ui/           # Design System (componentes base)
+├── hooks/            # useAsyncData, useDebouncedValue
 ├── lib/
-│   ├── auth/         # AuthContext, hooks de permissão e sessão
-│   └── supabase/     # Cliente centralizado Supabase, dados de semente e mockDb
-├── pages/
-│   ├── auth/         # Login, Alteração de palavra-passe, Recuperação de credenciais
-│   ├── dashboard/    # Dashboards especializados para Colaborador, Gestor, IT e Admin
-│   ├── timesheets/   # Listagem de períodos e editor diário de ponto
-│   ├── manager/      # Validação de aprovações e visualização de equipa
-│   ├── admin/        # Gestão de utilizadores, departamentos, roles, saúde e definições
-│   ├── reports/      # Relatórios analíticos e exportação para CSV
-│   └── profile/      # Perfil do colaborador e atualização de contactos
-├── services/         # dataService com validações de negócio, cálculo de horas e auditoria
-└── types/            # Definições estritas de TypeScript
+│   ├── auth/         # AuthContext (Supabase Auth → perfil → permissões)
+│   ├── supabase/     # Cliente Supabase tipado
+│   └── errors.ts     # Tradução de erros do Supabase para mensagens claras
+├── pages/            # Páginas por área (admin, auth, dashboard, reports, ...)
+├── services/         # Acesso a dados (um serviço por domínio)
+├── types/            # Tipos de domínio e da base de dados
+└── utils/            # Validação, formatação, CSV, agregações de relatórios
+supabase/
+├── migrations/       # Schema, segurança e dados de referência (fonte única de verdade)
+├── functions/        # Edge Function admin-create-user
+└── scripts/          # Configuração do primeiro administrador
 ```
+
+> **Estado dos módulos:** a área Admin (utilizadores, departamentos, perfis e permissões, auditoria, saúde do sistema, configurações e relatórios) está integrada com o Supabase. Os módulos de timesheet, equipa e aprovações, e as dashboards de Colaborador, Gestor e IT, ainda usam a camada temporária `src/services/dataService.ts` e serão migrados nas próximas fases.
 
 ---
 
-## 7. Documentação Detalhada
+## 6. Documentação Detalhada
 
+- [Configuração do Supabase](docs/supabase-setup.md)
 - [Arquitetura do Sistema](docs/architecture.md)
 - [Esquema da Base de Dados & Migrações](docs/database.md)
 - [Políticas de Segurança & RLS](docs/security.md)

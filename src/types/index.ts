@@ -1,42 +1,58 @@
-export type RoleCode = 'ADMIN' | 'IT' | 'MANAGER' | 'EMPLOYEE';
+export const ROLE_CODES = ['ADMIN', 'IT', 'MANAGER', 'EMPLOYEE'] as const;
 
-export type PermissionCode =
-  | 'SELF_ACCESS'
-  | 'SELF_PROFILE_READ'
-  | 'SELF_PROFILE_UPDATE'
-  | 'SELF_TIMESHEET_READ'
-  | 'SELF_TIMESHEET_CREATE'
-  | 'SELF_TIMESHEET_UPDATE'
-  | 'SELF_TIMESHEET_SUBMIT'
-  | 'TEAM_READ'
-  | 'TEAM_TIMESHEET_READ'
-  | 'TEAM_TIMESHEET_REVIEW'
-  | 'TEAM_TIMESHEET_APPROVE'
-  | 'TEAM_TIMESHEET_REJECT'
-  | 'USERS_READ'
-  | 'USERS_CREATE'
-  | 'USERS_UPDATE'
-  | 'USERS_DISABLE'
-  | 'USERS_ASSIGN_ROLE'
-  | 'ROLES_READ'
-  | 'ROLES_MANAGE'
-  | 'PERMISSIONS_READ'
-  | 'PERMISSIONS_MANAGE'
-  | 'DEPARTMENTS_READ'
-  | 'DEPARTMENTS_MANAGE'
-  | 'AUDIT_READ'
-  | 'SYSTEM_HEALTH_READ'
-  | 'SYSTEM_SETTINGS_READ'
-  | 'SYSTEM_SETTINGS_MANAGE'
-  | 'REPORTS_READ'
-  | 'REPORTS_EXPORT'
-  | 'TASKS_READ'
-  | 'TASKS_CREATE'
-  | 'TASKS_UPDATE'
-  | 'TASKS_MANAGE'
-  | 'ADMIN_ACCESS';
+export type RoleCode = (typeof ROLE_CODES)[number];
 
-export type TimesheetStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'LOCKED';
+export function isRoleCode(value: string): value is RoleCode {
+  return (ROLE_CODES as readonly string[]).includes(value);
+}
+
+// Espelha public.permissions (supabase/migrations/20261001000002_seed_data.sql).
+export const PERMISSION_CODES = [
+  'SELF_ACCESS',
+  'SELF_PROFILE_READ',
+  'SELF_PROFILE_UPDATE',
+  'SELF_TIMESHEET_READ',
+  'SELF_TIMESHEET_CREATE',
+  'SELF_TIMESHEET_UPDATE',
+  'SELF_TIMESHEET_SUBMIT',
+  'TEAM_READ',
+  'TEAM_TIMESHEET_READ',
+  'TEAM_TIMESHEET_REVIEW',
+  'TEAM_TIMESHEET_APPROVE',
+  'TEAM_TIMESHEET_REJECT',
+  'USERS_READ',
+  'USERS_CREATE',
+  'USERS_UPDATE',
+  'USERS_DISABLE',
+  'USERS_ASSIGN_ROLE',
+  'ROLES_READ',
+  'ROLES_MANAGE',
+  'PERMISSIONS_READ',
+  'PERMISSIONS_MANAGE',
+  'DEPARTMENTS_READ',
+  'DEPARTMENTS_MANAGE',
+  'AUDIT_READ',
+  'SYSTEM_HEALTH_READ',
+  'SYSTEM_SETTINGS_READ',
+  'SYSTEM_SETTINGS_MANAGE',
+  'REPORTS_READ',
+  'REPORTS_EXPORT',
+  'ADMIN_ACCESS',
+] as const;
+
+export type PermissionCode = (typeof PERMISSION_CODES)[number];
+
+export function isPermissionCode(value: string): value is PermissionCode {
+  return (PERMISSION_CODES as readonly string[]).includes(value);
+}
+
+export const TIMESHEET_STATUSES = ['DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED', 'LOCKED'] as const;
+
+export type TimesheetStatus = (typeof TIMESHEET_STATUSES)[number];
+
+export function isTimesheetStatus(value: string): value is TimesheetStatus {
+  return (TIMESHEET_STATUSES as readonly string[]).includes(value);
+}
 
 export type ApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
@@ -58,7 +74,7 @@ export interface Department {
 
 export interface Profile {
   id: string;
-  auth_user_id: string;
+  auth_user_id: string | null;
   employee_number: string | null;
   full_name: string;
   email: string;
@@ -73,7 +89,7 @@ export interface Profile {
   last_login_at?: string | null;
   // joined fields
   department?: Department | null;
-  roles?: Role[];
+  role?: Role | null;
 }
 
 export interface Role {

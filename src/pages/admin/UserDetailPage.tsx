@@ -1,236 +1,223 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import {
-  ArrowLeft,
-  Mail,
-  Phone,
-  Building2,
-  Briefcase,
-  Shield,
-  Calendar,
-  Clock,
-  Edit2,
-  UserCheck,
-  UserX,
-  FileClock,
-} from 'lucide-react';
+import React, { useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import { ArrowLeft, FileClock, Pencil, Shield, UserCheck, UserX } from 'lucide-react';
 import { useAuth } from '../../lib/auth/AuthContext';
-import { dataService, formatMinutesToHours } from '../../services/dataService';
-import { Profile, Timesheet, AuditEvent, RoleCode } from '../../types';
+import { useAsyncData } from '../../hooks/useAsyncData';
+import { getUser, listUserActivity, listUserTimesheets } from '../../services/userService';
+import type { UserTimesheetSummary } from '../../services/userService';
+import { listDepartments } from '../../services/departmentService';
+import { listRoles } from '../../services/roleService';
 import { PageHeader } from '../../components/ui/PageHeader';
-import { UserAvatar } from '../../components/ui/UserAvatar';
+import { Panel } from '../../components/ui/Panel';
+import { Alert } from '../../components/ui/Alert';
+import { Button } from '../../components/ui/Button';
+import { DataTable } from '../../components/ui/DataTable';
+import type { DataTableColumn } from '../../components/ui/DataTable';
+import { EmptyState } from '../../components/ui/EmptyState';
+import { ErrorState, LoadingState } from '../../components/ui/States';
 import { StatusBadge } from '../../components/ui/StatusBadge';
-import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { UserAvatar } from '../../components/ui/UserAvatar';
+import { UserFormModal } from '../../components/admin/UserFormModal';
+import { RoleAssignModal } from '../../components/admin/RoleAssignModal';
+import { UserStatusDialog } from '../../components/admin/UserStatusDialog';
+import { formatDate, formatDateTime, formatMinutesAsHours, formatPeriod } from '../../utils/format';
+import { isUuid } from '../../utils/validation';
+
+const TIMESHEET_COLUMNS: DataTableColumn<UserTimesheetSummary>[] = [
+  { id: 'period', header: 'Período', render: (timesheet) => formatPeriod(timesheet.periodStart, timesheet.periodEnd) },
+  { id: 'status', header: 'Estado', render: (timesheet) => <StatusBadge status={timesheet.status} size="sm" /> },
+  { id: 'entries', header: 'Registos', render: (timesheet) => timesheet.entryCount },
+  { id: 'hours', header: 'Horas', render: (timesheet) => formatMinutesAsHours(timesheet.totalMinutes) },
+  { id: 'submitted', header: 'Submetido em', render: (timesheet) => formatDate(timesheet.submittedAt) },
+];
+
+const DetailItem: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+  <div>
+    <dt className="text-sm text-text-muted">{label}</dt>
+    <dd className="mt-0.5 text-sm font-medium text-text">{children}</dd>
+  </div>
+);
+
+const BackLink: React.FC = () => (
+  <Link to="/users" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary-hover hover:underline">
+    <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+    Voltar a utilizadores
+  </Link>
+);
 
 export const UserDetailPage: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
-  const { currentUser, role: currentRole } = useAuth();
-  const navigate = useNavigate();
+  const { id = '' } = useParams<{ id: string }>();
+  const { currentUser, hasPermission } = useAuth();
+  const isValidId = isUuid(id);
 
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [userTimesheets, setUserTimesheets] = useState<Timesheet[]>([]);
-  const [userAudits, setUserAudits] = useState<AuditEvent[]>([]);
-  const [statusConfirmOpen, setStatusConfirmOpen] = useState(false);
+  const user = useAsyncData(() => (isValidId ? getUser(id) : Promise.resolve(null)), [id]);
+  const timesheets = useAsyncData(() => (isValidId ? listUserTimesheets(id) : Promise.resolve([])), [id]);
+  const canReadAudit = hasPermission('AUDIT_READ');
+  const activity = useAsyncData(
+    () => (isValidId && canReadAudit ? listUserActivity(id) : Promise.resolve([])),
+    [id, canReadAudit]
+  );
+  const referenceData = useAsyncData(() => Promise.all([listDepartments(), listRoles()]), []);
+  const [departments, roles] = referenceData.data ?? [[], []];
 
-  const loadData = () => {
-    if (!id) return;
-    const p = dataService.getProfileById(id);
-    if (!p) {
-      navigate('/users');
-      return;
-    }
-    setProfile(p);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isRoleOpen, setIsRoleOpen] = useState(false);
+  const [isStatusOpen, setIsStatusOpen] = useState(false);
 
-    if (currentUser) {
-      // Load this user's timesheets
-      const allTs = dataService.getTimesheets(currentUser);
-      setUserTimesheets(allTs.filter((t) => t.employee_id === id));
+  if (user.isLoading && !user.data) return <LoadingState label="A carregar utilizador..." />;
+  if (user.error) {
+    return (
+      <div className="space-y-4">
+        <BackLink />
+        <ErrorState message={user.error} onRetry={user.reload} />
+      </div>
+    );
+  }
+  if (!user.data) {
+    return (
+      <div className="space-y-4">
+        <BackLink />
+        <EmptyState title="Utilizador não encontrado." message="O utilizador não existe ou não tem permissão para o consultar." />
+      </div>
+    );
+  }
 
-      // Load audit events for this user
-      const audits = dataService.getAuditEvents(1, 20, undefined, p.email);
-      setUserAudits(audits.items);
-    }
+  const profile = user.data;
+  const isCurrentUser = profile.id === currentUser?.id;
+  const canAssignAdmin = hasPermission('ADMIN_ACCESS');
+
+  const handleSaved = (message: string) => {
+    setIsEditOpen(false);
+    setIsRoleOpen(false);
+    setIsStatusOpen(false);
+    setSuccessMessage(message);
+    user.reload();
+    activity.reload();
   };
-
-  useEffect(() => {
-    loadData();
-  }, [id, currentUser]);
-
-  if (!profile) return null;
-
-  const handleToggleStatus = () => {
-    if (!currentUser) return;
-    try {
-      dataService.toggleUserStatus(profile.id, !profile.is_active, currentUser.id);
-      setStatusConfirmOpen(false);
-      loadData();
-    } catch (err: any) {
-      alert(err.message || 'Erro ao alterar estado do utilizador');
-    }
-  };
-
-  const canManage = currentRole === 'ADMIN';
 
   return (
     <div className="space-y-6">
-      <div>
-        <button
-          onClick={() => navigate('/users')}
-          className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800 transition font-medium"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          Voltar à lista de utilizadores
-        </button>
-      </div>
-
+      <BackLink />
       <PageHeader
         title={profile.full_name}
-        subtitle={`Nº de Colaborador: ${profile.employee_number || 'SIH'} · ${profile.job_title || 'Colaborador'}`}
+        subtitle={`${profile.employee_number ?? ''} · ${profile.job_title ?? 'Sem cargo definido'}`}
         actions={
-          canManage && (
-            <div className="flex items-center gap-2">
-              <StatusBadge status={profile.is_active ? 'ACTIVE' : 'INACTIVE'} />
-              <button
-                onClick={() => setStatusConfirmOpen(true)}
-                className={`px-3 py-1.5 text-xs font-semibold rounded border transition flex items-center gap-1.5 ${
-                  profile.is_active
-                    ? 'border-red-200 text-[#C0392B] hover:bg-red-50'
-                    : 'border-emerald-200 text-emerald-800 hover:bg-emerald-50'
-                }`}
+          <>
+            {hasPermission('USERS_UPDATE') && (
+              <Button variant="secondary" icon={Pencil} onClick={() => setIsEditOpen(true)} disabled={!referenceData.data}>
+                Editar
+              </Button>
+            )}
+            {hasPermission('USERS_ASSIGN_ROLE') && (
+              <Button variant="secondary" icon={Shield} onClick={() => setIsRoleOpen(true)} disabled={!referenceData.data}>
+                Perfil de acesso
+              </Button>
+            )}
+            {hasPermission('USERS_DISABLE') && !isCurrentUser && (
+              <Button
+                variant={profile.is_active ? 'danger' : 'primary'}
+                icon={profile.is_active ? UserX : UserCheck}
+                onClick={() => setIsStatusOpen(true)}
               >
-                {profile.is_active ? (
-                  <>
-                    <UserX className="w-3.5 h-3.5" />
-                    Desativar Conta
-                  </>
-                ) : (
-                  <>
-                    <UserCheck className="w-3.5 h-3.5" />
-                    Ativar Conta
-                  </>
-                )}
-              </button>
-            </div>
-          )
+                {profile.is_active ? 'Desativar' : 'Ativar'}
+              </Button>
+            )}
+          </>
         }
       />
 
-      {/* User Information Card */}
-      <div className="bg-white rounded-lg border border-[#D9E0E7] shadow-xs p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-4 pb-6 border-b border-slate-100">
+      {successMessage && (
+        <Alert variant="success" onDismiss={() => setSuccessMessage(null)}>
+          {successMessage}
+        </Alert>
+      )}
+      {!profile.is_active && (
+        <Alert variant="warning">Esta conta está desativada e não consegue aceder ao sistema.</Alert>
+      )}
+
+      <Panel>
+        <div className="mb-5 flex items-center gap-4">
           <UserAvatar name={profile.full_name} size="lg" />
           <div>
-            <h2 className="text-base font-bold text-slate-800">{profile.full_name}</h2>
-            <p className="text-xs text-slate-500">{profile.email}</p>
-            <div className="flex items-center gap-2 mt-2">
-              <span className="px-2 py-0.5 rounded bg-blue-50 text-[#1F5FAD] border border-blue-100 font-semibold text-[11px]">
-                Role: {profile.roles?.[0]?.code || 'COLABORADOR'}
-              </span>
-              <span className="text-xs text-slate-400">·</span>
-              <span className="text-xs text-slate-600 font-medium">
-                {profile.department?.name || 'Sem departamento'}
-              </span>
-            </div>
+            <p className="text-base font-semibold text-text">{profile.full_name}</p>
+            <p className="text-sm text-text-secondary">{profile.email}</p>
+          </div>
+          <div className="ml-auto">
+            <StatusBadge status={profile.is_active ? 'ACTIVE' : 'INACTIVE'} />
           </div>
         </div>
+        <dl className="grid grid-cols-1 gap-4 border-t border-border pt-5 sm:grid-cols-2 lg:grid-cols-3">
+          <DetailItem label="Perfil de acesso">{profile.role?.name ?? 'Sem perfil'}</DetailItem>
+          <DetailItem label="Departamento">{profile.department?.name ?? 'Sem departamento'}</DetailItem>
+          <DetailItem label="Cargo / função">{profile.job_title ?? '—'}</DetailItem>
+          <DetailItem label="Telefone">{profile.phone ?? '—'}</DetailItem>
+          <DetailItem label="Criado em">{formatDate(profile.created_at)}</DetailItem>
+          <DetailItem label="Último acesso">{formatDateTime(profile.last_login_at, 'Nunca acedeu')}</DetailItem>
+        </dl>
+      </Panel>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 text-xs">
-          <div>
-            <span className="text-slate-500 font-medium block">Telefone:</span>
-            <span className="font-semibold text-slate-800">{profile.phone || 'Não registado'}</span>
-          </div>
-          <div>
-            <span className="text-slate-500 font-medium block">Data de Criação:</span>
-            <span className="font-semibold text-slate-800">
-              {new Date(profile.created_at).toLocaleDateString('pt-PT')}
-            </span>
-          </div>
-          <div>
-            <span className="text-slate-500 font-medium block">Último Acesso:</span>
-            <span className="font-semibold text-slate-800">
-              {profile.last_login_at
-                ? new Date(profile.last_login_at).toLocaleString('pt-PT')
-                : 'Nunca acedeu'}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* User's Timesheet History */}
-      <div className="bg-white rounded-lg border border-[#D9E0E7] shadow-xs overflow-hidden">
-        <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-bold text-[#1F2937]">Histórico de Folhas de Ponto</h3>
-            <p className="text-xs text-[#64748B]">Timesheets registados por este colaborador</p>
-          </div>
-          <span className="text-xs text-slate-500">{userTimesheets.length} períodos</span>
-        </div>
-
-        {userTimesheets.length === 0 ? (
-          <div className="p-6 text-center text-xs text-slate-400">
-            Nenhum timesheet registado para este utilizador.
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-[#D9E0E7] bg-slate-50 text-slate-600 font-semibold">
-                  <th className="py-2.5 px-4">Período</th>
-                  <th className="py-2.5 px-4">Horas Totais</th>
-                  <th className="py-2.5 px-4">Lançamentos</th>
-                  <th className="py-2.5 px-4">Estado</th>
-                  <th className="py-2.5 px-4">Submetido</th>
-                  <th className="py-2.5 px-4 text-right">Ação</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {userTimesheets.map((ts) => (
-                  <tr key={ts.id} className="hover:bg-slate-50">
-                    <td className="py-2.5 px-4 font-medium text-slate-800">
-                      {ts.period_start} a {ts.period_end}
-                    </td>
-                    <td className="py-2.5 px-4 font-bold text-[#1F5FAD]">
-                      {formatMinutesToHours(ts.total_minutes || 0)}
-                    </td>
-                    <td className="py-2.5 px-4 text-slate-600">
-                      {ts.entries?.length || 0}
-                    </td>
-                    <td className="py-2.5 px-4">
-                      <StatusBadge status={ts.status} size="sm" />
-                    </td>
-                    <td className="py-2.5 px-4 text-slate-500">
-                      {ts.submitted_at ? new Date(ts.submitted_at).toLocaleDateString('pt-PT') : '—'}
-                    </td>
-                    <td className="py-2.5 px-4 text-right">
-                      <button
-                        onClick={() => navigate(`/timesheets/${ts.id}`)}
-                        className="text-xs font-semibold text-[#1F5FAD] hover:underline"
-                      >
-                        Ver Detalhes
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      <Panel title="Timesheets" description="Períodos registados por este colaborador." flush>
+        {timesheets.error && (
+          <div className="p-4">
+            <ErrorState message={timesheets.error} onRetry={timesheets.reload} />
           </div>
         )}
-      </div>
+        {timesheets.isLoading && !timesheets.data && <LoadingState />}
+        {timesheets.data?.length === 0 && <EmptyState bordered={false} title="Nenhum timesheet registado." />}
+        {timesheets.data && timesheets.data.length > 0 && (
+          <DataTable
+            caption={`Timesheets de ${profile.full_name}`}
+            columns={TIMESHEET_COLUMNS}
+            rows={timesheets.data}
+            getRowKey={(timesheet) => timesheet.id}
+          />
+        )}
+      </Panel>
 
-      {/* Confirmation Dialog for Toggle Status */}
-      <ConfirmDialog
-        isOpen={statusConfirmOpen}
-        title={profile.is_active ? 'Desativar este utilizador?' : 'Ativar este utilizador?'}
-        message={
-          profile.is_active
-            ? `O utilizador ${profile.full_name} deixará de conseguir iniciar sessão na plataforma.`
-            : `O utilizador ${profile.full_name} recuperará o acesso ao sistema.`
-        }
-        confirmLabel={profile.is_active ? 'Desativar' : 'Ativar'}
-        variant={profile.is_active ? 'danger' : 'primary'}
-        onConfirm={handleToggleStatus}
-        onCancel={() => setStatusConfirmOpen(false)}
+      {canReadAudit && (
+        <Panel title="Atividade recente" description="Ações realizadas por este utilizador ou sobre a sua conta." flush>
+          {activity.error && (
+            <div className="p-4">
+              <ErrorState message={activity.error} onRetry={activity.reload} />
+            </div>
+          )}
+          {activity.isLoading && !activity.data && <LoadingState />}
+          {activity.data?.length === 0 && (
+            <EmptyState bordered={false} icon={FileClock} title="Sem atividade registada." />
+          )}
+          {activity.data && activity.data.length > 0 && (
+            <ul className="divide-y divide-border">
+              {activity.data.map((event) => (
+                <li key={event.id} className="px-5 py-3">
+                  <p className="text-sm text-text">{event.description}</p>
+                  <p className="mt-0.5 text-xs text-text-muted">
+                    <span className="font-mono">{event.action}</span> · {formatDateTime(event.created_at)}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
+      )}
+
+      <UserFormModal
+        isOpen={isEditOpen}
+        user={profile}
+        departments={departments}
+        roles={roles}
+        canAssignAdmin={canAssignAdmin}
+        onClose={() => setIsEditOpen(false)}
+        onSaved={handleSaved}
       />
+      <RoleAssignModal
+        user={isRoleOpen ? profile : null}
+        roles={roles}
+        canAssignAdmin={canAssignAdmin}
+        onClose={() => setIsRoleOpen(false)}
+        onSaved={handleSaved}
+      />
+      <UserStatusDialog user={isStatusOpen ? profile : null} onClose={() => setIsStatusOpen(false)} onSaved={handleSaved} />
     </div>
   );
 };

@@ -1,659 +1,310 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import {
-  Users,
-  Plus,
-  Search,
-  Filter,
-  Shield,
-  UserCheck,
-  UserX,
-  Edit2,
-  AlertCircle,
-  Building2,
-  Eye,
-} from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Eye, Pencil, Plus, Shield, UserCheck, UserX, Users } from 'lucide-react';
 import { useAuth } from '../../lib/auth/AuthContext';
-import { dataService } from '../../services/dataService';
-import { Profile, Department, Role, RoleCode } from '../../types';
+import { useAsyncData } from '../../hooks/useAsyncData';
+import { listUsers } from '../../services/userService';
+import { listDepartments } from '../../services/departmentService';
+import { listRoles } from '../../services/roleService';
+import type { Profile } from '../../types';
 import { PageHeader } from '../../components/ui/PageHeader';
-import { UserAvatar } from '../../components/ui/UserAvatar';
-import { StatusBadge } from '../../components/ui/StatusBadge';
-import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { Panel } from '../../components/ui/Panel';
+import { Alert } from '../../components/ui/Alert';
+import { Button, IconButton } from '../../components/ui/Button';
+import { FilterSelect, SearchInput } from '../../components/ui/FormField';
+import { DataTable } from '../../components/ui/DataTable';
+import type { DataTableColumn, SortState } from '../../components/ui/DataTable';
+import { Pagination } from '../../components/ui/Pagination';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { ErrorState, LoadingState } from '../../components/ui/States';
+import { StatusBadge } from '../../components/ui/StatusBadge';
+import { UserAvatar } from '../../components/ui/UserAvatar';
+import { UserFormModal } from '../../components/admin/UserFormModal';
+import { RoleAssignModal } from '../../components/admin/RoleAssignModal';
+import { UserStatusDialog } from '../../components/admin/UserStatusDialog';
+import { formatDateTime } from '../../utils/format';
+
+const PAGE_SIZE = 20;
+const ALL = 'ALL';
+
+type UserSortKey = 'name' | 'lastLogin';
+type StatusFilter = typeof ALL | 'ACTIVE' | 'INACTIVE';
+
+interface UserFilters {
+  search: string;
+  roleId: string;
+  departmentId: string;
+  status: StatusFilter;
+}
+
+const EMPTY_FILTERS: UserFilters = { search: '', roleId: ALL, departmentId: ALL, status: ALL };
+
+function matchesFilters(user: Profile, filters: UserFilters): boolean {
+  const search = filters.search.trim().toLowerCase();
+  const matchesSearch =
+    !search ||
+    user.full_name.toLowerCase().includes(search) ||
+    user.email.toLowerCase().includes(search) ||
+    (user.employee_number ?? '').toLowerCase().includes(search);
+
+  return (
+    matchesSearch &&
+    (filters.roleId === ALL || user.role?.id === filters.roleId) &&
+    (filters.departmentId === ALL || user.department_id === filters.departmentId) &&
+    (filters.status === ALL || (filters.status === 'ACTIVE') === user.is_active)
+  );
+}
+
+function compareUsers(first: Profile, second: Profile, sort: SortState<UserSortKey>): number {
+  const direction = sort.direction === 'asc' ? 1 : -1;
+  if (sort.key === 'name') return first.full_name.localeCompare(second.full_name, 'pt-PT') * direction;
+  // Quem nunca acedeu fica sempre no fim.
+  const firstValue = first.last_login_at ?? '';
+  const secondValue = second.last_login_at ?? '';
+  if (!firstValue || !secondValue) return firstValue ? -1 : secondValue ? 1 : 0;
+  return firstValue.localeCompare(secondValue) * direction;
+}
+
+function isStatusFilter(value: string): value is StatusFilter {
+  return value === ALL || value === 'ACTIVE' || value === 'INACTIVE';
+}
 
 export const UsersPage: React.FC = () => {
-  const { currentUser, role: userRole } = useAuth();
-  const navigate = useNavigate();
-  const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [roles, setRoles] = useState<Role[]>([]);
+  const { currentUser, hasPermission } = useAuth();
+  const users = useAsyncData(listUsers, []);
+  const referenceData = useAsyncData(() => Promise.all([listDepartments(), listRoles()]), []);
+  const [departments, roles] = referenceData.data ?? [[], []];
 
-  // Filters
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedRole, setSelectedRole] = useState('ALL');
-  const [selectedDept, setSelectedDept] = useState('ALL');
-  const [selectedStatus, setSelectedStatus] = useState('ALL');
+  const [filters, setFilters] = useState<UserFilters>(EMPTY_FILTERS);
+  const [sort, setSort] = useState<SortState<UserSortKey>>({ key: 'name', direction: 'asc' });
+  const [page, setPage] = useState(1);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Modals
-  const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [editProfile, setEditProfile] = useState<Profile | null>(null);
-  const [roleModalProfile, setRoleModalProfile] = useState<Profile | null>(null);
-  const [newSelectedRole, setNewSelectedRole] = useState<RoleCode>('EMPLOYEE');
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [userToEdit, setUserToEdit] = useState<Profile | null>(null);
+  const [userForRole, setUserForRole] = useState<Profile | null>(null);
+  const [userForStatus, setUserForStatus] = useState<Profile | null>(null);
 
-  // Status toggle confirmation
-  const [statusConfirmProfile, setStatusConfirmProfile] = useState<Profile | null>(null);
+  const canCreate = hasPermission('USERS_CREATE') && hasPermission('USERS_ASSIGN_ROLE');
+  const canUpdate = hasPermission('USERS_UPDATE');
+  const canAssignRole = hasPermission('USERS_ASSIGN_ROLE');
+  const canChangeStatus = hasPermission('USERS_DISABLE');
+  const canAssignAdmin = hasPermission('ADMIN_ACCESS');
 
-  // New user form
-  const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [deptId, setDeptId] = useState('');
-  const [jobTitle, setJobTitle] = useState('');
-  const [initialRole, setInitialRole] = useState<RoleCode>('EMPLOYEE');
-  const [formError, setFormError] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const filteredUsers = useMemo(
+    () => (users.data ?? []).filter((user) => matchesFilters(user, filters)).sort((a, b) => compareUsers(a, b, sort)),
+    [users.data, filters, sort]
+  );
+  const pageUsers = filteredUsers.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const hasActiveFilters =
+    filters.search.trim() !== '' || filters.roleId !== ALL || filters.departmentId !== ALL || filters.status !== ALL;
 
-  const loadData = () => {
-    const pList = dataService.getProfiles();
-    setProfiles(pList);
-    const dList = dataService.getDepartments();
-    setDepartments(dList);
-    if (dList.length > 0 && !deptId) {
-      setDeptId(dList[0].id);
-    }
-    const rList = dataService.getRoles();
-    setRoles(rList);
+  useEffect(() => setPage(1), [filters]);
+
+  const updateFilter = <Field extends keyof UserFilters>(field: Field, value: UserFilters[Field]) =>
+    setFilters((current) => ({ ...current, [field]: value }));
+
+  const handleSort = (key: UserSortKey) =>
+    setSort((current) => ({
+      key,
+      direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc',
+    }));
+
+  const handleSaved = (message: string) => {
+    setIsCreateOpen(false);
+    setUserToEdit(null);
+    setUserForRole(null);
+    setUserForStatus(null);
+    setSuccessMessage(message);
+    users.reload();
   };
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const filtered = profiles.filter((p) => {
-    const matchesSearch =
-      p.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (p.employee_number && p.employee_number.toLowerCase().includes(searchTerm.toLowerCase()));
-
-    const currentRoleCode = p.roles?.[0]?.code || 'EMPLOYEE';
-    const matchesRole = selectedRole === 'ALL' || currentRoleCode === selectedRole;
-    const matchesDept = selectedDept === 'ALL' || p.department_id === selectedDept;
-    const matchesStatus =
-      selectedStatus === 'ALL' ||
-      (selectedStatus === 'ACTIVE' && p.is_active) ||
-      (selectedStatus === 'INACTIVE' && !p.is_active);
-
-    return matchesSearch && matchesRole && matchesDept && matchesStatus;
-  });
-
-  const handleCreateUser = (e: React.FormEvent) => {
-    e.preventDefault();
-    setFormError('');
-
-    if (!fullName.trim() || !email.trim() || !deptId) {
-      setFormError('Por favor preencha todos os campos obrigatórios.');
-      return;
-    }
-
-    if (!currentUser) return;
-
-    setIsSubmitting(true);
-    try {
-      dataService.createProfile(
-        {
-          full_name: fullName.trim(),
-          email: email.trim(),
-          phone: phone.trim() || undefined,
-          department_id: deptId,
-          job_title: jobTitle.trim() || undefined,
-          role: initialRole,
-        },
-        currentUser.id
-      );
-
-      setCreateModalOpen(false);
-      // Reset form
-      setFullName('');
-      setEmail('');
-      setPhone('');
-      setJobTitle('');
-      loadData();
-    } catch (err: any) {
-      setFormError(err.message || 'Erro ao criar utilizador');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleToggleStatus = () => {
-    if (!currentUser || !statusConfirmProfile) return;
-    try {
-      dataService.toggleUserStatus(
-        statusConfirmProfile.id,
-        !statusConfirmProfile.is_active,
-        currentUser.id
-      );
-      setStatusConfirmProfile(null);
-      loadData();
-    } catch (err: any) {
-      alert(err.message || 'Erro ao alterar estado do utilizador');
-    }
-  };
-
-  const handleSaveRole = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentUser || !roleModalProfile) return;
-
-    try {
-      dataService.assignUserRole(roleModalProfile.id, newSelectedRole, currentUser.id);
-      setRoleModalProfile(null);
-      loadData();
-    } catch (err: any) {
-      alert(err.message || 'Erro ao alterar role');
-    }
-  };
-
-  const handleSaveEdit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentUser || !editProfile) return;
-
-    try {
-      dataService.updateProfile(
-        editProfile.id,
-        {
-          full_name: editProfile.full_name,
-          phone: editProfile.phone,
-          department_id: editProfile.department_id,
-          job_title: editProfile.job_title,
-        },
-        currentUser.id
-      );
-      setEditProfile(null);
-      loadData();
-    } catch (err: any) {
-      alert(err.message || 'Erro ao atualizar dados');
-    }
-  };
-
-  const canManage = userRole === 'ADMIN';
+  const columns: DataTableColumn<Profile, UserSortKey>[] = [
+    {
+      id: 'name',
+      header: 'Utilizador',
+      sortKey: 'name',
+      render: (user) => (
+        <Link to={`/users/${user.id}`} className="flex items-center gap-3 hover:underline">
+          <UserAvatar name={user.full_name} size="sm" />
+          <span>
+            <span className="block font-semibold text-text">{user.full_name}</span>
+            <span className="block text-xs text-text-muted">{user.employee_number}</span>
+          </span>
+        </Link>
+      ),
+    },
+    { id: 'email', header: 'E-mail', render: (user) => user.email },
+    { id: 'department', header: 'Departamento', render: (user) => user.department?.name ?? 'Sem departamento' },
+    { id: 'role', header: 'Perfil', render: (user) => user.role?.name ?? 'Sem perfil' },
+    {
+      id: 'status',
+      header: 'Estado',
+      render: (user) => <StatusBadge status={user.is_active ? 'ACTIVE' : 'INACTIVE'} size="sm" />,
+    },
+    {
+      id: 'lastLogin',
+      header: 'Último acesso',
+      sortKey: 'lastLogin',
+      render: (user) => formatDateTime(user.last_login_at, 'Nunca acedeu'),
+    },
+    {
+      id: 'actions',
+      header: 'Ações',
+      align: 'right',
+      hideLabelOnMobile: true,
+      render: (user) => {
+        const isCurrentUser = user.id === currentUser?.id;
+        return (
+          <div className="flex justify-end gap-1">
+            <Link
+              to={`/users/${user.id}`}
+              aria-label={`Ver ficha de ${user.full_name}`}
+              title="Ver ficha"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-surface-muted hover:text-text"
+            >
+              <Eye className="h-4 w-4" aria-hidden="true" />
+            </Link>
+            {canUpdate && (
+              <IconButton icon={Pencil} label={`Editar ${user.full_name}`} onClick={() => setUserToEdit(user)} />
+            )}
+            {canAssignRole && (
+              <IconButton
+                icon={Shield}
+                label={`Alterar perfil de acesso de ${user.full_name}`}
+                onClick={() => setUserForRole(user)}
+              />
+            )}
+            {canChangeStatus && !isCurrentUser && (
+              <IconButton
+                icon={user.is_active ? UserX : UserCheck}
+                tone={user.is_active ? 'danger' : 'neutral'}
+                label={`${user.is_active ? 'Desativar' : 'Ativar'} ${user.full_name}`}
+                onClick={() => setUserForStatus(user)}
+              />
+            )}
+          </div>
+        );
+      },
+    },
+  ];
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Gestão de Utilizadores"
-        subtitle="Administração de contas corporativas, departamentos e perfis de acesso da SI Holdings."
+        title="Utilizadores"
+        subtitle="Contas, perfis de acesso e departamentos dos colaboradores."
         actions={
-          canManage && (
-            <button
-              onClick={() => setCreateModalOpen(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-[#1F5FAD] hover:bg-[#184d8f] text-white text-sm font-semibold rounded shadow-xs transition"
-            >
-              <Plus className="w-4 h-4" />
-              Novo Utilizador
-            </button>
+          canCreate && (
+            <Button icon={Plus} onClick={() => setIsCreateOpen(true)} disabled={!referenceData.data}>
+              Novo utilizador
+            </Button>
           )
         }
       />
 
-      {/* Filter Toolbar */}
-      <div className="bg-white p-4 rounded-lg border border-[#D9E0E7] shadow-xs space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
-          {/* Search */}
-          <div className="relative">
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Pesquisar por nome, e-mail ou nº..."
-              className="w-full px-3 py-2 pl-9 border border-[#D9E0E7] rounded bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-[#1F5FAD]"
+      {successMessage && (
+        <Alert variant="success" onDismiss={() => setSuccessMessage(null)}>
+          {successMessage}
+        </Alert>
+      )}
+      {referenceData.error && <ErrorState message={referenceData.error} onRetry={referenceData.reload} />}
+
+      <Panel flush>
+        <div className="grid grid-cols-1 gap-3 border-b border-border p-4 sm:grid-cols-2 lg:grid-cols-4">
+          <SearchInput
+            label="Pesquisar nome, e-mail ou nº"
+            value={filters.search}
+            onChange={(event) => updateFilter('search', event.target.value)}
+          />
+          <FilterSelect label="Filtrar por perfil" value={filters.roleId} onChange={(event) => updateFilter('roleId', event.target.value)}>
+            <option value={ALL}>Todos os perfis</option>
+            {roles.map((role) => (
+              <option key={role.id} value={role.id}>
+                {role.name}
+              </option>
+            ))}
+          </FilterSelect>
+          <FilterSelect
+            label="Filtrar por departamento"
+            value={filters.departmentId}
+            onChange={(event) => updateFilter('departmentId', event.target.value)}
+          >
+            <option value={ALL}>Todos os departamentos</option>
+            {departments.map((department) => (
+              <option key={department.id} value={department.id}>
+                {department.name}
+              </option>
+            ))}
+          </FilterSelect>
+          <FilterSelect
+            label="Filtrar por estado"
+            value={filters.status}
+            onChange={(event) => isStatusFilter(event.target.value) && updateFilter('status', event.target.value)}
+          >
+            <option value={ALL}>Todos os estados</option>
+            <option value="ACTIVE">Ativos</option>
+            <option value="INACTIVE">Inativos</option>
+          </FilterSelect>
+        </div>
+
+        {users.error && (
+          <div className="p-4">
+            <ErrorState message={users.error} onRetry={users.reload} />
+          </div>
+        )}
+        {users.isLoading && !users.data && <LoadingState label="A carregar utilizadores..." />}
+
+        {users.data && filteredUsers.length === 0 && (
+          <EmptyState
+            bordered={false}
+            icon={Users}
+            title={hasActiveFilters ? 'Nenhum utilizador corresponde aos filtros.' : 'Nenhum utilizador encontrado.'}
+            action={
+              hasActiveFilters && (
+                <Button variant="secondary" size="sm" onClick={() => setFilters(EMPTY_FILTERS)}>
+                  Limpar filtros
+                </Button>
+              )
+            }
+          />
+        )}
+
+        {filteredUsers.length > 0 && (
+          <>
+            <DataTable
+              caption="Lista de utilizadores"
+              columns={columns}
+              rows={pageUsers}
+              getRowKey={(user) => user.id}
+              sort={sort}
+              onSortChange={handleSort}
             />
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-          </div>
+            <Pagination page={page} pageSize={PAGE_SIZE} totalItems={filteredUsers.length} onPageChange={setPage} />
+          </>
+        )}
+      </Panel>
 
-          {/* Role Filter */}
-          <div>
-            <select
-              value={selectedRole}
-              onChange={(e) => setSelectedRole(e.target.value)}
-              className="w-full px-3 py-2 border border-[#D9E0E7] rounded bg-white text-slate-800"
-            >
-              <option value="ALL">Todos os Roles</option>
-              <option value="ADMIN">ADMIN</option>
-              <option value="IT">IT</option>
-              <option value="MANAGER">MANAGER</option>
-              <option value="EMPLOYEE">COLABORADOR</option>
-            </select>
-          </div>
-
-          {/* Department Filter */}
-          <div>
-            <select
-              value={selectedDept}
-              onChange={(e) => setSelectedDept(e.target.value)}
-              className="w-full px-3 py-2 border border-[#D9E0E7] rounded bg-white text-slate-800"
-            >
-              <option value="ALL">Todos os Departamentos</option>
-              {departments.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name} ({d.code})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Status Filter */}
-          <div>
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="w-full px-3 py-2 border border-[#D9E0E7] rounded bg-white text-slate-800"
-            >
-              <option value="ALL">Todos os Estados</option>
-              <option value="ACTIVE">Ativo</option>
-              <option value="INACTIVE">Inativo</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="text-[11px] text-slate-500 flex items-center justify-between pt-1">
-          <span>A mostrar {filtered.length} de {profiles.length} utilizadores</span>
-          {(searchTerm || selectedRole !== 'ALL' || selectedDept !== 'ALL' || selectedStatus !== 'ALL') && (
-            <button
-              onClick={() => {
-                setSearchTerm('');
-                setSelectedRole('ALL');
-                setSelectedDept('ALL');
-                setSelectedStatus('ALL');
-              }}
-              className="text-[#1F5FAD] hover:underline font-medium"
-            >
-              Limpar filtros
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Users Table */}
-      {filtered.length === 0 ? (
-        <EmptyState
-          title="Não existem utilizadores que correspondam aos filtros"
-          message="Tente ajustar a sua pesquisa ou filtros de departamento e role."
-          icon={Users}
-        />
-      ) : (
-        <div className="bg-white rounded-lg border border-[#D9E0E7] shadow-xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-[#D9E0E7] bg-slate-50 text-slate-600 font-semibold">
-                  <th className="py-3 px-4">Nome / Colaborador</th>
-                  <th className="py-3 px-4">E-mail</th>
-                  <th className="py-3 px-4">Departamento</th>
-                  <th className="py-3 px-4">Cargo</th>
-                  <th className="py-3 px-4">Role</th>
-                  <th className="py-3 px-4">Estado</th>
-                  <th className="py-3 px-4">Último Acesso</th>
-                  {canManage && <th className="py-3 px-4 text-right">Ações</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filtered.map((user) => {
-                  const roleCode = user.roles?.[0]?.code || 'EMPLOYEE';
-                  return (
-                    <tr key={user.id} className="hover:bg-slate-50/70 transition">
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2.5">
-                          <UserAvatar name={user.full_name} size="sm" />
-                          <div>
-                            <div className="font-semibold text-slate-800">{user.full_name}</div>
-                            <div className="text-[11px] text-slate-400">{user.employee_number || 'SIH'}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 text-slate-600 whitespace-nowrap">{user.email}</td>
-                      <td className="py-3 px-4 text-slate-700 whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1 font-medium">
-                          <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                          {user.department?.name || 'Geral'}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-slate-600 whitespace-nowrap">
-                        {user.job_title || '—'}
-                      </td>
-                      <td className="py-3 px-4 whitespace-nowrap">
-                        <span className="px-2 py-0.5 rounded font-semibold text-[11px] bg-slate-100 text-slate-700 border border-slate-200">
-                          {roleCode}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 whitespace-nowrap">
-                        <StatusBadge status={user.is_active ? 'ACTIVE' : 'INACTIVE'} size="sm" />
-                      </td>
-                      <td className="py-3 px-4 text-slate-500 whitespace-nowrap">
-                        {user.last_login_at
-                          ? new Date(user.last_login_at).toLocaleString('pt-PT')
-                          : 'Nunca acedeu'}
-                      </td>
-                      {canManage && (
-                        <td className="py-3 px-4 text-right whitespace-nowrap">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              onClick={() => navigate(`/users/${user.id}`)}
-                              className="p-1.5 text-slate-400 hover:text-[#1F5FAD] rounded hover:bg-slate-100"
-                              title="Ver ficha completa e histórico"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => setEditProfile(user)}
-                              className="p-1.5 text-slate-400 hover:text-[#1F5FAD] rounded hover:bg-slate-100"
-                              title="Editar dados"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => {
-                                setRoleModalProfile(user);
-                                setNewSelectedRole(roleCode as RoleCode);
-                              }}
-                              className="p-1.5 text-slate-400 hover:text-slate-800 rounded hover:bg-slate-100"
-                              title="Alterar Role"
-                            >
-                              <Shield className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => setStatusConfirmProfile(user)}
-                              className={`p-1.5 rounded transition ${
-                                user.is_active
-                                  ? 'text-slate-400 hover:text-[#C0392B] hover:bg-red-50'
-                                  : 'text-slate-400 hover:text-emerald-700 hover:bg-emerald-50'
-                              }`}
-                              title={user.is_active ? 'Desativar utilizador' : 'Ativar utilizador'}
-                            >
-                              {user.is_active ? (
-                                <UserX className="w-3.5 h-3.5" />
-                              ) : (
-                                <UserCheck className="w-3.5 h-3.5" />
-                              )}
-                            </button>
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Modal: Create User */}
-      {createModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-          <div className="bg-white rounded-lg border border-[#D9E0E7] shadow-xl max-w-lg w-full p-6">
-            <h3 className="text-base font-bold text-[#1F2937] mb-1">Criar Novo Utilizador</h3>
-            <p className="text-xs text-[#64748B] mb-4">
-              Registe uma nova conta institucional. O utilizador receberá acesso com a palavra-passe inicial temporária e será forçado a redefini-la no primeiro acesso.
-            </p>
-
-            {formError && (
-              <div className="mb-4 p-2.5 bg-red-50 border border-red-200 text-xs text-[#C0392B] rounded flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                <span>{formError}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleCreateUser} className="space-y-4 text-xs">
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Nome Completo</label>
-                <input
-                  type="text"
-                  required
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Ex.: Maria Fernandes"
-                  className="w-full px-3 py-2 border border-[#D9E0E7] rounded bg-white text-slate-900"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">E-mail Institucional</label>
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="nome@siholdings-mz.com"
-                    className="w-full px-3 py-2 border border-[#D9E0E7] rounded bg-white text-slate-900"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Telefone / Contacto</label>
-                  <input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+258 84 000 0000"
-                    className="w-full px-3 py-2 border border-[#D9E0E7] rounded bg-white text-slate-900"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Departamento</label>
-                  <select
-                    value={deptId}
-                    onChange={(e) => setDeptId(e.target.value)}
-                    required
-                    className="w-full px-3 py-2 border border-[#D9E0E7] rounded bg-white text-slate-800"
-                  >
-                    {departments.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Cargo / Função</label>
-                  <input
-                    type="text"
-                    value={jobTitle}
-                    onChange={(e) => setJobTitle(e.target.value)}
-                    placeholder="Ex.: Engenheiro de Operações"
-                    className="w-full px-3 py-2 border border-[#D9E0E7] rounded bg-white text-slate-900"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Perfil de Acesso Inicial (Role)</label>
-                <select
-                  value={initialRole}
-                  onChange={(e) => setInitialRole(e.target.value as RoleCode)}
-                  className="w-full px-3 py-2 border border-[#D9E0E7] rounded bg-white text-slate-800"
-                >
-                  <option value="EMPLOYEE">COLABORADOR (Registo e consulta própria)</option>
-                  <option value="MANAGER">MANAGER (Gestão e aprovação da equipa)</option>
-                  <option value="IT">IT (Monitorização técnica e auditoria)</option>
-                  <option value="ADMIN">ADMIN (Superadministrador global)</option>
-                </select>
-              </div>
-
-              <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setCreateModalOpen(false)}
-                  className="px-3 py-2 font-medium text-slate-700 bg-white border border-[#D9E0E7] rounded hover:bg-slate-50"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-4 py-2 font-semibold text-white bg-[#1F5FAD] hover:bg-[#184d8f] rounded flex items-center gap-2"
-                >
-                  {isSubmitting && <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-                  Criar Utilizador
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal: Edit User */}
-      {editProfile && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-          <div className="bg-white rounded-lg border border-[#D9E0E7] shadow-xl max-w-lg w-full p-6">
-            <h3 className="text-base font-bold text-[#1F2937] mb-1">Editar Dados do Utilizador</h3>
-            <p className="text-xs text-[#64748B] mb-4">{editProfile.email}</p>
-
-            <form onSubmit={handleSaveEdit} className="space-y-4 text-xs">
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Nome Completo</label>
-                <input
-                  type="text"
-                  required
-                  value={editProfile.full_name}
-                  onChange={(e) => setEditProfile({ ...editProfile, full_name: e.target.value })}
-                  className="w-full px-3 py-2 border border-[#D9E0E7] rounded bg-white"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Telefone</label>
-                  <input
-                    type="tel"
-                    value={editProfile.phone || ''}
-                    onChange={(e) => setEditProfile({ ...editProfile, phone: e.target.value })}
-                    className="w-full px-3 py-2 border border-[#D9E0E7] rounded bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Departamento</label>
-                  <select
-                    value={editProfile.department_id || ''}
-                    onChange={(e) => setEditProfile({ ...editProfile, department_id: e.target.value })}
-                    className="w-full px-3 py-2 border border-[#D9E0E7] rounded bg-white"
-                  >
-                    {departments.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Cargo / Função</label>
-                <input
-                  type="text"
-                  value={editProfile.job_title || ''}
-                  onChange={(e) => setEditProfile({ ...editProfile, job_title: e.target.value })}
-                  className="w-full px-3 py-2 border border-[#D9E0E7] rounded bg-white"
-                />
-              </div>
-
-              <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setEditProfile(null)}
-                  className="px-3 py-2 font-medium text-slate-700 bg-white border border-[#D9E0E7] rounded"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 font-semibold text-white bg-[#1F5FAD] hover:bg-[#184d8f] rounded"
-                >
-                  Guardar Alterações
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal: Change Role */}
-      {roleModalProfile && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-          <div className="bg-white rounded-lg border border-[#D9E0E7] shadow-xl max-w-md w-full p-6">
-            <h3 className="text-base font-bold text-[#1F2937] mb-1">Alterar Perfil de Acesso</h3>
-            <p className="text-xs text-[#64748B] mb-4">
-              Defina o nível de permissões de <strong>{roleModalProfile.full_name}</strong>.
-            </p>
-
-            <form onSubmit={handleSaveRole} className="space-y-4 text-xs">
-              <div className="space-y-2">
-                {(['EMPLOYEE', 'MANAGER', 'IT', 'ADMIN'] as RoleCode[]).map((rCode) => (
-                  <label
-                    key={rCode}
-                    className={`flex items-center justify-between p-3 rounded border cursor-pointer transition ${
-                      newSelectedRole === rCode
-                        ? 'border-[#1F5FAD] bg-blue-50/50'
-                        : 'border-slate-200 hover:bg-slate-50'
-                    }`}
-                  >
-                    <div>
-                      <div className="font-bold text-slate-800">{rCode}</div>
-                      <div className="text-[11px] text-slate-500">
-                        {rCode === 'ADMIN' && 'Acesso global irrestrito à administração'}
-                        {rCode === 'IT' && 'Supervisão técnica, integridade e auditoria'}
-                        {rCode === 'MANAGER' && 'Supervisão da equipa e aprovações de ponto'}
-                        {rCode === 'EMPLOYEE' && 'Registo e submissão individual de horas'}
-                      </div>
-                    </div>
-                    <input
-                      type="radio"
-                      name="roleOption"
-                      checked={newSelectedRole === rCode}
-                      onChange={() => setNewSelectedRole(rCode)}
-                      className="text-[#1F5FAD] focus:ring-[#1F5FAD]"
-                    />
-                  </label>
-                ))}
-              </div>
-
-              <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setRoleModalProfile(null)}
-                  className="px-3 py-2 font-medium text-slate-700 bg-white border border-[#D9E0E7] rounded"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 font-semibold text-white bg-[#1F5FAD] hover:bg-[#184d8f] rounded"
-                >
-                  Confirmar Alteração
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Confirmation Dialog for Toggle Status */}
-      <ConfirmDialog
-        isOpen={Boolean(statusConfirmProfile)}
-        title={statusConfirmProfile?.is_active ? 'Desativar este utilizador?' : 'Ativar este utilizador?'}
-        message={
-          statusConfirmProfile?.is_active
-            ? `O utilizador ${statusConfirmProfile?.full_name} deixará de conseguir iniciar sessão no sistema corporativo da SI Holdings.`
-            : `O utilizador ${statusConfirmProfile?.full_name} recuperará o acesso à plataforma com o seu perfil previamente atribuído.`
-        }
-        confirmLabel={statusConfirmProfile?.is_active ? 'Desativar utilizador' : 'Ativar utilizador'}
-        variant={statusConfirmProfile?.is_active ? 'danger' : 'primary'}
-        onConfirm={handleToggleStatus}
-        onCancel={() => setStatusConfirmProfile(null)}
+      <UserFormModal
+        isOpen={isCreateOpen || Boolean(userToEdit)}
+        user={userToEdit}
+        departments={departments}
+        roles={roles}
+        canAssignAdmin={canAssignAdmin}
+        onClose={() => {
+          setIsCreateOpen(false);
+          setUserToEdit(null);
+        }}
+        onSaved={handleSaved}
       />
+      <RoleAssignModal
+        user={userForRole}
+        roles={roles}
+        canAssignAdmin={canAssignAdmin}
+        onClose={() => setUserForRole(null)}
+        onSaved={handleSaved}
+      />
+      <UserStatusDialog user={userForStatus} onClose={() => setUserForStatus(null)} onSaved={handleSaved} />
     </div>
   );
 };

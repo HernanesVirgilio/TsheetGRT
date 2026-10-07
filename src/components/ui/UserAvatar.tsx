@@ -5,27 +5,28 @@ interface UserAvatarProps {
   size?: 'sm' | 'md' | 'lg';
 }
 
-export const UserAvatar: React.FC<UserAvatarProps> = ({ name, size = 'md' }) => {
+const SIZE_CLASSES = {
+  sm: 'h-8 w-8 text-xs',
+  md: 'h-9 w-9 text-xs',
+  lg: 'h-12 w-12 text-base',
+} as const;
+
+function getInitials(name: string): string {
   const initials = name
     .split(' ')
     .filter(Boolean)
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase())
-    .join('') || 'SI';
+    .join('');
+  return initials || 'SI';
+}
 
-  const sizeStyles = {
-    sm: 'w-7 h-7 text-xs',
-    md: 'w-9 h-9 text-xs',
-    lg: 'w-12 h-12 text-base font-semibold',
-  };
-
-  return (
-    <div
-      className={`inline-flex items-center justify-center rounded bg-[#1F5FAD] text-white font-medium select-none shadow-2xs ${sizeStyles[size]}`}
-      title={name}
-      aria-label={name}
-    >
-      {initials}
-    </div>
-  );
-};
+/** Decorativo: o nome é sempre apresentado em texto ao lado. */
+export const UserAvatar: React.FC<UserAvatarProps> = ({ name, size = 'md' }) => (
+  <span
+    aria-hidden="true"
+    className={`inline-flex shrink-0 select-none items-center justify-center rounded-full bg-sidebar font-semibold text-white ${SIZE_CLASSES[size]}`}
+  >
+    {getInitials(name)}
+  </span>
+);

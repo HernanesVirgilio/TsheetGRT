@@ -1,78 +1,126 @@
-import React, { useState } from 'react';
-import { Outlet, Navigate, useLocation } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import { LogOut, RefreshCw, ShieldAlert, X } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { useAuth } from '../../lib/auth/AuthContext';
-import { X, ShieldAlert } from 'lucide-react';
+import { LoadingState } from '../ui/States';
+import { Alert } from '../ui/Alert';
+import { Button } from '../ui/Button';
+import { BrandMark } from './BrandMark';
+
+const AccessBlockedScreen: React.FC<{ reason: string }> = ({ reason }) => {
+  const { signOut, refreshProfile } = useAuth();
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    await refreshProfile();
+    setIsRetrying(false);
+  };
+
+  return (
+    <main className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background px-4">
+      <BrandMark />
+      <div className="w-full max-w-md space-y-4 rounded-lg border border-border bg-surface p-6">
+        <Alert variant="error" title="Acesso indisponível">
+          {reason}
+        </Alert>
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button variant="secondary" icon={RefreshCw} isLoading={isRetrying} onClick={handleRetry}>
+            Tentar novamente
+          </Button>
+          <Button icon={LogOut} onClick={() => signOut()}>
+            Terminar sessão
+          </Button>
+        </div>
+      </div>
+    </main>
+  );
+};
 
 export const AppShell: React.FC = () => {
-  const { isAuthenticated, isLoading, mustChangePassword } = useAuth();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { status, accessError, mustChangePassword } = useAuth();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
 
-  if (isLoading) {
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!isMobileMenuOpen) return undefined;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsMobileMenuOpen(false);
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isMobileMenuOpen]);
+
+  if (status === 'loading') {
     return (
-      <div className="min-h-screen bg-[#F5F7FA] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-3 border-[#1F5FAD] border-t-transparent rounded-full animate-spin" />
-          <p className="text-xs text-slate-500 font-medium">A carregar ambiente corporativo...</p>
-        </div>
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <LoadingState label="A carregar a sua sessão..." />
       </div>
     );
   }
 
-  if (!isAuthenticated) {
+  if (status === 'signed_out') {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Force password change on development initial accounts before accessing protected modules
+  if (status === 'no_access') {
+    return <AccessBlockedScreen reason={accessError ?? 'Não tem acesso à aplicação.'} />;
+  }
+
   if (mustChangePassword && location.pathname !== '/alterar-palavra-passe') {
     return <Navigate to="/alterar-palavra-passe" replace />;
   }
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#F5F7FA]">
-      {/* Desktop Sidebar */}
-      <div className="hidden lg:flex shrink-0">
+    <div className="flex h-screen w-full overflow-hidden bg-background">
+      <a
+        href="#conteudo-principal"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-surface focus:px-4 focus:py-2 focus:text-sm focus:font-semibold"
+      >
+        Saltar para o conteúdo
+      </a>
+
+      <div className="hidden shrink-0 lg:flex">
         <Sidebar />
       </div>
 
-      {/* Mobile Drawer */}
-      {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden flex">
-          <div
-            className="fixed inset-0 bg-black/50 backdrop-blur-2xs"
-            onClick={() => setMobileMenuOpen(false)}
-          />
-          <div className="relative flex flex-col w-72 max-w-xs bg-white shadow-xl z-50">
+      {isMobileMenuOpen && (
+        <div className="fixed inset-0 z-40 flex lg:hidden" role="dialog" aria-modal="true" aria-label="Menu de navegação">
+          <div className="fixed inset-0 bg-black/40" aria-hidden="true" onClick={() => setIsMobileMenuOpen(false)} />
+          <div className="relative flex h-full">
+            <Sidebar onNavigate={() => setIsMobileMenuOpen(false)} />
             <button
-              onClick={() => setMobileMenuOpen(false)}
-              className="absolute top-4 right-4 p-1 text-slate-400 hover:text-slate-700"
+              type="button"
+              onClick={() => setIsMobileMenuOpen(false)}
               aria-label="Fechar menu"
+              className="absolute right-2 top-5 rounded-md p-1 text-white hover:bg-sidebar-hover"
             >
-              <X className="w-5 h-5" />
+              <X className="h-5 w-5" aria-hidden="true" />
             </button>
-            <Sidebar onCloseMobile={() => setMobileMenuOpen(false)} />
           </div>
         </div>
       )}
 
-      {/* Main Content Area */}
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-        <Header onOpenMobileMenu={() => setMobileMenuOpen(true)} />
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <Header onOpenMobileMenu={() => setIsMobileMenuOpen(true)} />
 
-        {/* Forced Password Banner if on change-password page */}
         {mustChangePassword && (
-          <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 flex items-center gap-2 text-xs text-amber-900 shrink-0">
-            <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
+          <div className="flex shrink-0 items-center gap-2 border-b border-warning/30 bg-warning-soft px-4 py-2.5 text-sm text-text">
+            <ShieldAlert className="h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
             <span>
-              <strong>Primeiro acesso detetado:</strong> Por motivos de segurança institucional, é obrigatório alterar a palavra-passe inicial antes de aceder aos restantes módulos.
+              <strong>Ação necessária:</strong> defina uma nova palavra-passe antes de aceder aos restantes módulos.
             </span>
           </div>
         )}
 
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 custom-scrollbar">
-          <div className="max-w-7xl mx-auto">
+        <main id="conteudo-principal" className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 custom-scrollbar">
+          <div className="mx-auto max-w-7xl">
             <Outlet />
           </div>
         </main>

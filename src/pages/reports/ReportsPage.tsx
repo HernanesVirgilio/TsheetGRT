@@ -1,339 +1,283 @@
-import React, { useState, useEffect } from 'react';
-import {
-  BarChart3,
-  Download,
-  Filter,
-  Calendar,
-  Building2,
-  Users,
-  Clock,
-  AlertCircle,
-  FileText,
-} from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { BarChart3, Download } from 'lucide-react';
 import { useAuth } from '../../lib/auth/AuthContext';
-import { dataService, formatMinutesToHours } from '../../services/dataService';
-import { Timesheet, Department, Profile } from '../../types';
+import { useAsyncData } from '../../hooks/useAsyncData';
+import { listReportTimesheets } from '../../services/reportService';
+import type { ReportFilters } from '../../services/reportService';
+import { listDepartments } from '../../services/departmentService';
+import { listUsers } from '../../services/userService';
+import type { TimesheetStatus } from '../../types';
+import { isTimesheetStatus } from '../../types';
 import { PageHeader } from '../../components/ui/PageHeader';
-import { StatusBadge } from '../../components/ui/StatusBadge';
+import { Panel } from '../../components/ui/Panel';
+import { Button } from '../../components/ui/Button';
+import { SelectField, TextField } from '../../components/ui/FormField';
+import { DataTable } from '../../components/ui/DataTable';
+import type { DataTableColumn } from '../../components/ui/DataTable';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { ErrorState, LoadingState } from '../../components/ui/States';
+import { StatusBadge } from '../../components/ui/StatusBadge';
+import { buildCsv, downloadCsv } from '../../utils/csv';
+import { formatDate, formatMinutesAsHours, formatPeriod } from '../../utils/format';
+import type { ReportGroup, ReportTimesheet } from '../../utils/reports';
+import { groupTimesheets, isOpenTimesheet, NO_DEPARTMENT_LABEL, sumMinutes } from '../../utils/reports';
 
-type ReportTab =
-  | 'BY_EMPLOYEE'
-  | 'BY_DEPARTMENT'
-  | 'HOURS_BY_PERIOD'
-  | 'PENDING_APPROVALS'
-  | 'MISSING_SUBMISSIONS';
+type ReportTab = 'BY_EMPLOYEE' | 'BY_DEPARTMENT' | 'BY_PERIOD' | 'PENDING_APPROVALS' | 'MISSING_SUBMISSIONS';
+
+const TABS: { id: ReportTab; label: string; description: string }[] = [
+  { id: 'BY_EMPLOYEE', label: 'Por colaborador', description: 'Horas e estado dos timesheets agregados por colaborador.' },
+  { id: 'BY_DEPARTMENT', label: 'Por departamento', description: 'Horas e estado dos timesheets agregados por departamento.' },
+  { id: 'BY_PERIOD', label: 'Horas por período', description: 'Consolidação por período de apuração.' },
+  { id: 'PENDING_APPROVALS', label: 'Aprovações pendentes', description: 'Timesheets submetidos a aguardar decisão.' },
+  { id: 'MISSING_SUBMISSIONS', label: 'Submissões em falta', description: 'Timesheets em rascunho ou devolvidos para correção.' },
+];
+
+const STATUS_LABELS: Record<TimesheetStatus, string> = {
+  DRAFT: 'Rascunho',
+  SUBMITTED: 'Submetido',
+  APPROVED: 'Aprovado',
+  REJECTED: 'Rejeitado',
+  LOCKED: 'Bloqueado',
+};
+
+const ALL = '';
+
+const GROUP_COLUMNS = (groupHeader: string): DataTableColumn<ReportGroup>[] => [
+  { id: 'label', header: groupHeader, render: (group) => <span className="font-medium text-text">{group.label}</span> },
+  { id: 'count', header: 'Timesheets', render: (group) => group.timesheetCount },
+  { id: 'hours', header: 'Horas', render: (group) => formatMinutesAsHours(group.totalMinutes) },
+  { id: 'approved', header: 'Aprovados', render: (group) => group.approvedCount },
+  { id: 'submitted', header: 'Submetidos', render: (group) => group.submittedCount },
+  { id: 'open', header: 'Rascunho / rejeitados', render: (group) => group.openCount },
+];
+
+const TIMESHEET_COLUMNS: DataTableColumn<ReportTimesheet>[] = [
+  { id: 'employee', header: 'Colaborador', render: (row) => <span className="font-medium text-text">{row.employeeName}</span> },
+  { id: 'department', header: 'Departamento', render: (row) => row.departmentName ?? NO_DEPARTMENT_LABEL },
+  { id: 'period', header: 'Período', render: (row) => formatPeriod(row.periodStart, row.periodEnd) },
+  { id: 'status', header: 'Estado', render: (row) => <StatusBadge status={row.status} size="sm" /> },
+  { id: 'hours', header: 'Horas', render: (row) => formatMinutesAsHours(row.totalMinutes) },
+  { id: 'submitted', header: 'Submetido em', render: (row) => formatDate(row.submittedAt) },
+];
+
+function groupsFor(tab: ReportTab, timesheets: ReportTimesheet[]): ReportGroup[] {
+  switch (tab) {
+    case 'BY_EMPLOYEE':
+      return groupTimesheets(timesheets, (row) => row.employeeId, (row) => row.employeeName);
+    case 'BY_DEPARTMENT':
+      return groupTimesheets(
+        timesheets,
+        (row) => row.departmentId ?? 'none',
+        (row) => row.departmentName ?? NO_DEPARTMENT_LABEL
+      );
+    case 'BY_PERIOD':
+      return groupTimesheets(
+        timesheets,
+        (row) => `${row.periodStart}|${row.periodEnd}`,
+        (row) => formatPeriod(row.periodStart, row.periodEnd)
+      ).sort((first, second) => second.key.localeCompare(first.key));
+    default:
+      return [];
+  }
+}
+
+function timesheetsFor(tab: ReportTab, timesheets: ReportTimesheet[]): ReportTimesheet[] {
+  if (tab === 'PENDING_APPROVALS') return timesheets.filter((row) => row.status === 'SUBMITTED');
+  if (tab === 'MISSING_SUBMISSIONS') return timesheets.filter(isOpenTimesheet);
+  return timesheets;
+}
+
+const GROUP_HEADERS: Partial<Record<ReportTab, string>> = {
+  BY_EMPLOYEE: 'Colaborador',
+  BY_DEPARTMENT: 'Departamento',
+  BY_PERIOD: 'Período',
+};
 
 export const ReportsPage: React.FC = () => {
-  const { currentUser } = useAuth();
-  const [data, setData] = useState<Timesheet[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [employees, setEmployees] = useState<Profile[]>([]);
+  const { hasPermission } = useAuth();
+  const canExport = hasPermission('REPORTS_EXPORT');
 
-  // Selected Report Type
-  const [activeReportTab, setActiveReportTab] = useState<ReportTab>('BY_EMPLOYEE');
+  const [activeTab, setActiveTab] = useState<ReportTab>('BY_EMPLOYEE');
+  const [departmentId, setDepartmentId] = useState(ALL);
+  const [employeeId, setEmployeeId] = useState(ALL);
+  const [status, setStatus] = useState(ALL);
+  const [periodFrom, setPeriodFrom] = useState('');
+  const [periodTo, setPeriodTo] = useState('');
 
-  // Filter state
-  const [selectedDept, setSelectedDept] = useState('ALL');
-  const [selectedEmp, setSelectedEmp] = useState('ALL');
-  const [selectedStatus, setSelectedStatus] = useState('ALL');
-
-  useEffect(() => {
-    if (currentUser) {
-      setDepartments(dataService.getDepartments());
-      setEmployees(dataService.getProfiles());
-      loadReport();
-    }
-  }, [currentUser]);
-
-  const loadReport = () => {
-    const list = dataService.generateReportData({
-      departmentId: selectedDept !== 'ALL' ? selectedDept : undefined,
-      employeeId: selectedEmp !== 'ALL' ? selectedEmp : undefined,
-      status: selectedStatus !== 'ALL' ? selectedStatus : undefined,
-    });
-    setData(list);
+  const isStatusFixed = activeTab === 'PENDING_APPROVALS' || activeTab === 'MISSING_SUBMISSIONS';
+  const filters: ReportFilters = {
+    status: !isStatusFixed && isTimesheetStatus(status) ? status : null,
+    employeeId: employeeId || null,
+    departmentId: departmentId || null,
+    periodFrom: periodFrom || null,
+    periodTo: periodTo || null,
   };
 
-  useEffect(() => {
-    loadReport();
-  }, [selectedDept, selectedEmp, selectedStatus]);
+  const report = useAsyncData(() => listReportTimesheets(filters), [
+    filters.status,
+    filters.employeeId,
+    filters.departmentId,
+    filters.periodFrom,
+    filters.periodTo,
+  ]);
+  const filterOptions = useAsyncData(() => Promise.all([listDepartments(), listUsers()]), []);
+  const [departments, employees] = filterOptions.data ?? [[], []];
 
-  // Tab-filtered data
-  const getTabFilteredData = (): Timesheet[] => {
-    switch (activeReportTab) {
-      case 'PENDING_APPROVALS':
-        return data.filter((t) => t.status === 'SUBMITTED');
-      case 'MISSING_SUBMISSIONS':
-        return data.filter((t) => t.status === 'DRAFT' || t.status === 'REJECTED');
-      case 'BY_EMPLOYEE':
-      case 'BY_DEPARTMENT':
-      case 'HOURS_BY_PERIOD':
-      default:
-        return data;
-    }
-  };
+  const groupHeader = GROUP_HEADERS[activeTab];
+  const rows = useMemo(() => timesheetsFor(activeTab, report.data ?? []), [activeTab, report.data]);
+  const groups = useMemo(() => groupsFor(activeTab, rows), [activeTab, rows]);
+  const totalMinutes = sumMinutes(rows);
+  const activeTabInfo = TABS.find((tab) => tab.id === activeTab) ?? TABS[0];
+  const isEmpty = report.data !== null && rows.length === 0;
 
-  const displayedData = getTabFilteredData();
-  const totalMinutes = displayedData.reduce((acc, t) => acc + (t.total_minutes || 0), 0);
-
-  // CSV Export tailored to the current report view
-  const handleExportCSV = () => {
-    if (displayedData.length === 0) return;
-
-    const headers = [
-      'Relatório',
-      'Colaborador',
-      'Departamento',
-      'Período Início',
-      'Período Fim',
-      'Estado',
-      'Horas Totais',
-      'Submetido Em',
-      'Aprovado Em',
-    ];
-
-    const rows = displayedData.map((t) => [
-      `"${activeReportTab}"`,
-      `"${t.employee?.full_name || 'Desconhecido'}"`,
-      `"${t.employee?.department?.name || 'Geral'}"`,
-      t.period_start,
-      t.period_end,
-      t.status,
-      formatMinutesToHours(t.total_minutes || 0),
-      t.submitted_at || '',
-      t.approved_at || '',
-    ]);
-
-    const csvContent =
-      'data:text/csv;charset=utf-8,' +
-      [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute(
-      'download',
-      `relatorio_${activeReportTab.toLowerCase()}_${new Date().toISOString().split('T')[0]}.csv`
-    );
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleExport = () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const csv = groupHeader
+      ? buildCsv(
+          [groupHeader, 'Timesheets', 'Horas', 'Aprovados', 'Submetidos', 'Rascunho/Rejeitados'],
+          groups.map((group) => [
+            group.label,
+            group.timesheetCount,
+            formatMinutesAsHours(group.totalMinutes),
+            group.approvedCount,
+            group.submittedCount,
+            group.openCount,
+          ])
+        )
+      : buildCsv(
+          ['Colaborador', 'Departamento', 'Início do período', 'Fim do período', 'Estado', 'Horas', 'Submetido em'],
+          rows.map((row) => [
+            row.employeeName,
+            row.departmentName ?? NO_DEPARTMENT_LABEL,
+            row.periodStart,
+            row.periodEnd,
+            STATUS_LABELS[row.status],
+            formatMinutesAsHours(row.totalMinutes),
+            row.submittedAt ? formatDate(row.submittedAt) : '',
+          ])
+        );
+    downloadCsv(`relatorio_${activeTab.toLowerCase()}_${today}.csv`, csv);
   };
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Relatórios Operacionais"
-        subtitle="Consolidação e análise de folhas de ponto da organização SI Holdings."
+        title="Relatórios"
+        subtitle="Consolidação dos timesheets visíveis para o seu perfil."
         actions={
-          <button
-            onClick={handleExportCSV}
-            disabled={displayedData.length === 0}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-[#D9E0E7] text-slate-700 hover:bg-slate-50 text-xs font-semibold rounded shadow-xs transition disabled:opacity-50"
-          >
-            <Download className="w-4 h-4 text-[#1F5FAD]" />
-            Exportar CSV
-          </button>
+          canExport && (
+            <Button variant="secondary" icon={Download} onClick={handleExport} disabled={rows.length === 0}>
+              Exportar CSV
+            </Button>
+          )
         }
       />
 
-      {/* 5 Distinct Report Tabs (Requirement 44) */}
-      <div className="border-b border-[#D9E0E7] flex flex-wrap items-center gap-2 sm:gap-6 text-xs font-semibold">
-        <button
-          onClick={() => setActiveReportTab('BY_EMPLOYEE')}
-          className={`pb-3 flex items-center gap-1.5 border-b-2 transition ${
-            activeReportTab === 'BY_EMPLOYEE'
-              ? 'border-[#1F5FAD] text-[#1F5FAD]'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <Users className="w-3.5 h-3.5" />
-          <span>1. Por Colaborador</span>
-        </button>
-
-        <button
-          onClick={() => setActiveReportTab('BY_DEPARTMENT')}
-          className={`pb-3 flex items-center gap-1.5 border-b-2 transition ${
-            activeReportTab === 'BY_DEPARTMENT'
-              ? 'border-[#1F5FAD] text-[#1F5FAD]'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <Building2 className="w-3.5 h-3.5" />
-          <span>2. Por Departamento</span>
-        </button>
-
-        <button
-          onClick={() => setActiveReportTab('HOURS_BY_PERIOD')}
-          className={`pb-3 flex items-center gap-1.5 border-b-2 transition ${
-            activeReportTab === 'HOURS_BY_PERIOD'
-              ? 'border-[#1F5FAD] text-[#1F5FAD]'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <Clock className="w-3.5 h-3.5" />
-          <span>3. Horas por Período</span>
-        </button>
-
-        <button
-          onClick={() => setActiveReportTab('PENDING_APPROVALS')}
-          className={`pb-3 flex items-center gap-1.5 border-b-2 transition ${
-            activeReportTab === 'PENDING_APPROVALS'
-              ? 'border-[#1F5FAD] text-[#1F5FAD]'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
-          <span>4. Aprovações Pendentes</span>
-        </button>
-
-        <button
-          onClick={() => setActiveReportTab('MISSING_SUBMISSIONS')}
-          className={`pb-3 flex items-center gap-1.5 border-b-2 transition ${
-            activeReportTab === 'MISSING_SUBMISSIONS'
-              ? 'border-[#1F5FAD] text-[#1F5FAD]'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <FileText className="w-3.5 h-3.5 text-slate-500" />
-          <span>5. Submissões em Falta</span>
-        </button>
+      <div role="tablist" aria-label="Tipo de relatório" className="flex gap-1 overflow-x-auto border-b border-border custom-scrollbar">
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`-mb-px whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-medium ${
+              activeTab === tab.id
+                ? 'border-primary-hover text-text'
+                : 'border-transparent text-text-secondary hover:text-text'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
-      {/* Filters Toolbar */}
-      <div className="bg-white p-4 rounded-lg border border-[#D9E0E7] shadow-xs space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-          <div>
-            <label className="block font-semibold text-slate-700 mb-1">Filtrar Departamento</label>
-            <select
-              value={selectedDept}
-              onChange={(e) => setSelectedDept(e.target.value)}
-              className="w-full p-2 border border-[#D9E0E7] rounded bg-white text-slate-800"
-            >
-              <option value="ALL">Todos os Departamentos</option>
-              {departments.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name} ({d.code})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block font-semibold text-slate-700 mb-1">Filtrar Colaborador</label>
-            <select
-              value={selectedEmp}
-              onChange={(e) => setSelectedEmp(e.target.value)}
-              className="w-full p-2 border border-[#D9E0E7] rounded bg-white text-slate-800"
-            >
-              <option value="ALL">Todos os Colaboradores</option>
-              {employees.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.full_name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block font-semibold text-slate-700 mb-1">Estado</label>
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              disabled={activeReportTab === 'PENDING_APPROVALS' || activeReportTab === 'MISSING_SUBMISSIONS'}
-              className="w-full p-2 border border-[#D9E0E7] rounded bg-white text-slate-800 disabled:bg-slate-100"
-            >
-              <option value="ALL">Todos os Estados</option>
-              <option value="DRAFT">Rascunho</option>
-              <option value="SUBMITTED">Submetido</option>
-              <option value="APPROVED">Aprovado</option>
-              <option value="REJECTED">Rejeitado</option>
-            </select>
-          </div>
+      <Panel>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <SelectField label="Departamento" value={departmentId} onChange={(event) => setDepartmentId(event.target.value)}>
+            <option value={ALL}>Todos</option>
+            {departments.map((department) => (
+              <option key={department.id} value={department.id}>
+                {department.name}
+              </option>
+            ))}
+          </SelectField>
+          <SelectField label="Colaborador" value={employeeId} onChange={(event) => setEmployeeId(event.target.value)}>
+            <option value={ALL}>Todos</option>
+            {employees.map((employee) => (
+              <option key={employee.id} value={employee.id}>
+                {employee.full_name}
+              </option>
+            ))}
+          </SelectField>
+          <SelectField
+            label="Estado"
+            value={isStatusFixed ? ALL : status}
+            disabled={isStatusFixed}
+            onChange={(event) => setStatus(event.target.value)}
+          >
+            <option value={ALL}>{isStatusFixed ? 'Definido pelo relatório' : 'Todos'}</option>
+            {Object.entries(STATUS_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </SelectField>
+          <TextField label="Período a partir de" type="date" value={periodFrom} onChange={(event) => setPeriodFrom(event.target.value)} />
+          <TextField label="Período até" type="date" value={periodTo} onChange={(event) => setPeriodTo(event.target.value)} />
         </div>
+        {filterOptions.error && <p className="mt-3 text-sm text-danger">{filterOptions.error}</p>}
+      </Panel>
 
-        {/* Dynamic Summary Strip */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-slate-100 text-xs">
-          <div className="p-3 bg-slate-50 rounded border border-slate-200">
-            <span className="text-slate-500 block">Total de Registos Filtrados:</span>
-            <span className="text-lg font-bold text-slate-800">{displayedData.length} timesheets</span>
+      <Panel title={activeTabInfo.label} description={activeTabInfo.description} flush>
+        {report.data && (
+          <div className="grid grid-cols-2 gap-4 border-b border-border px-5 py-4 text-sm">
+            <div>
+              <p className="text-text-muted">Timesheets</p>
+              <p className="text-lg font-semibold text-text">{rows.length}</p>
+            </div>
+            <div>
+              <p className="text-text-muted">Horas consolidadas</p>
+              <p className="text-lg font-semibold text-text">{formatMinutesAsHours(totalMinutes)}</p>
+            </div>
           </div>
-          <div className="p-3 bg-slate-50 rounded border border-slate-200">
-            <span className="text-slate-500 block">Horas Consolidadas no Filtro:</span>
-            <span className="text-lg font-bold text-[#1F5FAD]">{formatMinutesToHours(totalMinutes)}</span>
-          </div>
-          <div className="p-3 bg-slate-50 rounded border border-slate-200">
-            <span className="text-slate-500 block">Âmbito do Relatório:</span>
-            <span className="text-sm font-semibold text-slate-700">
-              {activeReportTab === 'PENDING_APPROVALS' && 'Submissões a aguardar parecer do gestor'}
-              {activeReportTab === 'MISSING_SUBMISSIONS' && 'Timesheets em rascunho ou pendentes de correção'}
-              {activeReportTab === 'BY_DEPARTMENT' && 'Agrupamento por unidade orgânica'}
-              {activeReportTab === 'HOURS_BY_PERIOD' && 'Consolidação de ciclos mensais'}
-              {activeReportTab === 'BY_EMPLOYEE' && 'Acompanhamento individual por colaborador'}
-            </span>
-          </div>
-        </div>
-      </div>
+        )}
 
-      {/* Report Table */}
-      {displayedData.length === 0 ? (
-        <EmptyState
-          title="Sem registos para o relatório selecionado"
-          message="Não foram encontrados dados que satisfaçam os filtros aplicados."
-          icon={BarChart3}
-        />
-      ) : (
-        <div className="bg-white rounded-lg border border-[#D9E0E7] shadow-xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-[#D9E0E7] bg-slate-50 text-slate-600 font-semibold">
-                  <th className="py-3 px-4">Colaborador</th>
-                  <th className="py-3 px-4">Departamento</th>
-                  <th className="py-3 px-4">Período de Apuração</th>
-                  <th className="py-3 px-4">Horas Totais</th>
-                  <th className="py-3 px-4">Registos</th>
-                  <th className="py-3 px-4">Estado</th>
-                  <th className="py-3 px-4">Submissão / Aprovação</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {displayedData.map((ts) => (
-                  <tr key={ts.id} className="hover:bg-slate-50">
-                    <td className="py-3 px-4 font-semibold text-slate-800 whitespace-nowrap">
-                      {ts.employee?.full_name}
-                    </td>
-                    <td className="py-3 px-4 text-slate-600 whitespace-nowrap">
-                      {ts.employee?.department?.name || 'Geral'}
-                    </td>
-                    <td className="py-3 px-4 font-medium text-slate-700 whitespace-nowrap">
-                      {ts.period_start} a {ts.period_end}
-                    </td>
-                    <td className="py-3 px-4 font-bold text-[#1F5FAD] whitespace-nowrap">
-                      {formatMinutesToHours(ts.total_minutes || 0)}
-                    </td>
-                    <td className="py-3 px-4 text-slate-600 whitespace-nowrap">
-                      {ts.entries?.length || 0} lançamentos
-                    </td>
-                    <td className="py-3 px-4 whitespace-nowrap">
-                      <StatusBadge status={ts.status} size="sm" />
-                    </td>
-                    <td className="py-3 px-4 text-slate-500 whitespace-nowrap">
-                      {ts.status === 'APPROVED' && ts.approved_at
-                        ? `Aprovado em ${new Date(ts.approved_at).toLocaleDateString('pt-PT')}`
-                        : ts.status === 'SUBMITTED' && ts.submitted_at
-                        ? `Submetido em ${new Date(ts.submitted_at).toLocaleDateString('pt-PT')}`
-                        : ts.status === 'REJECTED'
-                        ? 'Devolvido para correção'
-                        : 'Pendente de envio'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {report.error && (
+          <div className="p-4">
+            <ErrorState message={report.error} onRetry={report.reload} />
           </div>
-        </div>
-      )}
+        )}
+        {report.isLoading && !report.data && <LoadingState label="A gerar relatório..." />}
+        {isEmpty && (
+          <EmptyState
+            bordered={false}
+            icon={BarChart3}
+            title="Sem timesheets para este relatório."
+            message="Ajuste os filtros ou aguarde o registo de timesheets pelos colaboradores."
+          />
+        )}
+
+        {!isEmpty && report.data && (
+          <div className={report.isLoading ? 'opacity-60' : ''} aria-busy={report.isLoading}>
+            {groupHeader ? (
+              <DataTable
+                caption={activeTabInfo.label}
+                columns={GROUP_COLUMNS(groupHeader)}
+                rows={groups}
+                getRowKey={(group) => group.key}
+              />
+            ) : (
+              <DataTable
+                caption={activeTabInfo.label}
+                columns={TIMESHEET_COLUMNS}
+                rows={rows}
+                getRowKey={(row) => row.id}
+              />
+            )}
+          </div>
+        )}
+      </Panel>
     </div>
   );
 };

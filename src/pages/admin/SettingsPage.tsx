@@ -1,170 +1,212 @@
-import React, { useState, useEffect } from 'react';
-import { Settings, Save, CheckCircle2 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Save } from 'lucide-react';
 import { useAuth } from '../../lib/auth/AuthContext';
-import { dataService } from '../../services/dataService';
-import { SystemSetting } from '../../types';
+import { useAsyncData } from '../../hooks/useAsyncData';
+import { getErrorMessage } from '../../lib/errors';
+import { listSystemSettings, updateSystemSettings } from '../../services/settingsService';
+import type { SystemSetting } from '../../types';
 import { PageHeader } from '../../components/ui/PageHeader';
+import { Panel } from '../../components/ui/Panel';
+import { Alert } from '../../components/ui/Alert';
+import { Button } from '../../components/ui/Button';
+import { SelectField, TextField } from '../../components/ui/FormField';
+import { ErrorState, LoadingState } from '../../components/ui/States';
+import type { FieldErrors, SettingsFormField, SettingsFormValues } from '../../utils/validation';
+import {
+  hasErrors,
+  MAX_DAILY_TARGET_HOURS,
+  MIN_DAILY_TARGET_HOURS,
+  validateSettingsForm,
+} from '../../utils/validation';
+
+const SETTING_KEYS = {
+  companyName: 'COMPANY_NAME',
+  timezone: 'DEFAULT_TIMEZONE',
+  language: 'DEFAULT_LANGUAGE',
+  periodType: 'TIMESHEET_PERIOD_TYPE',
+  dailyTargetHours: 'TIMESHEET_DAILY_TARGET_HOURS',
+  allowWeekendEntries: 'ALLOW_WEEKEND_ENTRIES',
+} as const;
+
+const PERIOD_TYPE_LABELS: Record<string, string> = {
+  MONTHLY: 'Mensal',
+  BIWEEKLY: 'Quinzenal',
+  WEEKLY: 'Semanal',
+};
+
+function settingValue(settings: SystemSetting[], key: string): string {
+  return settings.find((setting) => setting.key === key)?.value ?? '';
+}
+
+function toFormValues(settings: SystemSetting[]): SettingsFormValues {
+  return {
+    companyName: settingValue(settings, SETTING_KEYS.companyName),
+    periodType: settingValue(settings, SETTING_KEYS.periodType),
+    dailyTargetHours: settingValue(settings, SETTING_KEYS.dailyTargetHours),
+    allowWeekendEntries: settingValue(settings, SETTING_KEYS.allowWeekendEntries) === 'true',
+  };
+}
+
+function changedSettings(original: SettingsFormValues, current: SettingsFormValues): Record<string, string> {
+  const changes: Record<string, string> = {};
+  if (current.companyName.trim() !== original.companyName) changes[SETTING_KEYS.companyName] = current.companyName.trim();
+  if (current.periodType !== original.periodType) changes[SETTING_KEYS.periodType] = current.periodType;
+  if (current.dailyTargetHours !== original.dailyTargetHours) {
+    changes[SETTING_KEYS.dailyTargetHours] = current.dailyTargetHours;
+  }
+  if (current.allowWeekendEntries !== original.allowWeekendEntries) {
+    changes[SETTING_KEYS.allowWeekendEntries] = String(current.allowWeekendEntries);
+  }
+  return changes;
+}
 
 export const SettingsPage: React.FC = () => {
-  const { currentUser } = useAuth();
-  const [settings, setSettings] = useState<SystemSetting[]>([]);
-  const [successMessage, setSuccessMessage] = useState('');
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission('SYSTEM_SETTINGS_MANAGE');
+  const settings = useAsyncData(listSystemSettings, []);
 
-  // Local state for common settings
-  const [companyName, setCompanyName] = useState('SI Holdings');
-  const [timezone, setTimezone] = useState('Africa/Maputo');
-  const [language, setLanguage] = useState('pt-PT');
-  const [periodType, setPeriodType] = useState('MONTHLY');
-  const [targetHours, setTargetHours] = useState('8');
+  const [values, setValues] = useState<SettingsFormValues | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors<SettingsFormField>>({});
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    const list = dataService.getSystemSettings();
-    setSettings(list);
+    if (settings.data) setValues(toFormValues(settings.data));
+  }, [settings.data]);
 
-    const getVal = (key: string, def: string) => list.find((s) => s.key === key)?.value || def;
-    setCompanyName(getVal('COMPANY_NAME', 'SI Holdings'));
-    setTimezone(getVal('DEFAULT_TIMEZONE', 'Africa/Maputo'));
-    setLanguage(getVal('DEFAULT_LANGUAGE', 'pt-PT'));
-    setPeriodType(getVal('TIMESHEET_PERIOD_TYPE', 'MONTHLY'));
-    setTargetHours(getVal('TIMESHEET_DAILY_TARGET_HOURS', '8'));
-  }, []);
+  if (settings.error) return <ErrorState message={settings.error} onRetry={settings.reload} />;
+  if (!settings.data || !values) return <LoadingState label="A carregar configurações..." />;
 
-  const handleSave = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentUser) return;
+  const originalValues = toFormValues(settings.data);
+  const changes = changedSettings(originalValues, values);
+  const hasChanges = Object.keys(changes).length > 0;
 
-    dataService.updateSystemSetting('COMPANY_NAME', companyName, currentUser.id);
-    dataService.updateSystemSetting('DEFAULT_TIMEZONE', timezone, currentUser.id);
-    dataService.updateSystemSetting('DEFAULT_LANGUAGE', language, currentUser.id);
-    dataService.updateSystemSetting('TIMESHEET_PERIOD_TYPE', periodType, currentUser.id);
-    dataService.updateSystemSetting('TIMESHEET_DAILY_TARGET_HOURS', targetHours, currentUser.id);
+  const updateValue = <Field extends SettingsFormField>(field: Field, value: SettingsFormValues[Field]) => {
+    setValues((current) => (current ? { ...current, [field]: value } : current));
+    setFieldErrors((current) => ({ ...current, [field]: undefined }));
+    setSuccessMessage(null);
+  };
 
-    setSuccessMessage('Definições guardadas com sucesso.');
-    setTimeout(() => setSuccessMessage(''), 3000);
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setErrorMessage(null);
+    const errors = validateSettingsForm(values);
+    setFieldErrors(errors);
+    if (hasErrors(errors) || !hasChanges) return;
+
+    setIsSaving(true);
+    try {
+      await updateSystemSettings(changes);
+      setSuccessMessage('Configurações guardadas com sucesso.');
+      settings.reload();
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error, 'Não foi possível guardar as configurações.'));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
-    <div className="space-y-6 max-w-4xl">
-      <PageHeader
-        title="Configurações do Sistema"
-        subtitle="Parâmetros institucionais, regras de apuração de horas e definições regionais."
-      />
+    <div className="max-w-4xl space-y-6">
+      <PageHeader title="Configurações" subtitle="Parâmetros institucionais e regras de registo de horas." />
 
+      {!canManage && <Alert variant="info">Tem acesso apenas de leitura às configurações.</Alert>}
       {successMessage && (
-        <div className="p-3 bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 rounded flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-          <span>{successMessage}</span>
-        </div>
+        <Alert variant="success" onDismiss={() => setSuccessMessage(null)}>
+          {successMessage}
+        </Alert>
       )}
+      {errorMessage && <Alert variant="error">{errorMessage}</Alert>}
 
-      <form onSubmit={handleSave} className="bg-white rounded-lg border border-[#D9E0E7] shadow-xs p-6 space-y-6 text-xs">
-        <div>
-          <h3 className="text-sm font-bold text-[#1F2937] mb-1">Identidade Institucional</h3>
-          <p className="text-slate-500 mb-4">Informação corporativa da organização.</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">Nome da Empresa</label>
+      <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+        <Panel title="Identidade institucional">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <TextField
+              label="Nome da empresa"
+              required
+              disabled={!canManage}
+              value={values.companyName}
+              error={fieldErrors.companyName}
+              onChange={(event) => updateValue('companyName', event.target.value)}
+            />
+            <TextField
+              label="Idioma"
+              disabled
+              value={settingValue(settings.data, SETTING_KEYS.language)}
+              hint="A plataforma está disponível apenas em português (pt-PT)."
+            />
+          </div>
+        </Panel>
+
+        <Panel title="Regras de timesheet">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <TextField
+              label="Fuso horário"
+              disabled
+              value={settingValue(settings.data, SETTING_KEYS.timezone)}
+              hint="Fuso horário oficial de operação (CAT, UTC+2)."
+            />
+            <SelectField
+              label="Ciclo de apuração"
+              required
+              disabled={!canManage}
+              value={values.periodType}
+              error={fieldErrors.periodType}
+              onChange={(event) => updateValue('periodType', event.target.value)}
+            >
+              {Object.entries(PERIOD_TYPE_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </SelectField>
+            <TextField
+              label="Meta diária de horas"
+              type="number"
+              inputMode="numeric"
+              min={MIN_DAILY_TARGET_HOURS}
+              max={MAX_DAILY_TARGET_HOURS}
+              required
+              disabled={!canManage}
+              value={values.dailyTargetHours}
+              error={fieldErrors.dailyTargetHours}
+              hint={`Entre ${MIN_DAILY_TARGET_HOURS} e ${MAX_DAILY_TARGET_HOURS} horas.`}
+              onChange={(event) => updateValue('dailyTargetHours', event.target.value)}
+            />
+            <div className="flex items-start gap-3 pt-7">
               <input
-                type="text"
-                required
-                value={companyName}
-                onChange={(e) => setCompanyName(e.target.value)}
-                className="w-full px-3 py-2 border border-[#D9E0E7] rounded bg-white text-slate-900"
+                id="allow-weekend-entries"
+                type="checkbox"
+                disabled={!canManage}
+                checked={values.allowWeekendEntries}
+                onChange={(event) => updateValue('allowWeekendEntries', event.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-primary-hover"
               />
-            </div>
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">Idioma Padrão</label>
-              <select
-                value={language}
-                onChange={(e) => setLanguage(e.target.value)}
-                className="w-full px-3 py-2 border border-[#D9E0E7] rounded bg-white text-slate-800"
-              >
-                <option value="pt-PT">Português (Portugal / Moçambique - pt-PT)</option>
-                <option value="en">Inglês (en)</option>
-                <option value="pt-BR">Português (Brasil - pt-BR)</option>
-              </select>
+              <label htmlFor="allow-weekend-entries" className="text-sm text-text">
+                Permitir registo de horas ao fim de semana
+              </label>
             </div>
           </div>
-        </div>
+        </Panel>
 
-        <div className="border-t border-slate-100 pt-6">
-          <h3 className="text-sm font-bold text-[#1F2937] mb-1">Regras de Timesheet e Horas</h3>
-          <p className="text-slate-500 mb-4">Configurações para o ciclo de validação de presenças.</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">Fuso Horário Padrão</label>
-              <input
-                type="text"
-                disabled
-                value={timezone}
-                className="w-full px-3 py-2 border border-[#D9E0E7] rounded bg-slate-100 text-slate-700 font-mono"
-              />
-              <span className="text-[11px] text-slate-400 mt-1 block">Timezone oficial de Maputo (CAT, UTC+2)</span>
-            </div>
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">Ciclo de Apuração</label>
-              <select
-                value={periodType}
-                onChange={(e) => setPeriodType(e.target.value)}
-                className="w-full px-3 py-2 border border-[#D9E0E7] rounded bg-white text-slate-800"
-              >
-                <option value="MONTHLY">Mensal (01 ao fim do mês)</option>
-                <option value="BIWEEKLY">Quinzenal</option>
-                <option value="WEEKLY">Semanal</option>
-              </select>
-            </div>
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">Meta Diária de Horas Úteis</label>
-              <input
-                type="number"
-                min={1}
-                max={12}
-                value={targetHours}
-                onChange={(e) => setTargetHours(e.target.value)}
-                className="w-full px-3 py-2 border border-[#D9E0E7] rounded bg-white text-slate-900"
-              />
-              <span className="text-[11px] text-slate-400 mt-1 block">Valor de referência padrão: 8 horas úteis</span>
-            </div>
+        {canManage && (
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button
+              variant="secondary"
+              disabled={!hasChanges || isSaving}
+              onClick={() => {
+                setValues(originalValues);
+                setFieldErrors({});
+              }}
+            >
+              Cancelar alterações
+            </Button>
+            <Button type="submit" icon={Save} isLoading={isSaving} disabled={!hasChanges}>
+              Guardar configurações
+            </Button>
           </div>
-        </div>
-
-        <div className="border-t border-slate-100 pt-6">
-          <h3 className="text-sm font-bold text-[#1F2937] mb-1">Base de Dados & Supabase Cloud</h3>
-          <p className="text-slate-500 mb-4">Parâmetros da infraestrutura em nuvem conectada.</p>
-          <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <span className="font-semibold text-slate-700">Projeto Supabase</span>
-              <span className="font-mono text-slate-800 bg-white px-2 py-1 rounded border border-slate-200">
-                https://iahgopefwixbprfzcwbd.supabase.co
-              </span>
-            </div>
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <span className="font-semibold text-slate-700">Estado da Ligação</span>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-emerald-100 text-emerald-800 font-medium">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                Conectado (API & Auth)
-              </span>
-            </div>
-            <div className="pt-2 flex items-center justify-end">
-              <a
-                href="/system-health"
-                className="text-xs text-[#1F5FAD] hover:underline font-semibold"
-              >
-                Gerir esquema SQL e diagnóstico de tabelas &rarr;
-              </a>
-            </div>
-          </div>
-        </div>
-
-        <div className="border-t border-slate-100 pt-4 flex items-center justify-end">
-          <button
-            type="submit"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-[#1F5FAD] hover:bg-[#184d8f] text-white text-xs font-semibold rounded shadow-xs transition"
-          >
-            <Save className="w-4 h-4" />
-            Guardar Configurações
-          </button>
-        </div>
+        )}
       </form>
     </div>
   );

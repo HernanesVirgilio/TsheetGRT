@@ -65,3 +65,26 @@
 
 - **ADMIN:**
   - Todas as permissões anteriores + `USERS_CREATE`, `USERS_UPDATE`, `USERS_DISABLE`, `USERS_ASSIGN_ROLE`, `ROLES_READ`, `ROLES_MANAGE`, `PERMISSIONS_READ`, `PERMISSIONS_MANAGE`, `DEPARTMENTS_READ`, `DEPARTMENTS_MANAGE`, `SYSTEM_SETTINGS_READ`, `SYSTEM_SETTINGS_MANAGE`, `REPORTS_EXPORT`, `ADMIN_ACCESS`
+
+---
+
+## 4. Regras aplicadas no servidor
+
+- As permissões são sempre explícitas: `has_permission` não tem atalho para ADMIN nem para `ADMIN_ACCESS`.
+- O perfil **ADMIN** mantém todas as permissões e não pode ser editado (`set_role_permissions` recusa a operação).
+- A permissão `ADMIN_ACCESS` é exclusiva do perfil ADMIN.
+- Só quem tem `ADMIN_ACCESS` pode atribuir o perfil ADMIN a um utilizador.
+- Cada utilizador tem exatamente um perfil de acesso (`user_roles.user_id` é único).
+- Novas permissões introduzidas em migrations futuras devem ser atribuídas explicitamente ao perfil ADMIN nessa mesma migration.
+
+## 5. Navegação da área Admin
+
+| Rota | Permissão exigida | Ações adicionais |
+| :--- | :--- | :--- |
+| `/users`, `/users/:id` | `USERS_READ` | criar: `USERS_CREATE` + `USERS_ASSIGN_ROLE`; editar: `USERS_UPDATE`; perfil: `USERS_ASSIGN_ROLE`; ativar/desativar: `USERS_DISABLE` |
+| `/departments` | `DEPARTMENTS_READ` | criar/editar/ativar: `DEPARTMENTS_MANAGE` |
+| `/roles` | `ROLES_READ` | gerir permissões: `PERMISSIONS_MANAGE` |
+| `/audit` | `AUDIT_READ` | — |
+| `/system-health` | `SYSTEM_HEALTH_READ` | — |
+| `/settings` | `SYSTEM_SETTINGS_READ` | alterar: `SYSTEM_SETTINGS_MANAGE` |
+| `/reports` | `REPORTS_READ` | exportar CSV: `REPORTS_EXPORT` |

@@ -1,5 +1,5 @@
 import React from 'react';
-import { LucideIcon } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 interface StatCardProps {
   label: string;
@@ -9,28 +9,16 @@ interface StatCardProps {
   badge?: React.ReactNode;
 }
 
-export const StatCard: React.FC<StatCardProps> = ({
-  label,
-  value,
-  supporting,
-  icon: Icon,
-  badge,
-}) => {
-  return (
-    <div className="bg-white rounded-lg p-5 border border-[#D9E0E7] shadow-xs flex flex-col justify-between">
-      <div className="flex items-center justify-between text-[#64748B] mb-2">
-        <span className="text-xs font-semibold uppercase tracking-wider">{label}</span>
-        {Icon && <Icon className="w-4 h-4 text-slate-400" />}
-      </div>
-      <div className="flex items-baseline justify-between gap-2">
-        <div className="text-2xl font-bold tracking-tight text-[#1F2937]">{value}</div>
-        {badge}
-      </div>
-      {supporting && (
-        <div className="mt-2 text-xs text-[#64748B] border-t border-slate-100 pt-2">
-          {supporting}
-        </div>
-      )}
+export const StatCard: React.FC<StatCardProps> = ({ label, value, supporting, icon: Icon, badge }) => (
+  <div className="flex flex-col justify-between rounded-lg border border-border bg-surface p-5">
+    <div className="mb-2 flex items-center justify-between text-text-secondary">
+      <span className="text-xs font-semibold uppercase tracking-wide">{label}</span>
+      {Icon && <Icon className="h-4 w-4 text-sidebar" aria-hidden="true" />}
     </div>
-  );
-};
+    <div className="flex items-baseline justify-between gap-2">
+      <div className="text-2xl font-semibold tracking-tight text-text">{value}</div>
+      {badge}
+    </div>
+    {supporting && <div className="mt-2 text-xs text-text-secondary">{supporting}</div>}
+  </div>
+);

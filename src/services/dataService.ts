@@ -2,22 +2,17 @@ import {
   Profile,
   Department,
   Role,
-  Permission,
   Activity,
   Timesheet,
   TimesheetEntry,
   TimesheetApproval,
   AuditEvent,
   NotificationItem,
-  SystemSetting,
   SystemHealthStatus,
-  RoleCode,
-  PermissionCode,
 } from '../types';
 import {
   INITIAL_DEPARTMENTS,
   INITIAL_ROLES,
-  INITIAL_PERMISSIONS,
   INITIAL_PROFILES,
   INITIAL_USER_ROLE_MAP,
   INITIAL_ACTIVITIES,
@@ -26,8 +21,6 @@ import {
   INITIAL_APPROVALS,
   INITIAL_NOTIFICATIONS,
   INITIAL_AUDIT_EVENTS,
-  INITIAL_SYSTEM_SETTINGS,
-  ROLE_PERMISSION_MAP,
 } from '../lib/supabase/mockData';
 
 // Storage keys for local persistence
@@ -36,17 +29,12 @@ const STORAGE_KEYS = {
   USER_ROLES: 'sih_user_roles',
   DEPARTMENTS: 'sih_departments',
   ROLES: 'sih_roles',
-  PERMISSIONS: 'sih_permissions',
-  ROLE_PERMISSIONS: 'sih_role_permissions',
   ACTIVITIES: 'sih_activities',
   TIMESHEETS: 'sih_timesheets',
   TIMESHEET_ENTRIES: 'sih_timesheet_entries',
   APPROVALS: 'sih_approvals',
   NOTIFICATIONS: 'sih_notifications',
   AUDIT_EVENTS: 'sih_audit_events',
-  SYSTEM_SETTINGS: 'sih_system_settings',
-  ACTIVE_SESSION: 'sih_active_session',
-  PASSWORDS: 'sih_passwords',
 };
 
 // Helper to read from LocalStorage or seed safely in both browser and Node/CLI
@@ -80,24 +68,12 @@ let profiles: Profile[] = loadOrSeed(STORAGE_KEYS.PROFILES, INITIAL_PROFILES);
 let userRolesMap: Record<string, string> = loadOrSeed(STORAGE_KEYS.USER_ROLES, INITIAL_USER_ROLE_MAP);
 let departments: Department[] = loadOrSeed(STORAGE_KEYS.DEPARTMENTS, INITIAL_DEPARTMENTS);
 let roles: Role[] = loadOrSeed(STORAGE_KEYS.ROLES, INITIAL_ROLES);
-let permissions: Permission[] = loadOrSeed(STORAGE_KEYS.PERMISSIONS, INITIAL_PERMISSIONS);
-let rolePermissionsMap: Record<string, string[]> = loadOrSeed(STORAGE_KEYS.ROLE_PERMISSIONS, ROLE_PERMISSION_MAP);
 let activities: Activity[] = loadOrSeed(STORAGE_KEYS.ACTIVITIES, INITIAL_ACTIVITIES);
 let timesheets: Timesheet[] = loadOrSeed(STORAGE_KEYS.TIMESHEETS, INITIAL_TIMESHEETS);
 let timesheetEntries: TimesheetEntry[] = loadOrSeed(STORAGE_KEYS.TIMESHEET_ENTRIES, INITIAL_TIMESHEET_ENTRIES);
 let approvals: TimesheetApproval[] = loadOrSeed(STORAGE_KEYS.APPROVALS, INITIAL_APPROVALS);
 let notifications: NotificationItem[] = loadOrSeed(STORAGE_KEYS.NOTIFICATIONS, INITIAL_NOTIFICATIONS);
 let auditEvents: AuditEvent[] = loadOrSeed(STORAGE_KEYS.AUDIT_EVENTS, INITIAL_AUDIT_EVENTS);
-let systemSettings: SystemSetting[] = loadOrSeed(STORAGE_KEYS.SYSTEM_SETTINGS, INITIAL_SYSTEM_SETTINGS);
-
-// Passwords store (for development auth test verification)
-const initialPasswords: Record<string, string> = {
-  'admin@siholdings-mz.com': '123456',
-  'it@siholdings-mz.com': '123456',
-  'manager@siholdings-mz.com': '123456',
-  'colaborador@siholdings-mz.com': '123456',
-};
-let passwords: Record<string, string> = loadOrSeed(STORAGE_KEYS.PASSWORDS, initialPasswords);
 
 // Audit helper
 export function logAuditEvent(
@@ -114,7 +90,7 @@ export function logAuditEvent(
     entity_type: entityType,
     entity_id: entityId,
     description,
-    ip_address: '196.3.96.' + (Math.floor(Math.random() * 200) + 10),
+    ip_address: null,
     user_agent: navigator.userAgent || 'Mozilla/5.0 (Internal Browser)',
     created_at: new Date().toISOString(),
   };
@@ -167,7 +143,7 @@ export const dataService = {
     return profiles.map((p) => ({
       ...p,
       department: departments.find((d) => d.id === p.department_id) || null,
-      roles: [roles.find((r) => r.code === userRolesMap[p.id]) || roles[3]],
+      role: roles.find((r) => r.code === userRolesMap[p.id]) || roles[3],
     }));
   },
 
@@ -177,257 +153,8 @@ export const dataService = {
     return {
       ...p,
       department: departments.find((d) => d.id === p.department_id) || null,
-      roles: [roles.find((r) => r.code === userRolesMap[p.id]) || roles[3]],
+      role: roles.find((r) => r.code === userRolesMap[p.id]) || roles[3],
     };
-  },
-
-  getProfileByEmail(email: string): Profile | null {
-    const p = profiles.find((item) => item.email.toLowerCase() === email.toLowerCase());
-    if (!p) return null;
-    return this.getProfileById(p.id);
-  },
-
-  updateProfile(id: string, updates: Partial<Profile>, actorId?: string): Profile {
-    const index = profiles.findIndex((p) => p.id === id);
-    if (index === -1) throw new Error('Utilizador não encontrado');
-
-    const updated: Profile = {
-      ...profiles[index],
-      ...updates,
-      updated_at: new Date().toISOString(),
-    };
-    profiles[index] = updated;
-    save(STORAGE_KEYS.PROFILES, profiles);
-
-    if (actorId) {
-      logAuditEvent(actorId, 'user.updated', 'profiles', id, `Perfil atualizado: ${updated.full_name}`);
-    }
-
-    return this.getProfileById(id)!;
-  },
-
-  createProfile(data: {
-    full_name: string;
-    email: string;
-    phone?: string;
-    department_id: string;
-    job_title?: string;
-    role: RoleCode;
-  }, actorId: string): Profile {
-    const existing = profiles.find((p) => p.email.toLowerCase() === data.email.toLowerCase());
-    if (existing) {
-      throw new Error('Já existe um utilizador com este endereço de e-mail.');
-    }
-
-    const newId = `u${Date.now()}`;
-    const newProfile: Profile = {
-      id: newId,
-      auth_user_id: `a${Date.now()}`,
-      employee_number: `SIH-${String(profiles.length + 1).padStart(4, '0')}`,
-      full_name: data.full_name,
-      email: data.email,
-      phone: data.phone || null,
-      department_id: data.department_id,
-      job_title: data.job_title || null,
-      avatar_url: null,
-      is_active: true,
-      must_change_password: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      last_login_at: null,
-    };
-
-    profiles.push(newProfile);
-    save(STORAGE_KEYS.PROFILES, profiles);
-
-    // Assign role
-    userRolesMap[newId] = data.role;
-    save(STORAGE_KEYS.USER_ROLES, userRolesMap);
-
-    // Initialize password to default dev seed
-    passwords[data.email.toLowerCase()] = '123456';
-    save(STORAGE_KEYS.PASSWORDS, passwords);
-
-    logAuditEvent(actorId, 'user.created', 'profiles', newId, `Novo utilizador criado: ${data.full_name} (${data.role})`);
-
-    return this.getProfileById(newId)!;
-  },
-
-  toggleUserStatus(id: string, isActive: boolean, actorId: string): Profile {
-    const user = profiles.find((p) => p.id === id);
-    if (!user) throw new Error('Utilizador não encontrado');
-
-    // Prevent disabling the primary admin if it's the last active admin
-    if (!isActive && userRolesMap[id] === 'ADMIN') {
-      const activeAdmins = profiles.filter((p) => p.is_active && userRolesMap[p.id] === 'ADMIN');
-      if (activeAdmins.length <= 1) {
-        throw new Error('Não é possível desativar o único administrador ativo do sistema.');
-      }
-    }
-
-    user.is_active = isActive;
-    user.updated_at = new Date().toISOString();
-    save(STORAGE_KEYS.PROFILES, profiles);
-
-    logAuditEvent(
-      actorId,
-      isActive ? 'user.enabled' : 'user.disabled',
-      'profiles',
-      id,
-      `Utilizador ${user.full_name} foi ${isActive ? 'ativado' : 'desativado'}`
-    );
-
-    return this.getProfileById(id)!;
-  },
-
-  assignUserRole(userId: string, roleCode: RoleCode, actorId: string): void {
-    const user = profiles.find((p) => p.id === userId);
-    if (!user) throw new Error('Utilizador não encontrado');
-
-    const oldRole = userRolesMap[userId] || 'EMPLOYEE';
-    userRolesMap[userId] = roleCode;
-    save(STORAGE_KEYS.USER_ROLES, userRolesMap);
-
-    logAuditEvent(
-      actorId,
-      'user.role.changed',
-      'user_roles',
-      userId,
-      `Role do utilizador ${user.full_name} alterado de ${oldRole} para ${roleCode}`
-    );
-  },
-
-  // Auth Operations
-  verifyCredentials(email: string, passwordAttempt: string): { profile: Profile; mustChangePassword: boolean } | null {
-    let normalizedEmail = email.trim().toLowerCase();
-    if (normalizedEmail === 'gestor@siholdings-mz.com') {
-      normalizedEmail = 'manager@siholdings-mz.com';
-    } else if (normalizedEmail === 'funcionario@siholdings-mz.com') {
-      normalizedEmail = 'colaborador@siholdings-mz.com';
-    }
-
-    const storedPassword = passwords[normalizedEmail];
-
-    if (!storedPassword || storedPassword !== passwordAttempt) {
-      logAuditEvent(null, 'auth.login.failed', 'auth', null, `Tentativa de login falhada para: ${normalizedEmail}`);
-      return null;
-    }
-
-    const profile = profiles.find((p) => p.email.toLowerCase() === normalizedEmail);
-    if (!profile || !profile.is_active) {
-      logAuditEvent(profile ? profile.id : null, 'auth.login.failed', 'auth', null, `Conta inativa ou bloqueada tentou aceder: ${normalizedEmail}`);
-      return null;
-    }
-
-    // Update last login
-    profile.last_login_at = new Date().toISOString();
-    save(STORAGE_KEYS.PROFILES, profiles);
-
-    logAuditEvent(profile.id, 'auth.login.success', 'auth', profile.id, `Início de sessão bem-sucedido: ${profile.full_name}`);
-
-    return {
-      profile: this.getProfileById(profile.id)!,
-      mustChangePassword: profile.must_change_password,
-    };
-  },
-
-  changeUserPassword(userId: string, currentPasswordAttempt: string, newPassword: string): void {
-    const user = profiles.find((p) => p.id === userId);
-    if (!user) throw new Error('Utilizador não encontrado');
-
-    const emailKey = user.email.toLowerCase();
-    const stored = passwords[emailKey];
-
-    if (stored !== currentPasswordAttempt) {
-      throw new Error('A palavra-passe atual indicada está incorreta.');
-    }
-
-    if (newPassword.length < 12) {
-      throw new Error('A nova palavra-passe deve conter no mínimo 12 carateres.');
-    }
-
-    if (newPassword === currentPasswordAttempt) {
-      throw new Error('A nova palavra-passe deve ser diferente da atual.');
-    }
-
-    passwords[emailKey] = newPassword;
-    save(STORAGE_KEYS.PASSWORDS, passwords);
-
-    user.must_change_password = false;
-    user.updated_at = new Date().toISOString();
-    save(STORAGE_KEYS.PROFILES, profiles);
-
-    logAuditEvent(userId, 'auth.password.changed', 'auth', userId, `Palavra-passe alterada com sucesso por ${user.full_name}`);
-  },
-
-  getUserPermissions(roleCode: RoleCode): PermissionCode[] {
-    const list = rolePermissionsMap[roleCode] || [];
-    return list as PermissionCode[];
-  },
-
-  // Departments
-  getDepartments(): Department[] {
-    return departments;
-  },
-
-  createDepartment(data: { code: string; name: string; description: string }, actorId: string): Department {
-    const exists = departments.some((d) => d.code.toUpperCase() === data.code.toUpperCase());
-    if (exists) {
-      throw new Error('Já existe um departamento com este código.');
-    }
-
-    const newDept: Department = {
-      id: `d-${Date.now()}`,
-      code: data.code.toUpperCase().trim(),
-      name: data.name.trim(),
-      description: data.description.trim(),
-      active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
-    departments.push(newDept);
-    save(STORAGE_KEYS.DEPARTMENTS, departments);
-    logAuditEvent(actorId, 'department.created', 'departments', newDept.id, `Departamento criado: ${newDept.name} (${newDept.code})`);
-    return newDept;
-  },
-
-  updateDepartment(id: string, updates: Partial<Department>, actorId: string): Department {
-    const index = departments.findIndex((d) => d.id === id);
-    if (index === -1) throw new Error('Departamento não encontrado');
-
-    departments[index] = {
-      ...departments[index],
-      ...updates,
-      updated_at: new Date().toISOString(),
-    };
-    save(STORAGE_KEYS.DEPARTMENTS, departments);
-    logAuditEvent(actorId, 'department.updated', 'departments', id, `Departamento atualizado: ${departments[index].name}`);
-    return departments[index];
-  },
-
-  // Roles & Permissions
-  getRoles(): (Role & { user_count: number })[] {
-    return roles.map((r) => {
-      const count = Object.values(userRolesMap).filter((rc) => rc === r.code).length;
-      return {
-        ...r,
-        user_count: count,
-        permissions: (rolePermissionsMap[r.code] || []).map(
-          (code) => permissions.find((p) => p.code === code)!
-        ).filter(Boolean),
-      };
-    });
-  },
-
-  getPermissions(): Permission[] {
-    return permissions;
-  },
-
-  updateRolePermissions(roleCode: RoleCode, newPermissionCodes: string[], actorId: string): void {
-    rolePermissionsMap[roleCode] = newPermissionCodes;
-    save(STORAGE_KEYS.ROLE_PERMISSIONS, rolePermissionsMap);
-    logAuditEvent(actorId, 'permission.changed', 'role_permissions', roleCode, `Permissões atualizadas para o perfil: ${roleCode}`);
   },
 
   // Activities
@@ -840,76 +567,4 @@ export const dataService = {
     };
   },
 
-  // Notifications
-  getNotifications(userId: string): NotificationItem[] {
-    return notifications
-      .filter((n) => n.user_id === userId)
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  },
-
-  markNotificationAsRead(id: string): void {
-    const n = notifications.find((item) => item.id === id);
-    if (n && !n.read_at) {
-      n.read_at = new Date().toISOString();
-      save(STORAGE_KEYS.NOTIFICATIONS, notifications);
-    }
-  },
-
-  markAllNotificationsAsRead(userId: string): void {
-    let changed = false;
-    notifications.forEach((n) => {
-      if (n.user_id === userId && !n.read_at) {
-        n.read_at = new Date().toISOString();
-        changed = true;
-      }
-    });
-    if (changed) {
-      save(STORAGE_KEYS.NOTIFICATIONS, notifications);
-    }
-  },
-
-  // System Settings
-  getSystemSettings(): SystemSetting[] {
-    return systemSettings;
-  },
-
-  updateSystemSetting(key: string, value: string, actorId: string): void {
-    const setting = systemSettings.find((s) => s.key === key);
-    if (!setting) throw new Error('Definição não encontrada.');
-
-    setting.value = value;
-    setting.updated_at = new Date().toISOString();
-    save(STORAGE_KEYS.SYSTEM_SETTINGS, systemSettings);
-
-    logAuditEvent(actorId, 'system.settings.changed', 'system_settings', key, `Definição de sistema alterada: ${key} = ${value}`);
-  },
-
-  // Reports
-  generateReportData(filters: {
-    departmentId?: string;
-    employeeId?: string;
-    status?: string;
-    startDate?: string;
-    endDate?: string;
-  }) {
-    let result = timesheets.map((t) => this.hydrateTimesheet(t));
-
-    if (filters.status) {
-      result = result.filter((t) => t.status === filters.status);
-    }
-    if (filters.employeeId) {
-      result = result.filter((t) => t.employee_id === filters.employeeId);
-    }
-    if (filters.departmentId) {
-      result = result.filter((t) => t.employee?.department_id === filters.departmentId);
-    }
-    if (filters.startDate) {
-      result = result.filter((t) => t.period_start >= filters.startDate!);
-    }
-    if (filters.endDate) {
-      result = result.filter((t) => t.period_end <= filters.endDate!);
-    }
-
-    return result;
-  },
 };

@@ -1,7 +1,8 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../lib/auth/AuthContext';
-import { PermissionCode, RoleCode } from '../../types';
+import type { PermissionCode, RoleCode } from '../../types';
+import { LoadingState } from '../ui/States';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -9,27 +10,23 @@ interface ProtectedRouteProps {
   allowedRoles?: RoleCode[];
 }
 
-export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
-  children,
-  requiredPermission,
-  allowedRoles,
-}) => {
-  const { isAuthenticated, isLoading, hasPermission, role } = useAuth();
+/**
+ * Proteção de navegação (experiência de utilizador). A autorização efetiva é feita
+ * no servidor pelas políticas RLS; esta verificação apenas evita ecrãs sem acesso.
+ */
+export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredPermission, allowedRoles }) => {
+  const { status, hasPermission, role } = useAuth();
   const location = useLocation();
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-[#F5F7FA] flex items-center justify-center">
-        <div className="w-8 h-8 border-3 border-[#1F5FAD] border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
+  if (status === 'loading') {
+    return <LoadingState label="A verificar permissões..." />;
   }
 
-  if (!isAuthenticated) {
+  if (status !== 'ready') {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (allowedRoles && role && !allowedRoles.includes(role)) {
+  if (allowedRoles && (!role || !allowedRoles.includes(role))) {
     return <Navigate to="/403" replace />;
   }
 

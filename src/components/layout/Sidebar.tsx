@@ -1,265 +1,144 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { NavLink } from 'react-router-dom';
 import {
-  LayoutDashboard,
-  Clock3,
-  Users,
-  ClipboardCheck,
-  BarChart3,
-  ShieldCheck,
-  Building2,
-  FileClock,
   Activity,
-  Settings,
-  UserCircle,
+  BarChart3,
   Bell,
+  Building2,
+  ClipboardCheck,
+  Clock3,
+  FileClock,
+  LayoutDashboard,
   LogOut,
-  ChevronDown,
+  Settings,
+  ShieldCheck,
+  UserCircle,
+  Users,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useAuth } from '../../lib/auth/AuthContext';
-import { UserAvatar } from '../ui/UserAvatar';
+import type { PermissionCode } from '../../types';
+import { BrandMark } from './BrandMark';
 
-interface SidebarProps {
-  onCloseMobile?: () => void;
+interface NavigationItem {
+  to: string;
+  label: string;
+  icon: LucideIcon;
+  permission: PermissionCode;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
-  const { currentUser, role, signOut, switchAccountForDev, mustChangePassword } = useAuth();
-  const [showRoleSwitcher, setShowRoleSwitcher] = useState(false);
+const ANALYSIS_ITEMS: NavigationItem[] = [
+  { to: '/reports', label: 'Relatórios', icon: BarChart3, permission: 'REPORTS_READ' },
+];
 
-  const navItemClass = ({ isActive }: { isActive: boolean }) =>
-    `flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-      isActive
-        ? 'bg-[#1F5FAD] text-white'
-        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-    }`;
+const ADMINISTRATION_ITEMS: NavigationItem[] = [
+  { to: '/users', label: 'Utilizadores', icon: Users, permission: 'USERS_READ' },
+  { to: '/departments', label: 'Departamentos', icon: Building2, permission: 'DEPARTMENTS_READ' },
+  { to: '/roles', label: 'Roles e Permissões', icon: ShieldCheck, permission: 'ROLES_READ' },
+  { to: '/audit', label: 'Auditoria', icon: FileClock, permission: 'AUDIT_READ' },
+  { to: '/system-health', label: 'Saúde do Sistema', icon: Activity, permission: 'SYSTEM_HEALTH_READ' },
+  { to: '/settings', label: 'Configurações', icon: Settings, permission: 'SYSTEM_SETTINGS_READ' },
+];
 
-  const roleLabelMap: Record<string, string> = {
-    ADMIN: 'ADMIN',
-    IT: 'IT',
-    MANAGER: 'GESTOR',
-    EMPLOYEE: 'COLABORADOR',
-  };
+function navigationLinkClass({ isActive }: { isActive: boolean }): string {
+  return `flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+    isActive ? 'bg-primary text-on-primary' : 'text-sidebar-muted hover:bg-sidebar-hover hover:text-white'
+  }`;
+}
+
+interface SidebarLinkProps {
+  to: string;
+  label: string;
+  icon: LucideIcon;
+  onNavigate?: () => void;
+}
+
+const SidebarLink: React.FC<SidebarLinkProps> = ({ to, label, icon: Icon, onNavigate }) => (
+  <li>
+    <NavLink to={to} className={navigationLinkClass} onClick={onNavigate}>
+      <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+      <span>{label}</span>
+    </NavLink>
+  </li>
+);
+
+const SidebarSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
+  <div className="border-t border-white/15 pt-4">
+    <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-sidebar-muted">{title}</p>
+    <ul className="space-y-1">{children}</ul>
+  </div>
+);
+
+interface SidebarProps {
+  onNavigate?: () => void;
+}
+
+export const Sidebar: React.FC<SidebarProps> = ({ onNavigate }) => {
+  const { currentUser, role, hasPermission, signOut } = useAuth();
+
+  const visibleAnalysisItems = ANALYSIS_ITEMS.filter((item) => hasPermission(item.permission));
+  const visibleAdministrationItems = ADMINISTRATION_ITEMS.filter((item) => hasPermission(item.permission));
 
   return (
-    <aside className="w-64 bg-white border-r border-[#D9E0E7] flex flex-col h-full shrink-0 select-none">
-      {/* Brand Header */}
-      <div className="p-5 border-b border-[#D9E0E7] flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded bg-[#1F5FAD] flex items-center justify-center text-white font-bold text-sm tracking-wider shadow-xs">
-            SI
-          </div>
-          <div>
-            <div className="text-xs font-bold tracking-widest text-[#12304A] uppercase">
-              SI Holdings
-            </div>
-            <div className="text-sm font-bold text-[#1F5FAD] tracking-tight">
-              TIMESHEET
-            </div>
-          </div>
-        </div>
+    <aside className="flex h-full w-64 shrink-0 flex-col bg-sidebar text-white">
+      <div className="border-b border-white/15 px-5 py-4">
+        <BrandMark inverted />
       </div>
 
-      {/* Navigation Links */}
-      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6 custom-scrollbar">
-        {/* Core Operations */}
-        <div className="space-y-1">
-          <NavLink to="/dashboard" className={navItemClass} onClick={onCloseMobile}>
-            <LayoutDashboard className="w-4 h-4 shrink-0" />
-            <span>Dashboard</span>
-          </NavLink>
+      <nav aria-label="Navegação principal" className="flex-1 space-y-4 overflow-y-auto px-3 py-4 custom-scrollbar">
+        <ul className="space-y-1">
+          <SidebarLink to="/dashboard" label="Dashboard" icon={LayoutDashboard} onNavigate={onNavigate} />
 
-          {/* Timesheets: available to Employee, Manager, Admin */}
+          {/* Módulos de timesheet e equipa (fases seguintes): mantidos sem alterações de comportamento. */}
           {(role === 'EMPLOYEE' || role === 'MANAGER') && (
-            <NavLink to="/timesheets" className={navItemClass} onClick={onCloseMobile}>
-              <Clock3 className="w-4 h-4 shrink-0" />
-              <span>Meu Timesheet</span>
-            </NavLink>
+            <SidebarLink to="/timesheets" label="Meu Timesheet" icon={Clock3} onNavigate={onNavigate} />
           )}
-
-          {role === 'ADMIN' && (
-            <NavLink to="/timesheets" className={navItemClass} onClick={onCloseMobile}>
-              <Clock3 className="w-4 h-4 shrink-0" />
-              <span>Timesheets</span>
-            </NavLink>
-          )}
-
-          {/* Team / Approvals: Manager */}
+          {role === 'ADMIN' && <SidebarLink to="/timesheets" label="Timesheets" icon={Clock3} onNavigate={onNavigate} />}
           {role === 'MANAGER' && (
             <>
-              <NavLink to="/team" className={navItemClass} onClick={onCloseMobile}>
-                <Users className="w-4 h-4 shrink-0" />
-                <span>Minha Equipa</span>
-              </NavLink>
-              <NavLink to="/approvals" className={navItemClass} onClick={onCloseMobile}>
-                <ClipboardCheck className="w-4 h-4 shrink-0" />
-                <span>Aprovações</span>
-              </NavLink>
+              <SidebarLink to="/team" label="Minha Equipa" icon={Users} onNavigate={onNavigate} />
+              <SidebarLink to="/approvals" label="Aprovações" icon={ClipboardCheck} onNavigate={onNavigate} />
             </>
           )}
-        </div>
+        </ul>
 
-        {/* Management & Reports */}
-        {(role === 'ADMIN' || role === 'MANAGER') && (
-          <div className="space-y-1 pt-3 border-t border-slate-100">
-            <div className="px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
-              Análise & Gestão
-            </div>
-            <NavLink to="/reports" className={navItemClass} onClick={onCloseMobile}>
-              <BarChart3 className="w-4 h-4 shrink-0" />
-              <span>Relatórios</span>
-            </NavLink>
-          </div>
+        {visibleAnalysisItems.length > 0 && (
+          <SidebarSection title="Análise">
+            {visibleAnalysisItems.map((item) => (
+              <SidebarLink key={item.to} {...item} onNavigate={onNavigate} />
+            ))}
+          </SidebarSection>
         )}
 
-        {/* Administration / IT */}
-        {(role === 'ADMIN' || role === 'IT') && (
-          <div className="space-y-1 pt-3 border-t border-slate-100">
-            <div className="px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
-              Administração
-            </div>
-
-            {/* Users: Admin & IT */}
-            <NavLink to="/users" className={navItemClass} onClick={onCloseMobile}>
-              <Users className="w-4 h-4 shrink-0" />
-              <span>Utilizadores</span>
-            </NavLink>
-
-            {/* Departments: Admin only */}
-            {role === 'ADMIN' && (
-              <NavLink to="/departments" className={navItemClass} onClick={onCloseMobile}>
-                <Building2 className="w-4 h-4 shrink-0" />
-                <span>Departamentos</span>
-              </NavLink>
-            )}
-
-            {/* Roles & Permissions: Admin only */}
-            {role === 'ADMIN' && (
-              <NavLink to="/roles" className={navItemClass} onClick={onCloseMobile}>
-                <ShieldCheck className="w-4 h-4 shrink-0" />
-                <span>Roles e Permissões</span>
-              </NavLink>
-            )}
-
-            {/* Audit: Admin & IT */}
-            <NavLink to="/audit" className={navItemClass} onClick={onCloseMobile}>
-              <FileClock className="w-4 h-4 shrink-0" />
-              <span>Auditoria</span>
-            </NavLink>
-
-            {/* System Health: Admin & IT */}
-            <NavLink to="/system-health" className={navItemClass} onClick={onCloseMobile}>
-              <Activity className="w-4 h-4 shrink-0" />
-              <span>Saúde do Sistema</span>
-            </NavLink>
-
-            {/* Settings: Admin only */}
-            {role === 'ADMIN' && (
-              <NavLink to="/settings" className={navItemClass} onClick={onCloseMobile}>
-                <Settings className="w-4 h-4 shrink-0" />
-                <span>Configurações</span>
-              </NavLink>
-            )}
-          </div>
+        {visibleAdministrationItems.length > 0 && (
+          <SidebarSection title="Administração">
+            {visibleAdministrationItems.map((item) => (
+              <SidebarLink key={item.to} {...item} onNavigate={onNavigate} />
+            ))}
+          </SidebarSection>
         )}
 
-        {/* General User Section */}
-        <div className="space-y-1 pt-3 border-t border-slate-100">
-          <div className="px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
-            Conta
-          </div>
-          <NavLink to="/profile" className={navItemClass} onClick={onCloseMobile}>
-            <UserCircle className="w-4 h-4 shrink-0" />
-            <span>Meu Perfil</span>
-          </NavLink>
-          <NavLink to="/notifications" className={navItemClass} onClick={onCloseMobile}>
-            <Bell className="w-4 h-4 shrink-0" />
-            <span>Notificações</span>
-          </NavLink>
-        </div>
-      </div>
+        <SidebarSection title="Conta">
+          <SidebarLink to="/profile" label="Meu Perfil" icon={UserCircle} onNavigate={onNavigate} />
+          <SidebarLink to="/notifications" label="Notificações" icon={Bell} onNavigate={onNavigate} />
+        </SidebarSection>
+      </nav>
 
-      {/* Dev Account Switcher (Interactive Testing Support) */}
-      <div className="px-3 py-2 bg-slate-50 border-t border-[#D9E0E7]">
-        <button
-          type="button"
-          onClick={() => setShowRoleSwitcher(!showRoleSwitcher)}
-          className="w-full flex items-center justify-between px-2 py-1.5 text-[11px] font-medium text-slate-600 hover:text-slate-900 rounded bg-white border border-slate-200"
-        >
-          <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Perfil: <strong>{roleLabelMap[role || ''] || role}</strong></span>
-          </span>
-          <ChevronDown className="w-3.5 h-3.5" />
-        </button>
-
-        {showRoleSwitcher && (
-          <div className="mt-1.5 p-1.5 bg-white rounded border border-slate-200 text-xs space-y-1 shadow-sm">
-            <div className="text-[10px] uppercase font-semibold text-slate-400 px-1">Alternar conta de teste:</div>
-            <button
-              onClick={() => { switchAccountForDev('admin@siholdings-mz.com'); setShowRoleSwitcher(false); }}
-              className="w-full text-left px-1.5 py-1 rounded hover:bg-slate-100 flex items-center justify-between"
-            >
-              <span>ADMIN</span>
-              <span className="text-[10px] text-slate-400">admin@</span>
-            </button>
-            <button
-              onClick={() => { switchAccountForDev('it@siholdings-mz.com'); setShowRoleSwitcher(false); }}
-              className="w-full text-left px-1.5 py-1 rounded hover:bg-slate-100 flex items-center justify-between"
-            >
-              <span>IT</span>
-              <span className="text-[10px] text-slate-400">it@</span>
-            </button>
-            <button
-              onClick={() => { switchAccountForDev('manager@siholdings-mz.com'); setShowRoleSwitcher(false); }}
-              className="w-full text-left px-1.5 py-1 rounded hover:bg-slate-100 flex items-center justify-between"
-            >
-              <span>MANAGER</span>
-              <span className="text-[10px] text-slate-400">manager@</span>
-            </button>
-            <button
-              onClick={() => { switchAccountForDev('colaborador@siholdings-mz.com'); setShowRoleSwitcher(false); }}
-              className="w-full text-left px-1.5 py-1 rounded hover:bg-slate-100 flex items-center justify-between"
-            >
-              <span>COLABORADOR</span>
-              <span className="text-[10px] text-slate-400">colaborador@</span>
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* User Footer Card */}
       {currentUser && (
-        <div className="p-3 border-t border-[#D9E0E7] bg-white">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <UserAvatar name={currentUser.full_name} size="sm" />
-              <div className="min-w-0">
-                <div className="text-xs font-semibold text-slate-800 truncate leading-snug">
-                  {currentUser.full_name}
-                </div>
-                <div className="text-[11px] text-slate-500 truncate">
-                  {currentUser.email}
-                </div>
-              </div>
-            </div>
-            <button
-              onClick={() => signOut()}
-              className="p-1.5 text-slate-400 hover:text-[#C0392B] hover:bg-red-50 rounded transition shrink-0"
-              title="Terminar sessão"
-              aria-label="Terminar sessão"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
+        <div className="flex items-center justify-between gap-2 border-t border-white/15 px-4 py-3">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-white">{currentUser.full_name}</p>
+            <p className="truncate text-xs text-sidebar-muted">{currentUser.role?.name ?? 'Sem perfil de acesso'}</p>
           </div>
-          {mustChangePassword && (
-            <NavLink
-              to="/alterar-palavra-passe"
-              className="mt-2 block text-center text-[11px] py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded font-medium hover:bg-amber-100"
-            >
-              Alterar palavra-passe pendente
-            </NavLink>
-          )}
+          <button
+            type="button"
+            onClick={() => signOut()}
+            aria-label="Terminar sessão"
+            title="Terminar sessão"
+            className="shrink-0 rounded-md p-2 text-sidebar-muted hover:bg-sidebar-hover hover:text-white"
+          >
+            <LogOut className="h-4 w-4" aria-hidden="true" />
+          </button>
         </div>
       )}
     </aside>
