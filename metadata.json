@@ -1,0 +1,6 @@
+{
+  "name": "SI Holdings Timesheet",
+  "description": "Plataforma interna de operações corporativas e gestão de timesheet da SI Holdings.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
