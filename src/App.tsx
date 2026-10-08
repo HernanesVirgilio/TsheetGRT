@@ -28,6 +28,15 @@ import { ApprovalsPage } from './pages/manager/ApprovalsPage';
 import { TimesheetReviewPage } from './pages/manager/TimesheetReviewPage';
 import { TeamActivityPage } from './pages/manager/TeamActivityPage';
 
+// Suporte IT
+import { SupportTicketsPage } from './pages/it/SupportTicketsPage';
+import { ITDashboardPage } from './pages/it/ITDashboardPage';
+import { TicketsPage } from './pages/it/TicketsPage';
+import { TicketDetailPage } from './pages/it/TicketDetailPage';
+import { AssetsPage } from './pages/it/AssetsPage';
+import { AssetDetailPage } from './pages/it/AssetDetailPage';
+import { InterventionsPage } from './pages/it/InterventionsPage';
+
 // Administração
 import { ReportsPage } from './pages/reports/ReportsPage';
 import { UsersPage } from './pages/admin/UsersPage';
@@ -56,6 +65,14 @@ const PERMISSION_ROUTES: PermissionRoute[] = [
   { path: '/approvals', permission: 'TEAM_TIMESHEET_REVIEW', element: <ApprovalsPage /> },
   { path: '/approvals/:id', permission: 'TEAM_TIMESHEET_REVIEW', element: <TimesheetReviewPage /> },
   { path: '/activity', permission: 'TEAM_TIMESHEET_READ', element: <TeamActivityPage /> },
+  { path: '/support', permission: 'IT_TICKET_CREATE', element: <SupportTicketsPage /> },
+  { path: '/support/:id', permission: 'IT_TICKET_CREATE', element: <TicketDetailPage context="support" /> },
+  { path: '/it', permission: 'IT_TICKETS_READ', element: <ITDashboardPage /> },
+  { path: '/it/tickets', permission: 'IT_TICKETS_READ', element: <TicketsPage /> },
+  { path: '/it/tickets/:id', permission: 'IT_TICKETS_READ', element: <TicketDetailPage context="it" /> },
+  { path: '/it/assets', permission: 'IT_ASSETS_READ', element: <AssetsPage /> },
+  { path: '/it/assets/:id', permission: 'IT_ASSETS_READ', element: <AssetDetailPage /> },
+  { path: '/it/interventions', permission: 'IT_TICKETS_READ', element: <InterventionsPage /> },
   { path: '/reports', permission: 'REPORTS_READ', element: <ReportsPage /> },
   { path: '/users', permission: 'USERS_READ', element: <UsersPage /> },
   { path: '/users/:id', permission: 'USERS_READ', element: <UserDetailPage /> },

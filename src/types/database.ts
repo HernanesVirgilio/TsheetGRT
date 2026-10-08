@@ -143,6 +143,86 @@ export type SystemSettingRow = {
   updated_at: string;
 };
 
+export type ItTicketCategoryRow = Timestamps & {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  sort_order: number;
+  active: boolean;
+};
+
+export type ItAssetRow = Timestamps & {
+  id: string;
+  asset_tag: string;
+  asset_type: string;
+  brand: string | null;
+  model: string | null;
+  serial_number: string | null;
+  status: string;
+  assigned_to: string | null;
+  department_id: string | null;
+  location: string | null;
+  acquired_on: string | null;
+  notes: string;
+};
+
+export type ItTicketRow = Timestamps & {
+  id: string;
+  reference: string;
+  title: string;
+  description: string;
+  requester_id: string;
+  requester_department_id: string | null;
+  category_id: string;
+  priority: string;
+  status: string;
+  assigned_to: string | null;
+  asset_id: string | null;
+  resolution_summary: string | null;
+  due_at: string;
+  status_changed_at: string;
+  resolved_at: string | null;
+  closed_at: string | null;
+};
+
+export type ItTicketCommentRow = {
+  id: string;
+  ticket_id: string;
+  author_id: string | null;
+  author_name: string;
+  body: string;
+  is_internal: boolean;
+  created_at: string;
+};
+
+export type ItTicketEventRow = {
+  id: string;
+  ticket_id: string;
+  actor_id: string | null;
+  actor_name: string | null;
+  event_type: string;
+  old_value: string | null;
+  new_value: string | null;
+  note: string | null;
+  is_internal: boolean;
+  created_at: string;
+};
+
+export type ItInterventionRow = {
+  id: string;
+  ticket_id: string | null;
+  asset_id: string | null;
+  technician_id: string | null;
+  technician_name: string;
+  performed_at: string;
+  problem_description: string;
+  work_performed: string;
+  outcome: string;
+  notes: string;
+  created_at: string;
+};
+
 type Relationship<Name extends string, Column extends string, Target extends string, OneToOne extends boolean> = {
   foreignKeyName: Name;
   columns: [Column];
@@ -265,6 +345,62 @@ export type Database = {
         Update: Partial<NotificationRow>;
         Relationships: [ProfileReference<'notifications', 'user_id'>];
       };
+      it_ticket_categories: {
+        Row: ItTicketCategoryRow;
+        Insert: Pick<ItTicketCategoryRow, 'code' | 'name'> & Partial<ItTicketCategoryRow>;
+        Update: Partial<ItTicketCategoryRow>;
+        Relationships: [];
+      };
+      it_assets: {
+        Row: ItAssetRow;
+        Insert: Pick<ItAssetRow, 'asset_type'> & Partial<ItAssetRow>;
+        Update: Partial<ItAssetRow>;
+        Relationships: [
+          ProfileReference<'it_assets', 'assigned_to'>,
+          Relationship<'it_assets_department_id_fkey', 'department_id', 'departments', false>,
+        ];
+      };
+      it_tickets: {
+        Row: ItTicketRow;
+        Insert: Pick<ItTicketRow, 'title' | 'description' | 'requester_id' | 'category_id' | 'due_at'> & Partial<ItTicketRow>;
+        Update: Partial<ItTicketRow>;
+        Relationships: [
+          ProfileReference<'it_tickets', 'requester_id'>,
+          ProfileReference<'it_tickets', 'assigned_to'>,
+          Relationship<'it_tickets_requester_department_id_fkey', 'requester_department_id', 'departments', false>,
+          Relationship<'it_tickets_category_id_fkey', 'category_id', 'it_ticket_categories', false>,
+          Relationship<'it_tickets_asset_id_fkey', 'asset_id', 'it_assets', false>,
+        ];
+      };
+      it_ticket_comments: {
+        Row: ItTicketCommentRow;
+        Insert: Pick<ItTicketCommentRow, 'ticket_id' | 'author_name' | 'body'> & Partial<ItTicketCommentRow>;
+        Update: Partial<ItTicketCommentRow>;
+        Relationships: [
+          Relationship<'it_ticket_comments_ticket_id_fkey', 'ticket_id', 'it_tickets', false>,
+          ProfileReference<'it_ticket_comments', 'author_id'>,
+        ];
+      };
+      it_ticket_events: {
+        Row: ItTicketEventRow;
+        Insert: Pick<ItTicketEventRow, 'ticket_id' | 'event_type'> & Partial<ItTicketEventRow>;
+        Update: Partial<ItTicketEventRow>;
+        Relationships: [
+          Relationship<'it_ticket_events_ticket_id_fkey', 'ticket_id', 'it_tickets', false>,
+          ProfileReference<'it_ticket_events', 'actor_id'>,
+        ];
+      };
+      it_interventions: {
+        Row: ItInterventionRow;
+        Insert: Pick<ItInterventionRow, 'technician_name' | 'problem_description' | 'work_performed' | 'outcome'> &
+          Partial<ItInterventionRow>;
+        Update: Partial<ItInterventionRow>;
+        Relationships: [
+          Relationship<'it_interventions_ticket_id_fkey', 'ticket_id', 'it_tickets', false>,
+          Relationship<'it_interventions_asset_id_fkey', 'asset_id', 'it_assets', false>,
+          ProfileReference<'it_interventions', 'technician_id'>,
+        ];
+      };
       system_settings: {
         Row: SystemSettingRow;
         Insert: Pick<SystemSettingRow, 'key' | 'value'> & Partial<SystemSettingRow>;
@@ -305,6 +441,50 @@ export type Database = {
       review_timesheet: {
         Args: { p_timesheet_id: string; p_decision: string; p_comment?: string | null };
         Returns: undefined;
+      };
+      create_it_ticket: {
+        Args: { p_title: string; p_description: string; p_category_id: string; p_priority: string; p_asset_id?: string | null };
+        Returns: string;
+      };
+      take_it_ticket: { Args: { p_ticket_id: string }; Returns: undefined };
+      assign_it_ticket: { Args: { p_ticket_id: string; p_technician_id: string }; Returns: undefined };
+      change_it_ticket_status: { Args: { p_ticket_id: string; p_status: string; p_note?: string | null }; Returns: undefined };
+      update_it_ticket_priority: { Args: { p_ticket_id: string; p_priority: string; p_reason?: string | null }; Returns: undefined };
+      update_it_ticket_category: { Args: { p_ticket_id: string; p_category_id: string }; Returns: undefined };
+      set_it_ticket_asset: { Args: { p_ticket_id: string; p_asset_id: string | null }; Returns: undefined };
+      resolve_it_ticket: { Args: { p_ticket_id: string; p_resolution: string }; Returns: undefined };
+      close_it_ticket: { Args: { p_ticket_id: string; p_note?: string | null }; Returns: undefined };
+      reopen_it_ticket: { Args: { p_ticket_id: string; p_reason: string }; Returns: undefined };
+      add_it_ticket_comment: { Args: { p_ticket_id: string; p_body: string; p_is_internal?: boolean }; Returns: string };
+      add_it_intervention: {
+        Args: {
+          p_ticket_id: string | null;
+          p_asset_id: string | null;
+          p_performed_at: string;
+          p_problem_description: string;
+          p_work_performed: string;
+          p_outcome: string;
+          p_notes?: string | null;
+        };
+        Returns: string;
+      };
+      list_it_technicians: {
+        Args: NoArgs;
+        Returns: { profile_id: string; full_name: string; job_title: string | null; email: string }[];
+      };
+      get_it_dashboard_summary: {
+        Args: NoArgs;
+        Returns: {
+          open_count: number;
+          in_progress_count: number;
+          waiting_user_count: number;
+          resolved_count: number;
+          critical_count: number;
+          unassigned_count: number;
+          overdue_count: number;
+          waiting_too_long_count: number;
+          waiting_alert_days: number;
+        }[];
       };
       get_timesheet_decisions: {
         Args: { p_timesheet_id: string };

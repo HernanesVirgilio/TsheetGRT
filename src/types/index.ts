@@ -38,6 +38,12 @@ export const PERMISSION_CODES = [
   'REPORTS_READ',
   'REPORTS_EXPORT',
   'ADMIN_ACCESS',
+  'IT_TICKET_CREATE',
+  'IT_TICKETS_READ',
+  'IT_TICKETS_MANAGE',
+  'IT_TICKETS_ASSIGN',
+  'IT_ASSETS_READ',
+  'IT_ASSETS_MANAGE',
 ] as const;
 
 export type PermissionCode = (typeof PERMISSION_CODES)[number];

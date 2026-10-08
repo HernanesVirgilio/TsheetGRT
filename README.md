@@ -37,7 +37,7 @@ Tokens semânticos partilhados por todas as dashboards (nunca usar cores hexadec
 | `text` / `text-secondary` | `#1A1A1A` / `#333333` | Texto principal / secundário |
 | `border` / `border-input` | `#D9E0E7` / `#7D8A96` | Divisórias / contorno de campos (≥ 3:1) |
 
-Componentes base em `src/components/ui`: `Button`, `IconButton`, `TextField`, `SelectField`, `TextAreaField`, `Modal`, `ConfirmDialog`, `Alert`, `LoadingState`, `ErrorState`, `EmptyState`, `Panel`, `DataTable` (tabela no desktop, cartões no mobile), `Pagination`, `StatusBadge`.
+Componentes base em `src/components/ui`: `Button`, `IconButton`, `TextField`, `SelectField`, `TextAreaField`, `Modal`, `ConfirmDialog`, `Alert`, `LoadingState`, `ErrorState`, `EmptyState`, `Panel`, `DataTable` (tabela no desktop, cartões no mobile), `Pagination`, `StatusBadge` (tons partilhados em `badgeTones.ts`).
 
 ---
 
@@ -63,7 +63,7 @@ npm install
 npm run dev        # http://localhost:3000
 npm run typecheck  # TypeScript strict
 npm test           # testes de regras, utilitários e segurança da base de dados
-npm run test:db    # apenas segurança da base de dados (RLS, âmbitos, aprovações)
+npm run test:db    # apenas segurança da base de dados (RLS, âmbitos, aprovações, módulo IT)
 npm run build      # build de produção
 ```
 
@@ -75,6 +75,7 @@ npm run build      # build de produção
 src/
 ├── components/
 │   ├── admin/        # Formulário de utilizador, atribuição de perfil, ativação/desativação
+│   ├── it/           # Pedidos de suporte, histórico, equipamentos e intervenções
 │   ├── layout/       # AppShell, Header, Sidebar, ProtectedRoute, AuthLayout
 │   └── ui/           # Design System (componentes base)
 ├── hooks/            # useAsyncData, useDebouncedValue
@@ -92,7 +93,13 @@ supabase/
 └── scripts/          # Configuração do primeiro administrador
 ```
 
-> **Estado dos módulos:** integrados com o Supabase: área Admin; módulo Manager (equipa por âmbito, aprovações e rejeições, aprovação em massa, atividade, relatórios por âmbito); "Meu Timesheet" (períodos, registos de horas e submissão). Ainda usam a camada temporária `src/services/dataService.ts`: as dashboards de Colaborador e de IT, que serão migradas nas próximas fases.
+> **Estado dos módulos:** integrados com o Supabase: área Admin; módulo Manager (equipa por âmbito, aprovações e rejeições, aprovação em massa, atividade, relatórios por âmbito); "Meu Timesheet" (períodos, registos de horas e submissão); módulo **Suporte IT** (pedidos de suporte, fila do IT, histórico, equipamentos, intervenções e painel operacional). Ainda usa a camada temporária `src/services/dataService.ts`: a dashboard do Colaborador, que será migrada numa próxima fase.
+
+### Módulo Suporte IT
+
+- **Colaboradores** (`IT_TICKET_CREATE`): abrem pedidos em **Pedidos de suporte** (`/support`), acompanham o estado, respondem quando o IT pede informação, confirmam a resolução ou reabrem um pedido resolvido.
+- **Equipa de IT** (`IT_TICKETS_*`, `IT_ASSETS_*`): painel operacional (`/it`), fila de solicitações com filtros e paginação no servidor (`/it/tickets`), tratamento do pedido (assumir, atribuir, prioridade, categoria, equipamento, pedir informação, resolver, fechar, reabrir, notas internas), inventário de equipamentos (`/it/assets`) e intervenções técnicas (`/it/interventions`).
+- Todas as transições são feitas por funções do servidor; o histórico, a auditoria e as notificações são gerados no servidor. Ver [docs/security.md](docs/security.md#8-módulo-suporte-it).
 
 ---
 

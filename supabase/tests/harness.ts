@@ -106,6 +106,39 @@ export class TestDatabase {
     const { rows } = await this.db.query<{ value: Value }>(sql, params);
     return rows[0].value;
   }
+
+  async departmentId(code: string): Promise<string> {
+    return this.scalar<string>('SELECT id AS value FROM public.departments WHERE code = $1', [code]);
+  }
+
+  /** Cria conta Auth + perfil através de create_user_profile, como o faria um administrador. */
+  async createUser(adminAuthId: string, email: string, name: string, roleCode: string, departmentCode: string): Promise<TestUser> {
+    const authId = await this.createAuthUser(email);
+    const result = await this.asUser<{ id: string }>(
+      adminAuthId,
+      'SELECT public.create_user_profile($1, $2, $3, $4, $5) AS id',
+      [authId, name, email, roleCode, await this.departmentId(departmentCode)]
+    );
+    if (result.error) throw new Error(`Falha ao criar ${email}: ${result.error}`);
+    return { authId, profileId: result.rows[0].id };
+  }
+
+  /** Convida e configura o primeiro administrador (como no SQL Editor). */
+  async bootstrapAdmin(email: string, name: string): Promise<TestUser> {
+    const authId = await this.createAuthUser(email);
+    const result = await this.asPostgres<{ id: string }>('SELECT public.bootstrap_first_admin($1, $2) AS id', [email, name]);
+    if (result.error) throw new Error(`Falha ao configurar o administrador: ${result.error}`);
+    return { authId, profileId: result.rows[0].id };
+  }
+
+  async countAudit(action: string): Promise<number> {
+    return this.scalar<number>('SELECT count(*)::int AS value FROM public.audit_events WHERE action = $1', [action]);
+  }
+}
+
+export interface TestUser {
+  authId: string;
+  profileId: string;
 }
 
 export class TestReport {

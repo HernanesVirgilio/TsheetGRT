@@ -6,7 +6,7 @@
 | :--- | :--- | :--- |
 | **`EMPLOYEE`** | COLABORADOR | Utilizador padrão da empresa. Regista e submete horas de trabalho e tarefas. |
 | **`MANAGER`** | GESTOR / MANAGER | Responsável pela gestão de equipa departamental e validação/aprovação de ponto. |
-| **`IT`** | SUPORTE IT | Responsável pela monitorização técnica, diagnóstico de integridade e auditoria. |
+| **`IT`** | SUPORTE IT | Responsável pelo suporte técnico (pedidos, equipamentos, intervenções), monitorização técnica e auditoria. |
 | **`ADMIN`** | ADMINISTRADOR | Nível máximo administrativo da aplicação: utilizadores, departamentos e definições. |
 
 ---
@@ -45,6 +45,12 @@
 | `REPORTS_READ` | reports | Acesso aos relatórios consolidados de horas |
 | `REPORTS_EXPORT` | reports | Exportação de dados consolidados em formato CSV |
 | `ADMIN_ACCESS` | admin | Acesso administrativo global irrestrito |
+| `IT_TICKET_CREATE` | it | Abrir e acompanhar os próprios pedidos de suporte |
+| `IT_TICKETS_READ` | it | Consultar a fila de pedidos, o painel do IT e as intervenções |
+| `IT_TICKETS_MANAGE` | it | Tratar pedidos (assumir, estados, classificação, resolver, notas internas, intervenções) |
+| `IT_TICKETS_ASSIGN` | it | Atribuir pedidos a outros técnicos |
+| `IT_ASSETS_READ` | it | Consultar o inventário de equipamentos |
+| `IT_ASSETS_MANAGE` | it | Registar e editar equipamentos |
 
 ---
 
@@ -53,15 +59,18 @@
 - **EMPLOYEE:**
   - `SELF_ACCESS`, `SELF_PROFILE_READ`, `SELF_PROFILE_UPDATE`
   - `SELF_TIMESHEET_READ`, `SELF_TIMESHEET_CREATE`, `SELF_TIMESHEET_UPDATE`, `SELF_TIMESHEET_SUBMIT`
+  - `IT_TICKET_CREATE`
 
 - **MANAGER:**
   - Todas as permissões de `EMPLOYEE`
   - `TEAM_READ`, `TEAM_TIMESHEET_READ`, `TEAM_TIMESHEET_REVIEW`, `TEAM_TIMESHEET_APPROVE`, `TEAM_TIMESHEET_REJECT`
   - `REPORTS_READ`
+  - (`IT_TICKET_CREATE` incluída nas permissões de `EMPLOYEE`)
 
 - **IT:**
   - `SELF_ACCESS`, `SELF_PROFILE_READ`, `SELF_PROFILE_UPDATE`
   - `USERS_READ`, `SYSTEM_HEALTH_READ`, `AUDIT_READ`
+  - `IT_TICKET_CREATE`, `IT_TICKETS_READ`, `IT_TICKETS_MANAGE`, `IT_TICKETS_ASSIGN`, `IT_ASSETS_READ`, `IT_ASSETS_MANAGE`
 
 - **ADMIN:**
   - Todas as permissões anteriores + `USERS_CREATE`, `USERS_UPDATE`, `USERS_DISABLE`, `USERS_ASSIGN_ROLE`, `ROLES_READ`, `ROLES_MANAGE`, `PERMISSIONS_READ`, `PERMISSIONS_MANAGE`, `DEPARTMENTS_READ`, `DEPARTMENTS_MANAGE`, `SYSTEM_SETTINGS_READ`, `SYSTEM_SETTINGS_MANAGE`, `REPORTS_EXPORT`, `ADMIN_ACCESS`
@@ -99,3 +108,15 @@
 | `/activity` | `TEAM_TIMESHEET_READ` | — |
 
 Os dados destas páginas são sempre limitados ao `manager_scopes` do gestor pelo servidor.
+
+## 7. Navegação do Suporte IT
+
+| Rota | Permissão exigida | Ações adicionais |
+| :--- | :--- | :--- |
+| `/support`, `/support/:id` | `IT_TICKET_CREATE` | abrir pedido, responder, confirmar resolução, reabrir pedido resolvido (apenas nos próprios pedidos) |
+| `/it` | `IT_TICKETS_READ` | — (painel; é também a dashboard do perfil IT) |
+| `/it/tickets`, `/it/tickets/:id` | `IT_TICKETS_READ` | tratar pedidos: `IT_TICKETS_MANAGE`; atribuir a outro técnico: `IT_TICKETS_ASSIGN`; associar equipamento: `IT_ASSETS_READ` |
+| `/it/assets`, `/it/assets/:id` | `IT_ASSETS_READ` | registar/editar: `IT_ASSETS_MANAGE`; registar intervenção: `IT_TICKETS_MANAGE` |
+| `/it/interventions` | `IT_TICKETS_READ` | — (as intervenções são registadas no pedido ou no equipamento) |
+
+A secção **Suporte IT** da barra lateral e a entrada **Pedidos de suporte** só aparecem a quem tem a permissão correspondente. As permissões podem ser ajustadas em **Roles e Permissões** (módulo "Suporte IT").

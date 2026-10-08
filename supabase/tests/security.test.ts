@@ -9,28 +9,18 @@ const check = report.check.bind(report);
 
 const ROLE_ID = (code: string) => `(SELECT id FROM public.roles WHERE code = '${code}')`;
 
-async function departmentId(code: string): Promise<string> {
-  return db.scalar<string>('SELECT id AS value FROM public.departments WHERE code = $1', [code]);
-}
-
-async function createUser(adminAuth: string, email: string, name: string, role: string, departmentCode: string) {
-  const authId = await db.createAuthUser(email);
-  const result = await db.asUser<{ id: string }>(
-    adminAuth,
-    'SELECT public.create_user_profile($1, $2, $3, $4, $5) AS id',
-    [authId, name, email, role, await departmentId(departmentCode)]
-  );
-  if (result.error) throw new Error(`Falha ao criar ${email}: ${result.error}`);
-  return { authId, profileId: result.rows[0].id };
-}
-
-async function countAudit(action: string): Promise<number> {
-  return db.scalar<number>('SELECT count(*)::int AS value FROM public.audit_events WHERE action = $1', [action]);
-}
+const departmentId = (code: string) => db.departmentId(code);
+const createUser = (adminAuth: string, email: string, name: string, role: string, departmentCode: string) =>
+  db.createUser(adminAuth, email, name, role, departmentCode);
+const countAudit = (action: string) => db.countAudit(action);
 
 // =============================================================================
 report.section('Seed');
-check((await db.scalar<number>('SELECT count(*)::int AS value FROM public.permissions')) === 30, '30 permissões');
+check((await db.scalar<number>('SELECT count(*)::int AS value FROM public.permissions')) === 36, '36 permissões (30 base + 6 do módulo IT)');
+check(
+  (await db.scalar<number>("SELECT count(*)::int AS value FROM public.role_permissions rp JOIN public.roles r ON r.id = rp.role_id WHERE r.code = 'ADMIN'")) === 36,
+  'ADMIN mantém todas as permissões, incluindo as do IT'
+);
 check((await db.scalar<number>('SELECT count(*)::int AS value FROM public.profiles')) === 0, 'seed não cria utilizadores');
 
 // =============================================================================

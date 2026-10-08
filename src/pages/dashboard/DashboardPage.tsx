@@ -2,7 +2,7 @@ import React from 'react';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { EmployeeDashboard } from './EmployeeDashboard';
 import { ManagerDashboard } from './ManagerDashboard';
-import { ITDashboard } from './ITDashboard';
+import { ITDashboardPage } from '../it/ITDashboardPage';
 import { AdminDashboard } from './AdminDashboard';
 
 export const DashboardPage: React.FC = () => {
@@ -12,7 +12,7 @@ export const DashboardPage: React.FC = () => {
     case 'ADMIN':
       return <AdminDashboard />;
     case 'IT':
-      return <ITDashboard />;
+      return <ITDashboardPage />;
     case 'MANAGER':
       return <ManagerDashboard />;
     case 'EMPLOYEE':

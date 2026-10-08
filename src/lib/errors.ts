@@ -23,6 +23,8 @@ const UNIQUE_CONSTRAINT_MESSAGES: Record<string, string> = {
   profiles_employee_number_key: 'Já existe um utilizador com este número de colaborador.',
   departments_code_key: 'Já existe um departamento com este código.',
   timesheets_period_unique: 'Já existe um timesheet para este período.',
+  it_assets_asset_tag_key: 'Já existe um equipamento com este código patrimonial.',
+  it_assets_serial_number_key: 'Já existe um equipamento com este número de série.',
 };
 
 const CHECK_CONSTRAINT_MESSAGES: Record<string, string> = {
@@ -30,6 +32,13 @@ const CHECK_CONSTRAINT_MESSAGES: Record<string, string> = {
   departments_name_not_blank: 'O nome do departamento é obrigatório.',
   profiles_full_name_not_blank: 'O nome completo deve ter pelo menos 2 carateres.',
   profiles_email_normalized: 'O endereço de e-mail não é válido.',
+  it_tickets_title_length: 'O título deve ter pelo menos 5 carateres.',
+  it_tickets_description_length: 'A descrição deve ter entre 10 e 5000 carateres.',
+  it_ticket_comments_body_length: 'A mensagem deve ter entre 1 e 5000 carateres.',
+  it_assets_asset_tag_format: 'O código patrimonial deve ter 3 a 30 carateres (letras maiúsculas, números ou "-").',
+  it_assets_assignment_status: 'Apenas equipamentos em uso, em reparação ou perdidos podem ter utilizador responsável.',
+  it_interventions_problem_length: 'Descreva o problema (5 a 2000 carateres).',
+  it_interventions_work_length: 'Descreva o trabalho realizado (5 a 4000 carateres).',
 };
 
 function findConstraintMessage(error: ErrorLike, messages: Record<string, string>): string | null {

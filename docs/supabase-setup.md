@@ -11,6 +11,7 @@ No **SQL Editor** do projeto, execute cada ficheiro **uma única vez, por esta o
 3. `supabase/migrations/20261001000002_seed_data.sql` — departamentos, perfis de acesso, permissões, atividades e configurações.
 4. `supabase/migrations/20261008000000_manager_scope_and_reviews.sql` — módulo Manager: âmbito de gestão, leitura por âmbito, submissão e decisão de timesheets por funções do servidor, notificações e auditoria da equipa.
 5. `supabase/migrations/20261009000000_scope_rules_and_reviewer_visibility.sql` — âmbito por departamento limitado a colaboradores (EMPLOYEE), exclusão de administradores e leitura limitada de quem decidiu um timesheet.
+6. `supabase/migrations/20261010000000_it_support_module.sql` — módulo Suporte IT: permissões, prazos de resolução, pedidos, histórico, equipamentos, intervenções, RLS, auditoria e notificações.
 
 Execute apenas os ficheiros que ainda não aplicou, pela ordem indicada.
 
@@ -55,7 +56,21 @@ A função `bootstrap_first_admin` só pode ser executada a partir do SQL Editor
 
 Na área Admin, abra **Utilizadores › (utilizador com perfil MANAGER) › Âmbito de gestão** e atribua departamentos e/ou colaboradores. Sem âmbito, o gestor não vê nenhuma equipa nem pode aprovar timesheets.
 
-## 6. Frontend
+## 6. Módulo Suporte IT
+
+Num projeto onde as migrations 1 a 5 já estão aplicadas, execute **apenas** `20261010000000_it_support_module.sql` no SQL Editor (uma única vez). A migration não altera nem apaga tabelas existentes: cria as tabelas do módulo, acrescenta permissões aos perfis existentes e novas definições, e substitui a função `validate_system_setting` mantendo as regras atuais (com validação das novas chaves).
+
+Depois de aplicar:
+
+1. Os prazos de resolução por prioridade e o alerta de espera ficam em `system_settings` (`IT_SLA_HOURS_CRITICAL` = 8, `IT_SLA_HOURS_HIGH` = 24, `IT_SLA_HOURS_MEDIUM` = 72, `IT_SLA_HOURS_LOW` = 120, `IT_WAITING_USER_ALERT_DAYS` = 3). Para os alterar, use o SQL Editor, por exemplo:
+   ```sql
+   UPDATE public.system_settings SET value = '12' WHERE key = 'IT_SLA_HOURS_CRITICAL';
+   ```
+   O valor é validado no servidor. A alteração aplica-se a pedidos novos, a mudanças de prioridade e a reaberturas.
+2. Atribua o perfil **IT** aos técnicos em **Utilizadores**. Os utilizadores com perfil **ADMIN** também contam como técnicos.
+3. Para verificar, entre como colaborador, abra um pedido em **Pedidos de suporte** e confirme que a equipa de IT o vê em **Suporte IT › Solicitações** e recebe a notificação.
+
+## 7. Frontend
 
 ```bash
 cp .env.example .env   # preencher VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY
@@ -68,8 +83,8 @@ npm run dev
 | Comando | O que verifica |
 | :--- | :--- |
 | `npm run typecheck` | TypeScript em modo `strict` |
-| `npm test` | Regras de validação, erros, CSV, relatórios, timesheets **e** testes de segurança da base de dados |
-| `npm run test:db` | Apenas os testes de segurança: aplica todas as migrations em PostgreSQL 17 (PGlite) com um ambiente que simula o Supabase e verifica RLS, âmbito de gestão, aprovações, auditoria e acessos proibidos |
+| `npm test` | Regras de validação, erros, CSV, relatórios, timesheets, módulo IT **e** testes de segurança da base de dados |
+| `npm run test:db` | Apenas os testes de segurança: aplica todas as migrations em PostgreSQL 17 (PGlite) com um ambiente que simula o Supabase e verifica RLS, âmbito de gestão, aprovações, auditoria, acessos proibidos e o módulo IT (transições, notas internas, notificações, equipamentos, escalada de privilégios, acesso anónimo) |
 | `npm run build` | Build de produção |
 
-Os testes de segurança (`supabase/tests/security.test.ts`) não precisam de ligação ao Supabase.
+Os testes de segurança (`supabase/tests/security.test.ts` e `supabase/tests/it.security.test.ts`) não precisam de ligação ao Supabase.

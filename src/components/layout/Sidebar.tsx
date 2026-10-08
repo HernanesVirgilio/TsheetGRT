@@ -9,12 +9,17 @@ import {
   ClipboardCheck,
   Clock3,
   FileClock,
+  Gauge,
   LayoutDashboard,
+  LifeBuoy,
+  ListChecks,
   LogOut,
+  Monitor,
   Settings,
   ShieldCheck,
   UserCircle,
   Users,
+  Wrench,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from '../../lib/auth/AuthContext';
@@ -26,6 +31,8 @@ interface NavigationItem {
   label: string;
   icon: LucideIcon;
   permission: PermissionCode;
+  /** Ativo apenas no caminho exato (ex.: "/it" não deve ficar ativo em "/it/tickets"). */
+  end?: boolean;
 }
 
 // Área de gestão de equipa: apresentada a gestores, sempre condicionada à permissão.
@@ -33,6 +40,14 @@ const TEAM_ITEMS: NavigationItem[] = [
   { to: '/team', label: 'Minha Equipa', icon: Users, permission: 'TEAM_READ' },
   { to: '/approvals', label: 'Aprovações', icon: ClipboardCheck, permission: 'TEAM_TIMESHEET_REVIEW' },
   { to: '/activity', label: 'Atividade', icon: History, permission: 'TEAM_TIMESHEET_READ' },
+];
+
+// Área da equipa de IT: cada entrada depende da permissão correspondente.
+const IT_ITEMS: NavigationItem[] = [
+  { to: '/it', label: 'Visão geral', icon: Gauge, permission: 'IT_TICKETS_READ', end: true },
+  { to: '/it/tickets', label: 'Solicitações', icon: ListChecks, permission: 'IT_TICKETS_READ' },
+  { to: '/it/assets', label: 'Ativos', icon: Monitor, permission: 'IT_ASSETS_READ' },
+  { to: '/it/interventions', label: 'Intervenções', icon: Wrench, permission: 'IT_TICKETS_READ' },
 ];
 
 const ANALYSIS_ITEMS: NavigationItem[] = [
@@ -58,12 +73,13 @@ interface SidebarLinkProps {
   to: string;
   label: string;
   icon: LucideIcon;
+  end?: boolean;
   onNavigate?: () => void;
 }
 
-const SidebarLink: React.FC<SidebarLinkProps> = ({ to, label, icon: Icon, onNavigate }) => (
+const SidebarLink: React.FC<SidebarLinkProps> = ({ to, label, icon: Icon, end, onNavigate }) => (
   <li>
-    <NavLink to={to} className={navigationLinkClass} onClick={onNavigate}>
+    <NavLink to={to} end={end} className={navigationLinkClass} onClick={onNavigate}>
       <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
       <span>{label}</span>
     </NavLink>
@@ -87,6 +103,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNavigate }) => {
   const isTeamManager = role === 'MANAGER';
   const showOwnTimesheet = (role === 'EMPLOYEE' || role === 'MANAGER') && hasPermission('SELF_TIMESHEET_READ');
   const visibleTeamItems = isTeamManager ? TEAM_ITEMS.filter((item) => hasPermission(item.permission)) : [];
+  const showSupportRequests = hasPermission('IT_TICKET_CREATE');
+  const visibleItItems = IT_ITEMS.filter((item) => hasPermission(item.permission));
   const visibleAnalysisItems = ANALYSIS_ITEMS.filter((item) => hasPermission(item.permission));
   const visibleAdministrationItems = ADMINISTRATION_ITEMS.filter((item) => hasPermission(item.permission));
 
@@ -103,11 +121,23 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNavigate }) => {
           {showOwnTimesheet && (
             <SidebarLink to="/timesheets" label="Meu Timesheet" icon={Clock3} onNavigate={onNavigate} />
           )}
+
+          {showSupportRequests && (
+            <SidebarLink to="/support" label="Pedidos de suporte" icon={LifeBuoy} onNavigate={onNavigate} />
+          )}
         </ul>
 
         {visibleTeamItems.length > 0 && (
           <SidebarSection title="Gestão de equipa">
             {visibleTeamItems.map((item) => (
+              <SidebarLink key={item.to} {...item} onNavigate={onNavigate} />
+            ))}
+          </SidebarSection>
+        )}
+
+        {visibleItItems.length > 0 && (
+          <SidebarSection title="Suporte IT">
+            {visibleItItems.map((item) => (
               <SidebarLink key={item.to} {...item} onNavigate={onNavigate} />
             ))}
           </SidebarSection>

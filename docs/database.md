@@ -93,6 +93,35 @@ NEW.total_minutes := ((EXTRACT(HOUR FROM NEW.end_time) * 60) + EXTRACT(MINUTE FR
 - `manager_scopes`: cada linha aponta para um colaborador **ou** para um departamento, sem duplicados.
 - `updated_at` é mantido por trigger em todas as tabelas que o têm.
 
+## 3.1 Módulo Suporte IT
+
+| Tabela | Conteúdo | Escrita pela API |
+| :--- | :--- | :--- |
+| `it_ticket_categories` | Categorias configuráveis (`code`, `name`, `description`, `sort_order`, `active`). 9 categorias iniciais: Hardware, Software, Acessos, Rede, Impressoras, E-mail, Sistemas internos, Segurança, Outro. | Não (dados de referência da migration) |
+| `it_tickets` | Pedido: `reference` (`IT-0001`, gerada), `title` (≥ 5), `description` (10–5000), `requester_id`, `requester_department_id` (departamento no momento da abertura), `category_id`, `priority` (`LOW`/`MEDIUM`/`HIGH`/`CRITICAL`), `status` (`OPEN`/`IN_PROGRESS`/`WAITING_USER`/`RESOLVED`/`CLOSED`), `assigned_to`, `asset_id`, `resolution_summary`, `due_at`, `status_changed_at`, `resolved_at`, `closed_at`. | Não — só por funções do servidor |
+| `it_ticket_comments` | Mensagens do pedido: autor (nome guardado no momento), `body` (1–5000), `is_internal` (nota interna do IT). | Não — `add_it_ticket_comment` |
+| `it_ticket_events` | Histórico só de leitura: ator, `event_type`, `old_value`, `new_value`, `note`, `is_internal`. | Não — escrito pelas funções do servidor |
+| `it_assets` | Equipamento: `asset_tag` (`SI-IT-0001`, gerado se vazio, maiúsculas), `asset_type`, `brand`, `model`, `serial_number` (único), `status` (`ACTIVE`/`IN_REPAIR`/`IN_STOCK`/`RETIRED`/`LOST`), `assigned_to`, `department_id`, `location`, `acquired_on`, `notes`. | `INSERT`/`UPDATE` com `IT_ASSETS_MANAGE`; sem `DELETE` (usar `RETIRED`) |
+| `it_interventions` | Intervenção técnica: pedido e/ou equipamento, técnico, `performed_at`, `problem_description` (5–2000), `work_performed` (5–4000), `outcome` (`RESOLVED`/`PARTIALLY_RESOLVED`/`NOT_RESOLVED`/`ESCALATED`), `notes`. | Não — `add_it_intervention` |
+
+Regras de integridade principais:
+
+- `it_tickets`: resolvido/fechado exige `resolution_summary`; datas de resolução e fecho coerentes com o estado; `due_at` calculado a partir da prioridade e das definições `IT_SLA_HOURS_*`.
+- `it_assets`: só equipamentos `ACTIVE`, `IN_REPAIR` ou `LOST` têm utilizador responsável; utilizador e departamento têm de estar ativos; data de aquisição não pode ser futura; a data de registo é imutável.
+- `it_interventions`: tem de referir um pedido ou um equipamento; a data não pode ser futura.
+
+Definições (`system_settings`, validadas por `validate_system_setting`):
+
+| Chave | Valor inicial | Significado |
+| :--- | :--- | :--- |
+| `IT_SLA_HOURS_CRITICAL` | 8 | Prazo de resolução (horas) de pedidos críticos |
+| `IT_SLA_HOURS_HIGH` | 24 | Prazo de pedidos de prioridade alta |
+| `IT_SLA_HOURS_MEDIUM` | 72 | Prazo de pedidos de prioridade média |
+| `IT_SLA_HOURS_LOW` | 120 | Prazo de pedidos de prioridade baixa |
+| `IT_WAITING_USER_ALERT_DAYS` | 3 | Dias a aguardar o colaborador até o pedido ser sinalizado no painel |
+
+Os prazos aceitam 1 a 2000 horas; o alerta aceita 1 a 60 dias.
+
 ## 4. Ficheiros de Migração (fonte única de verdade)
 
 Todas as migrações encontram-se em `supabase/migrations/` e são executadas por ordem (ver `docs/supabase-setup.md`):
@@ -101,5 +130,6 @@ Todas as migrações encontram-se em `supabase/migrations/` e são executadas po
 3. `20261001000002_seed_data.sql`: departamentos, perfis de acesso, permissões, atividades e configurações. **Não cria utilizadores.**
 4. `20261008000000_manager_scope_and_reviews.sql`: módulo Manager. Leitura por âmbito, funções `submit_timesheet`/`review_timesheet`/`approve_timesheets`, validação e auditoria de `manager_scopes`, vista `my_team_members`, notificações por trigger.
 5. `20261009000000_scope_rules_and_reviewer_visibility.sql`: âmbito por departamento limitado a colaboradores (EMPLOYEE), administradores excluídos do âmbito e função `get_timesheet_decisions` (nome, cargo e e-mail de quem decidiu).
+6. `20261010000000_it_support_module.sql`: módulo Suporte IT. Permissões `IT_*`, definições de prazos, tabelas do ponto 3.1, funções de transição dos pedidos, histórico, auditoria e notificações por trigger, políticas RLS e privilégios.
 
 O primeiro administrador é configurado com `supabase/scripts/bootstrap_first_admin.sql`.

@@ -32,6 +32,7 @@ const MODULE_LABELS: Record<string, string> = {
   audit: 'Auditoria',
   health: 'Saúde do sistema',
   settings: 'Configurações',
+  it: 'Suporte IT',
   reports: 'Relatórios',
   admin: 'Administração global',
 };

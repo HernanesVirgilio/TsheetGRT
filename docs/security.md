@@ -84,3 +84,49 @@ O utilizador define a própria palavra-passe através do link do convite (mínim
 - O frontend usa apenas `VITE_SUPABASE_URL` e a chave **publishable**.
 - A `service_role` existe apenas no ambiente da Edge Function.
 - Ficheiros `.env*` estão no `.gitignore` (exceto `.env.example`).
+
+## 8. Módulo Suporte IT
+
+### Quem vê o quê (RLS)
+
+| Tabela | Colaborador (`IT_TICKET_CREATE`) | Equipa de IT (`IT_TICKETS_READ` / `IT_ASSETS_READ`) | `anon` |
+| :--- | :--- | :--- | :--- |
+| `it_tickets` | Apenas os pedidos que abriu | Todos | Sem acesso |
+| `it_ticket_comments`, `it_ticket_events` | Dos seus pedidos, **sem notas internas** | Todos, incluindo notas internas | Sem acesso |
+| `it_assets` | Apenas os equipamentos que lhe estão atribuídos | Todos (`IT_ASSETS_READ`) | Sem acesso |
+| `it_interventions` | Sem acesso | `IT_TICKETS_READ` ou `IT_ASSETS_READ` | Sem acesso |
+| `it_ticket_categories` | Leitura | Leitura | Sem acesso |
+
+- `INSERT`/`UPDATE`/`DELETE` estão **revogados** a `authenticated` em pedidos, comentários, eventos, intervenções e categorias: não é possível forjar estados, eventos, comentários ou o ator. Em `it_assets` só existe `INSERT`/`UPDATE` com `IT_ASSETS_MANAGE`; `DELETE` está revogado.
+- O colaborador não tem acesso aos perfis da equipa de IT. O nome do técnico responsável chega-lhe pelo histórico do pedido (nome guardado no evento).
+
+### Transições só por funções do servidor
+
+Todas são `SECURITY DEFINER`, `SET search_path = ''`, usam `get_current_profile_id()` (conta ativa) como ator e bloqueiam o pedido (`FOR UPDATE`). Um pedido inexistente e um pedido fora do acesso de quem chama têm a mesma resposta (`Pedido de suporte não encontrado.`).
+
+| Função | Quem | Regras |
+| :--- | :--- | :--- |
+| `create_it_ticket` | `IT_TICKET_CREATE` | Categoria ativa; o colaborador só associa equipamentos que lhe estão atribuídos (quem tem `IT_ASSETS_READ` pode associar qualquer um); prazo calculado no servidor |
+| `take_it_ticket` | `IT_TICKETS_MANAGE` | Atribui a quem chama; um pedido aberto passa a "Em atendimento" |
+| `assign_it_ticket` | `IT_TICKETS_ASSIGN` + `IT_TICKETS_MANAGE` | O responsável tem de ser um técnico ativo (`IT_TICKETS_MANAGE`) |
+| `change_it_ticket_status` | `IT_TICKETS_MANAGE` | Apenas `IN_PROGRESS` ou `WAITING_USER`; `WAITING_USER` exige a informação pedida |
+| `update_it_ticket_priority` | `IT_TICKETS_MANAGE` | Recalcula o prazo a partir da data de abertura; motivo opcional (≤ 1000) |
+| `update_it_ticket_category`, `set_it_ticket_asset` | `IT_TICKETS_MANAGE` | Pedido em curso; categoria ativa / equipamento existente |
+| `resolve_it_ticket` | `IT_TICKETS_MANAGE` | Resolução obrigatória (5–2000) |
+| `close_it_ticket` | Solicitante ou técnico | Apenas a partir de "Resolvido" |
+| `reopen_it_ticket` | Solicitante (de "Resolvido") ou IT (de "Resolvido"/"Fechado") | Motivo obrigatório (5–1000); novo prazo; limpa a resolução |
+| `add_it_ticket_comment` | Solicitante ou IT | Notas internas só do IT; pedido fechado não aceita mensagens; a resposta do colaborador a um pedido "A aguardar" devolve-o ao IT |
+| `add_it_intervention` | `IT_TICKETS_MANAGE` | Pedido e/ou equipamento existentes; data não futura |
+| `list_it_technicians` | Autenticado | Devolve apenas nome, cargo e e-mail dos técnicos ativos |
+| `get_it_dashboard_summary` | `IT_TICKETS_READ` | Contagens do painel |
+
+Transições inválidas (ex.: alterar um pedido resolvido sem o reabrir, fechar um pedido não resolvido, o colaborador reabrir um pedido fechado) são recusadas no servidor. A interface apenas esconde as ações que o servidor recusaria.
+
+### Técnicos
+
+Um técnico é um utilizador **ativo** com `IT_TICKETS_MANAGE` (por omissão os perfis IT e ADMIN). Uma conta desativada perde imediatamente o acesso, mesmo que continue atribuída a pedidos.
+
+### Auditoria e notificações
+
+- Cada evento do histórico (exceto comentários e intervenções, que têm registo próprio) gera um evento de auditoria `it_ticket.<tipo>` (ex.: `it_ticket.resolved`). Os equipamentos geram `it_asset.created`, `it_asset.status_changed`, `it_asset.assigned` e `it_asset.updated`; as intervenções `it_intervention.created`. O cliente continua sem poder inserir eventos de auditoria.
+- As notificações são criadas por trigger em `notifications` (mecanismo existente) e nunca para eventos internos: novo pedido → técnicos; atribuição → técnico e solicitante; pedido de informação → solicitante; resposta do colaborador e comentários → a outra parte; prioridade alterada, resolução, fecho e reabertura → a parte interessada. Tipos: `IT_TICKET_CREATED`, `IT_TICKET_ASSIGNED`, `IT_TICKET_UPDATED`, `IT_TICKET_WAITING_USER`, `IT_TICKET_USER_REPLIED`, `IT_TICKET_COMMENT`, `IT_TICKET_RESOLVED`, `IT_TICKET_CLOSED`, `IT_TICKET_REOPENED`.
