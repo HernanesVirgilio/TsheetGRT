@@ -119,4 +119,6 @@ Os dados destas páginas são sempre limitados ao `manager_scopes` do gestor pel
 | `/it/assets`, `/it/assets/:id` | `IT_ASSETS_READ` | registar/editar: `IT_ASSETS_MANAGE`; registar intervenção: `IT_TICKETS_MANAGE` |
 | `/it/interventions` | `IT_TICKETS_READ` | — (as intervenções são registadas no pedido ou no equipamento) |
 
+**Técnicos de IT:** utilizadores ativos com `IT_TICKETS_MANAGE` que não têm o perfil ADMIN. O ADMIN mantém todas as permissões do IT e pode assumir pedidos, mas não aparece na lista de técnicos para atribuição nem recebe as notificações de pedidos novos (exceto se não existir nenhum técnico ativo). Ver `docs/security.md` §8.
+
 A secção **Suporte IT** da barra lateral e a entrada **Pedidos de suporte** só aparecem a quem tem a permissão correspondente. As permissões podem ser ajustadas em **Roles e Permissões** (módulo "Suporte IT").

@@ -71,6 +71,8 @@ export interface TicketSummary {
   requesterName: string | null;
   departmentName: string | null;
   assignedTo: string | null;
+  /** Null sem responsável ou quando o perfil não é visível (o colaborador usa o histórico). */
+  assigneeName: string | null;
   assetId: string | null;
   assetTag: string | null;
   dueAt: string;

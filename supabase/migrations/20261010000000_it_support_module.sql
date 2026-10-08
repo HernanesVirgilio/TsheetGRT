@@ -265,7 +265,8 @@ INSERT INTO public.it_ticket_categories (code, name, description, sort_order) VA
 -- =============================================================================
 -- 4. FUNÇÕES INTERNAS
 -- =============================================================================
-CREATE FUNCTION private.is_it_technician(p_profile_id UUID)
+-- Pode tratar pedidos: conta ativa com IT_TICKETS_MANAGE (inclui administradores).
+CREATE FUNCTION private.can_manage_it_tickets(p_profile_id UUID)
 RETURNS BOOLEAN
 LANGUAGE sql
 STABLE
@@ -282,6 +283,53 @@ AS $$
           AND p.is_active
           AND perm.code = 'IT_TICKETS_MANAGE'
     );
+$$;
+
+-- Técnico de IT disponível (diretório, atribuição e notificações da fila): pode tratar pedidos
+-- e não é ADMIN. Os administradores mantêm as permissões e podem assumir pedidos por iniciativa
+-- própria, mas não aparecem como técnicos disponíveis nem recebem as notificações da fila.
+CREATE FUNCTION private.is_it_technician(p_profile_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+    SELECT private.can_manage_it_tickets(p_profile_id) AND NOT private.is_admin_profile(p_profile_id);
+$$;
+
+-- Destinatários de pedidos sem técnico: os técnicos de IT ativos; se não existir nenhum,
+-- os administradores que podem tratar pedidos (nenhum pedido fica sem ninguém notificado).
+CREATE FUNCTION private.it_queue_recipients()
+RETURNS SETOF UUID
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+    WITH technicians AS (
+        SELECT p.id FROM public.profiles p WHERE private.is_it_technician(p.id)
+    )
+    SELECT id FROM technicians
+    UNION ALL
+    SELECT p.id
+    FROM public.profiles p
+    WHERE NOT EXISTS (SELECT 1 FROM technicians)
+      AND private.is_admin_profile(p.id)
+      AND private.can_manage_it_tickets(p.id);
+$$;
+
+-- Início da contagem do prazo: abertura do pedido ou a última reabertura.
+CREATE FUNCTION private.it_ticket_sla_start(p_ticket_id UUID, p_created_at TIMESTAMPTZ)
+RETURNS TIMESTAMPTZ
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+    SELECT coalesce(max(e.created_at), p_created_at)
+    FROM public.it_ticket_events e
+    WHERE e.ticket_id = p_ticket_id AND e.event_type = 'REOPENED';
 $$;
 
 -- Prazo de resolução a partir das definições do sistema.
@@ -572,7 +620,8 @@ BEGIN
     END IF;
 
     UPDATE public.it_tickets
-    SET priority = p_priority, due_at = private.it_ticket_due_at(p_priority, v_ticket.created_at)
+    SET priority = p_priority,
+        due_at = private.it_ticket_due_at(p_priority, private.it_ticket_sla_start(p_ticket_id, v_ticket.created_at))
     WHERE id = p_ticket_id;
     PERFORM private.log_it_ticket_event(p_ticket_id, 'PRIORITY_CHANGED',
         private.it_priority_label(v_ticket.priority), private.it_priority_label(p_priority), v_reason);
@@ -1027,9 +1076,9 @@ BEGIN
     CASE NEW.event_type
         WHEN 'CREATED' THEN
             INSERT INTO public.notifications (user_id, type, title, message)
-            SELECT p.id, 'IT_TICKET_CREATED', 'Novo pedido de suporte', v_label
-            FROM public.profiles p
-            WHERE private.is_it_technician(p.id) AND p.id <> v_ticket.requester_id;
+            SELECT recipient, 'IT_TICKET_CREATED', 'Novo pedido de suporte', v_label
+            FROM private.it_queue_recipients() AS recipient
+            WHERE recipient <> v_ticket.requester_id;
         WHEN 'ASSIGNED' THEN
             IF v_ticket.assigned_to IS NOT NULL AND v_ticket.assigned_to IS DISTINCT FROM NEW.actor_id THEN
                 INSERT INTO public.notifications (user_id, type, title, message)
@@ -1084,7 +1133,7 @@ BEGIN
                 SELECT p.id, 'IT_TICKET_REOPENED', 'Pedido de suporte reaberto', v_label || ': ' || coalesce(NEW.note, '')
                 FROM public.profiles p
                 WHERE (v_ticket.assigned_to IS NOT NULL AND p.id = v_ticket.assigned_to)
-                   OR (v_ticket.assigned_to IS NULL AND private.is_it_technician(p.id));
+                   OR (v_ticket.assigned_to IS NULL AND p.id IN (SELECT private.it_queue_recipients()));
             ELSE
                 INSERT INTO public.notifications (user_id, type, title, message)
                 VALUES (v_ticket.requester_id, 'IT_TICKET_REOPENED', 'O seu pedido foi reaberto', v_label || ': ' || coalesce(NEW.note, ''));

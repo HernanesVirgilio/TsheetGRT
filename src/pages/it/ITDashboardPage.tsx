@@ -10,7 +10,14 @@ import { StatCard } from '../../components/ui/StatCard';
 import { ErrorState, LoadingState } from '../../components/ui/States';
 import { PriorityBadge } from '../../components/it/PriorityBadge';
 import { StatusBadge } from '../../components/ui/StatusBadge';
-import { compareTicketsByUrgency, describeTicketEvent, isTicketOverdue, isWaitingTooLong } from '../../utils/it';
+import {
+  compareTicketsByUrgency,
+  describeTicketEvent,
+  DUE_SOON_HOURS,
+  isTicketDueSoon,
+  isTicketOverdue,
+  isWaitingTooLong,
+} from '../../utils/it';
 import { formatDateTime, pluralize } from '../../utils/format';
 
 const ATTENTION_LIMIT = 10;
@@ -21,7 +28,7 @@ interface AttentionItem {
   reasons: string[];
 }
 
-/** Pedidos que precisam de ação: críticos, sem técnico, em atraso ou parados à espera do colaborador. */
+/** Pedidos que precisam de ação: críticos, sem técnico, com prazo ultrapassado ou a terminar, ou parados à espera do colaborador. */
 function buildAttentionList(tickets: TicketSummary[], waitingAlertDays: number, now: Date): AttentionItem[] {
   return tickets
     .map((ticket) => {
@@ -29,6 +36,7 @@ function buildAttentionList(tickets: TicketSummary[], waitingAlertDays: number, 
       if (ticket.priority === 'CRITICAL') reasons.push('Crítico');
       if (!ticket.assignedTo) reasons.push('Sem técnico');
       if (isTicketOverdue(ticket, now)) reasons.push('Prazo ultrapassado');
+      if (isTicketDueSoon(ticket, now)) reasons.push(`Prazo termina em menos de ${DUE_SOON_HOURS} h`);
       if (isWaitingTooLong(ticket, waitingAlertDays, now)) reasons.push(`À espera há mais de ${waitingAlertDays} dias`);
       return { ticket, reasons };
     })
@@ -48,7 +56,9 @@ export const ITDashboardPage: React.FC = () => {
   }
 
   const [summary, activeTickets, recentEvents] = dashboard.data;
-  const attention = buildAttentionList(activeTickets, summary.waitingAlertDays, new Date());
+  const now = new Date();
+  const attention = buildAttentionList(activeTickets, summary.waitingAlertDays, now);
+  const dueSoonCount = activeTickets.filter((ticket) => isTicketDueSoon(ticket, now)).length;
 
   return (
     <div className="space-y-6">
@@ -77,7 +87,12 @@ export const ITDashboardPage: React.FC = () => {
       <section aria-label="Indicadores de atenção" className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Críticos em curso" value={summary.criticalCount} icon={AlertTriangle} supporting="Prioridade crítica ainda por concluir" />
         <StatCard label="Sem técnico" value={summary.unassignedCount} icon={UserX} supporting="Pedidos em curso por atribuir" />
-        <StatCard label="Prazo ultrapassado" value={summary.overdueCount} icon={Clock} supporting="Abertos ou em atendimento após o prazo" />
+        <StatCard
+          label="Prazo ultrapassado"
+          value={summary.overdueCount}
+          icon={Clock}
+          supporting={`Abertos ou em atendimento · ${dueSoonCount} a terminar nas próximas ${DUE_SOON_HOURS} h`}
+        />
         <StatCard
           label="Espera prolongada"
           value={summary.waitingTooLongCount}
@@ -90,7 +105,7 @@ export const ITDashboardPage: React.FC = () => {
         <div className="xl:col-span-2">
           <Panel
             title="Requer atenção"
-            description="Pedidos em curso críticos, sem técnico, com prazo ultrapassado ou parados à espera do colaborador."
+            description="Pedidos em curso críticos, sem técnico, com prazo ultrapassado ou a terminar, ou parados à espera do colaborador."
             actions={
               <Link to="/it/tickets?assignee=UNASSIGNED" className="text-sm font-medium text-primary-hover hover:underline">
                 Ver pedidos sem técnico

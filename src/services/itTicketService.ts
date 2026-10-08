@@ -21,7 +21,7 @@ import { toIlikePattern } from '../utils/validation';
  */
 
 const TICKET_SELECT =
-  'id, reference, title, description, status, priority, category_id, requester_id, assigned_to, asset_id, due_at, status_changed_at, resolution_summary, resolved_at, closed_at, created_at, updated_at, category:it_ticket_categories(name), requester:profiles!it_tickets_requester_id_fkey(full_name), department:departments(name), asset:it_assets(asset_tag)' as const;
+  'id, reference, title, description, status, priority, category_id, requester_id, assigned_to, asset_id, due_at, status_changed_at, resolution_summary, resolved_at, closed_at, created_at, updated_at, category:it_ticket_categories(name), requester:profiles!it_tickets_requester_id_fkey(full_name), assignee:profiles!it_tickets_assigned_to_fkey(full_name), department:departments(name), asset:it_assets(asset_tag)' as const;
 
 interface TicketRow {
   id: string;
@@ -43,6 +43,7 @@ interface TicketRow {
   updated_at: string;
   category: { name: string } | null;
   requester: { full_name: string } | null;
+  assignee: { full_name: string } | null;
   department: { name: string } | null;
   asset: { asset_tag: string } | null;
 }
@@ -62,6 +63,7 @@ function mapTicket(row: TicketRow): TicketDetail | null {
     requesterName: row.requester?.full_name ?? null,
     departmentName: row.department?.name ?? null,
     assignedTo: row.assigned_to,
+    assigneeName: row.assignee?.full_name ?? null,
     assetId: row.asset_id,
     assetTag: row.asset?.asset_tag ?? null,
     dueAt: row.due_at,

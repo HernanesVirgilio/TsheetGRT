@@ -95,15 +95,17 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({ context }) =
     [id, isItView]
   );
   const referenceData = useAsyncData(
+    () => (canManage ? Promise.all([listTechnicians(), listTicketCategories()]) : Promise.resolve(null)),
+    [canManage]
+  );
+  // O inventário só é carregado quando o técnico escolhe o equipamento do pedido.
+  const [assetsRequested, setAssetsRequested] = useState(false);
+  const assetChoices = useAsyncData(
     () =>
-      canManage
-        ? Promise.all([
-            listTechnicians(),
-            listTicketCategories(),
-            canReadAssets ? listAssets({ search: '', status: null, assetType: null }) : Promise.resolve([]),
-          ])
+      assetsRequested && canManage && canReadAssets
+        ? listAssets({ search: '', status: null, assetType: null })
         : Promise.resolve(null),
-    [canManage, canReadAssets]
+    [assetsRequested, canManage, canReadAssets]
   );
 
   const [activeModal, setActiveModal] = useState<ModalKind | null>(null);
@@ -140,7 +142,8 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({ context }) =
   const { ticket, timeline } = detail.data;
   const viewerId = currentUser?.id ?? '';
   const isRequester = ticket.requesterId === viewerId;
-  const [technicians, categories, assets] = referenceData.data ?? [[], [], []];
+  const [technicians, categories] = referenceData.data ?? [[], []];
+  const assets = assetChoices.data ?? [];
 
   // Enquanto recarrega após uma ação, os dados podem estar desatualizados: não oferecer ações.
   const isStale = detail.isLoading;
@@ -148,10 +151,7 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({ context }) =
   const requester = requesterActions(ticket.status);
   const requesterCanAct = !isItView && isRequester && !isStale;
 
-  const assigneeName = ticket.assignedTo
-    ? (technicians.find((technician) => technician.profileId === ticket.assignedTo)?.fullName ??
-      currentAssigneeName(timeline.events))
-    : null;
+  const assigneeName = ticket.assignedTo ? (ticket.assigneeName ?? currentAssigneeName(timeline.events)) : null;
 
   const afterAction = (message: string) => {
     setActiveModal(null);
@@ -242,6 +242,7 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({ context }) =
       )}
       {detail.error && <ErrorState message={detail.error} onRetry={detail.reload} />}
       {referenceData.error && <ErrorState message={referenceData.error} onRetry={referenceData.reload} />}
+      {assetChoices.error && <ErrorState message={assetChoices.error} onRetry={assetChoices.reload} />}
       {!isItView && ticket.status === 'WAITING_USER' && (
         <Alert variant="warning" title="A equipa de IT aguarda a sua resposta">
           Responda no histórico abaixo. Ao responder, o pedido volta para a equipa de IT.
@@ -378,7 +379,15 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({ context }) =
                     Alterar categoria
                   </Button>
                   {canReadAssets && (
-                    <Button variant="ghost" icon={Laptop} className="justify-start" disabled={!referenceData.data} onClick={() => setActiveModal('asset')}>
+                    <Button
+                      variant="ghost"
+                      icon={Laptop}
+                      className="justify-start"
+                      onClick={() => {
+                        setAssetsRequested(true);
+                        setActiveModal('asset');
+                      }}
+                    >
                       {ticket.assetId ? 'Alterar equipamento' : 'Associar equipamento'}
                     </Button>
                   )}

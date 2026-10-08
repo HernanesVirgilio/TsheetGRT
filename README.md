@@ -99,7 +99,8 @@ supabase/
 
 - **Colaboradores** (`IT_TICKET_CREATE`): abrem pedidos em **Pedidos de suporte** (`/support`), acompanham o estado, respondem quando o IT pede informação, confirmam a resolução ou reabrem um pedido resolvido.
 - **Equipa de IT** (`IT_TICKETS_*`, `IT_ASSETS_*`): painel operacional (`/it`), fila de solicitações com filtros e paginação no servidor (`/it/tickets`), tratamento do pedido (assumir, atribuir, prioridade, categoria, equipamento, pedir informação, resolver, fechar, reabrir, notas internas), inventário de equipamentos (`/it/assets`) e intervenções técnicas (`/it/interventions`).
-- Todas as transições são feitas por funções do servidor; o histórico, a auditoria e as notificações são gerados no servidor. Ver [docs/security.md](docs/security.md#8-módulo-suporte-it).
+- Prazos iniciais de resolução: crítica 8 h, alta 24 h, média 72 h, baixa 120 h; pedidos à espera do colaborador há mais de 3 dias são sinalizados no painel.
+- Todas as transições são feitas por funções do servidor; o histórico, a auditoria e as notificações são gerados no servidor. Os administradores operam a fila mas não contam como técnicos disponíveis. Ver [docs/security.md](docs/security.md#8-módulo-suporte-it).
 
 ---
 

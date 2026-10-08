@@ -6,6 +6,7 @@ import {
   currentAssigneeName,
   describeTicketEvent,
   isTicketActive,
+  isTicketDueSoon,
   isTicketOverdue,
   isWaitingTooLong,
   requesterActions,
@@ -41,6 +42,7 @@ function ticket(overrides: Partial<TicketSummary>): TicketSummary {
     requesterName: 'Colaborador',
     departmentName: null,
     assignedTo: null,
+    assigneeName: null,
     assetId: null,
     assetTag: null,
     dueAt: '2026-10-10T12:00:00Z',
@@ -76,6 +78,10 @@ assert(isTicketOverdue(ticket({ status: 'IN_PROGRESS' }), afterDue), 'em atendim
 assert(!isTicketOverdue(ticket({ status: 'OPEN' }), beforeDue), 'antes do prazo não está em atraso');
 assert(!isTicketOverdue(ticket({ status: 'WAITING_USER' }), afterDue), 'a aguardar o colaborador não conta como atraso do IT');
 assert(!isTicketOverdue(ticket({ status: 'RESOLVED' }), afterDue), 'resolvido não está em atraso');
+assert(isTicketDueSoon(ticket({ status: 'OPEN' }), new Date('2026-10-10T09:00:00Z')), 'prazo a terminar dentro de 4 h é sinalizado');
+assert(!isTicketDueSoon(ticket({ status: 'OPEN' }), new Date('2026-10-10T07:00:00Z')), 'prazo a mais de 4 h não é sinalizado');
+assert(!isTicketDueSoon(ticket({ status: 'OPEN' }), afterDue), 'prazo já ultrapassado não conta como "a terminar"');
+assert(!isTicketDueSoon(ticket({ status: 'WAITING_USER' }), new Date('2026-10-10T09:00:00Z')), 'a aguardar o colaborador não é sinalizado pelo prazo');
 assert(isWaitingTooLong(ticket({ status: 'WAITING_USER' }), 3, new Date('2026-10-12T12:00:01Z')), 'espera acima do limite de dias é sinalizada');
 assert(!isWaitingTooLong(ticket({ status: 'WAITING_USER' }), 3, new Date('2026-10-11T12:00:00Z')), 'espera dentro do limite não é sinalizada');
 assert(!isWaitingTooLong(ticket({ status: 'IN_PROGRESS' }), 3, new Date('2026-10-20T00:00:00Z')), 'só pedidos a aguardar o colaborador contam');

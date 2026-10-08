@@ -110,7 +110,29 @@ Regras de integridade principais:
 - `it_assets`: só equipamentos `ACTIVE`, `IN_REPAIR` ou `LOST` têm utilizador responsável; utilizador e departamento têm de estar ativos; data de aquisição não pode ser futura; a data de registo é imutável.
 - `it_interventions`: tem de referir um pedido ou um equipamento; a data não pode ser futura.
 
-Definições (`system_settings`, validadas por `validate_system_setting`):
+Relação pedido → equipamento → intervenção:
+
+- Um pedido pode referir um equipamento (`it_tickets.asset_id`). O colaborador só associa equipamentos que lhe estão atribuídos; a equipa de IT pode alterar a associação.
+- Uma intervenção refere um pedido e/ou um equipamento; registada num pedido sem equipamento indicado, herda o equipamento do pedido.
+- A ficha do equipamento lista os pedidos (`it_tickets.asset_id`) e as intervenções (`it_interventions.asset_id`); o detalhe do pedido mostra o equipamento associado.
+
+Ciclo de vida do pedido:
+
+```
+OPEN ──assumir──▶ IN_PROGRESS ◀──resposta do colaborador── WAITING_USER
+  │                   │  ▲                                     ▲
+  │                   │  └──────────── retomar ────────────────┤
+  │                   └──────── pedir informação ──────────────┘
+  └──────────── resolver (de qualquer estado em curso) ──────▶ RESOLVED ──fechar──▶ CLOSED
+                                                                  │                   │
+                         reabrir (colaborador ou IT) ◀────────────┘   reabrir (só IT) ┘
+```
+
+Pedir informação ao colaborador é possível a partir de `OPEN` ou `IN_PROGRESS`. Um pedido resolvido ou fechado não é alterado sem ser reaberto. A reabertura volta a `IN_PROGRESS` (com técnico) ou `OPEN` (sem técnico) e reinicia o prazo.
+
+Equipamentos: o ciclo de vida é representado pelo estado (`IN_STOCK` → `ACTIVE` → `IN_REPAIR` → `RETIRED`/`LOST`); não existe remoção física e um equipamento abatido permanece no inventário e no histórico.
+
+Prazos de resolução (SLA) — **valores iniciais do módulo IT**, em `system_settings` e validados por `validate_system_setting`:
 
 | Chave | Valor inicial | Significado |
 | :--- | :--- | :--- |
@@ -120,7 +142,14 @@ Definições (`system_settings`, validadas por `validate_system_setting`):
 | `IT_SLA_HOURS_LOW` | 120 | Prazo de pedidos de prioridade baixa |
 | `IT_WAITING_USER_ALERT_DAYS` | 3 | Dias a aguardar o colaborador até o pedido ser sinalizado no painel |
 
-Os prazos aceitam 1 a 2000 horas; o alerta aceita 1 a 60 dias.
+Os prazos aceitam 1 a 2000 horas; o alerta aceita 1 a 60 dias. Não existe interface para os alterar nesta fase (ver `docs/supabase-setup.md`).
+
+Regras de cálculo (servidor):
+
+- `due_at` = início da contagem + horas da prioridade. O início é a abertura do pedido ou, depois de uma reabertura, a data da última reabertura.
+- Alterar a prioridade recalcula `due_at` a partir desse mesmo início.
+- O prazo **não é suspenso** enquanto o pedido aguarda o colaborador; nesse estado o pedido não conta como atraso do IT, mas volta a contar quando regressa ao atendimento.
+- Painel (`get_it_dashboard_summary`): "prazo ultrapassado" = `OPEN`/`IN_PROGRESS` com `due_at` no passado; "espera prolongada" = `WAITING_USER` há mais de `IT_WAITING_USER_ALERT_DAYS` dias (desde `status_changed_at`). O painel sinaliza ainda, na lista "Requer atenção", os pedidos cujo prazo termina nas próximas 4 horas.
 
 ## 4. Ficheiros de Migração (fonte única de verdade)
 

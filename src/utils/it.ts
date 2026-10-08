@@ -67,7 +67,18 @@ export function isTicketOverdue(ticket: Pick<TicketSummary, 'status' | 'dueAt'>,
   return (ticket.status === 'OPEN' || ticket.status === 'IN_PROGRESS') && new Date(ticket.dueAt).getTime() < now.getTime();
 }
 
-const DAY_IN_MS = 24 * 60 * 60 * 1000;
+const HOUR_IN_MS = 60 * 60 * 1000;
+const DAY_IN_MS = 24 * HOUR_IN_MS;
+
+/** Antecedência com que o painel sinaliza um prazo a terminar. */
+export const DUE_SOON_HOURS = 4;
+
+/** Prazo ainda não ultrapassado, mas a terminar nas próximas horas (mesmos estados que o atraso). */
+export function isTicketDueSoon(ticket: Pick<TicketSummary, 'status' | 'dueAt'>, now: Date, hours = DUE_SOON_HOURS): boolean {
+  if (ticket.status !== 'OPEN' && ticket.status !== 'IN_PROGRESS') return false;
+  const remaining = new Date(ticket.dueAt).getTime() - now.getTime();
+  return remaining >= 0 && remaining <= hours * HOUR_IN_MS;
+}
 
 export function isWaitingTooLong(ticket: Pick<TicketSummary, 'status' | 'statusChangedAt'>, alertDays: number, now: Date): boolean {
   return ticket.status === 'WAITING_USER' && now.getTime() - new Date(ticket.statusChangedAt).getTime() > alertDays * DAY_IN_MS;

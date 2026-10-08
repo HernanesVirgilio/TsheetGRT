@@ -31,7 +31,8 @@ const createTicket = (authId: string, title: string, assetId: string | null = nu
 // =============================================================================
 report.section('Permissões e técnicos');
 const technicians = await db.asUser<Record<string, unknown>>(employeeA.authId, 'SELECT * FROM public.list_it_technicians()');
-check(technicians.rows.length === 3, 'técnicos = perfis com IT_TICKETS_MANAGE (2 IT + administrador)');
+check(technicians.rows.length === 2, 'técnicos = perfis ativos com IT_TICKETS_MANAGE, exceto ADMIN (2 IT)');
+check(!technicians.rows.some((row) => row.profile_id === admin.profileId), 'administrador não aparece como técnico disponível');
 check(
   Object.keys(technicians.rows[0] ?? {}).sort().join(',') === 'email,full_name,job_title,profile_id',
   'diretório de técnicos expõe apenas nome, cargo e e-mail'
@@ -67,6 +68,7 @@ check(
   (await notificationsOf(technician.profileId, 'IT_TICKET_CREATED')) === 1 && (await notificationsOf(employeeB.profileId, 'IT_TICKET_CREATED')) === 0,
   'técnicos notificados do novo pedido (colaboradores não)'
 );
+check((await notificationsOf(admin.profileId, 'IT_TICKET_CREATED')) === 0, 'administrador não recebe as notificações da fila quando há técnicos');
 check(
   (await db.asUser(employeeA.authId, "INSERT INTO public.it_tickets (title, description, requester_id, category_id, due_at) VALUES ('Direto', 'Inserção direta na tabela', $1, $2, now())", [employeeA.profileId, hardware])).error?.includes('permission denied') ?? false,
   'pedido não pode ser criado por INSERT direto'
@@ -151,6 +153,18 @@ check(
 check((await notificationsOf(employeeA.profileId, 'IT_TICKET_WAITING_USER')) === 1, 'colaborador notificado de que o IT aguarda resposta');
 check(!(await db.asUser(employeeA.authId, "SELECT public.add_it_ticket_comment($1, 'É um Dell Latitude 5420')", [ticketA])).error, 'colaborador responde');
 check((await ticketValue<string>(ticketA, 'status')) === 'IN_PROGRESS', 'resposta devolve o pedido ao atendimento');
+const replyAuthor = await db.asPostgres<{ author_id: string; author_name: string }>(
+  "SELECT author_id, author_name FROM public.it_ticket_comments WHERE ticket_id = $1 AND body LIKE 'É um Dell%'",
+  [ticketA]
+);
+check(
+  replyAuthor.rows[0]?.author_id === employeeA.profileId && replyAuthor.rows[0]?.author_name === 'Ana Operações',
+  'autor do comentário = utilizador da sessão (definido no servidor)'
+);
+check(
+  (await db.asUser(employeeA.authId, "SELECT public.add_it_ticket_comment($1, 'Em nome de outro', false, $2)", [ticketA, technician.profileId])).error !== null,
+  'a função de comentário não aceita autor indicado pelo cliente'
+);
 check(
   (await notificationsOf(technician2.profileId, 'IT_TICKET_USER_REPLIED')) === 1 && (await notificationsOf(technician2.profileId, 'IT_TICKET_COMMENT')) === 0,
   'técnico notificado uma única vez da resposta'
@@ -164,6 +178,14 @@ check(
   'colaborador não vê eventos internos do histórico'
 );
 check((await db.asUser(technician.authId, 'SELECT id FROM public.it_ticket_comments WHERE ticket_id = $1', [ticketA])).rows.length === 2, 'técnico vê comentários e notas internas');
+check(
+  (await db.asUser<{ is_internal: boolean }>(technician.authId, 'SELECT is_internal FROM public.it_ticket_events WHERE ticket_id = $1', [ticketA])).rows.some((row) => row.is_internal),
+  'técnico vê os eventos internos do histórico'
+);
+check(
+  (await db.asUser(technician.authId, 'UPDATE public.it_ticket_comments SET is_internal = false WHERE ticket_id = $1', [ticketA])).error?.includes('permission denied') ?? false,
+  'nota interna não pode ser tornada pública por UPDATE direto'
+);
 
 check(
   (await db.asUser(technician2.authId, "SELECT public.update_it_ticket_priority($1, 'CRITICAL', repeat('x', 1001))", [ticketA])).error?.includes('1000 carateres') ?? false,
@@ -190,6 +212,12 @@ check(
 check(
   (await db.asUser(technician.authId, 'SELECT public.take_it_ticket($1)', ['00000000-0000-4000-8000-000000000000'])).error?.includes('não encontrado') ?? false,
   'pedido inexistente: resposta "não encontrado"'
+);
+const foreignComment = await db.asUser(employeeB.authId, "SELECT public.add_it_ticket_comment($1, 'Olá')", [ticketA]);
+const missingComment = await db.asUser(employeeB.authId, "SELECT public.add_it_ticket_comment($1, 'Olá')", ['00000000-0000-4000-8000-000000000000']);
+check(
+  foreignComment.error !== null && foreignComment.error === missingComment.error && foreignComment.code === missingComment.code,
+  'pedido de outra pessoa e pedido inexistente têm a mesma resposta'
 );
 
 // =============================================================================
@@ -353,7 +381,116 @@ check(
   (await db.asUser(admin.authId, 'SELECT public.assign_it_ticket($1, $2)', [ticketA, technician2.profileId])).error?.includes('técnico de IT ativo') ?? false,
   'não é possível atribuir a um técnico desativado'
 );
-check((await db.asUser(employeeA.authId, 'SELECT * FROM public.list_it_technicians()')).rows.length === 2, 'técnico desativado sai do diretório');
+check((await db.asUser(employeeA.authId, 'SELECT * FROM public.list_it_technicians()')).rows.length === 1, 'técnico desativado sai do diretório');
+check(
+  (await db.asUser(technician.authId, 'SELECT public.assign_it_ticket($1, $2)', [ticketA, admin.profileId])).error?.includes('técnico de IT ativo') ?? false,
+  'administrador não é atribuído como técnico por terceiros'
+);
+
+// =============================================================================
+report.section('Prazos (SLA) e painel');
+const slaHours = (ticketId: string) =>
+  db.scalar<number>('SELECT round(extract(epoch FROM (due_at - created_at)) / 3600)::int AS value FROM public.it_tickets WHERE id = $1', [ticketId]);
+const createWithPriority = async (authId: string, title: string, priority: string) =>
+  (await db.asUser<{ id: string }>(authId, "SELECT public.create_it_ticket($1, 'Descrição detalhada do problema', $2, $3) AS id", [title, hardware, priority])).rows[0]?.id ?? '';
+check(
+  (await db.scalar<string>(
+    "SELECT string_agg(key || '=' || value, ',' ORDER BY key) AS value FROM public.system_settings WHERE key IN ('IT_SLA_HOURS_CRITICAL', 'IT_SLA_HOURS_HIGH', 'IT_SLA_HOURS_MEDIUM', 'IT_SLA_HOURS_LOW', 'IT_WAITING_USER_ALERT_DAYS')"
+  )) === 'IT_SLA_HOURS_CRITICAL=8,IT_SLA_HOURS_HIGH=24,IT_SLA_HOURS_LOW=120,IT_SLA_HOURS_MEDIUM=72,IT_WAITING_USER_ALERT_DAYS=3',
+  'valores iniciais: crítica 8 h, alta 24 h, média 72 h, baixa 120 h, alerta de espera 3 dias'
+);
+const highTicket = await createWithPriority(employeeB.authId, 'Impressora do piso sem rede', 'HIGH');
+const lowTicket = await createWithPriority(employeeB.authId, 'Pedido de segundo monitor', 'LOW');
+check((await slaHours(highTicket)) === 24, 'prioridade alta = 24 h');
+check((await slaHours(lowTicket)) === 120, 'prioridade baixa = 120 h');
+
+const summaryOf = async () =>
+  (await db.asUser<{ overdue_count: number; waiting_too_long_count: number; waiting_alert_days: number }>(technician.authId, 'SELECT * FROM public.get_it_dashboard_summary()')).rows[0];
+const overdueBefore = (await summaryOf())?.overdue_count ?? -1;
+await db.asPostgres("UPDATE public.it_tickets SET due_at = now() - interval '1 hour' WHERE id = $1", [lowTicket]);
+check((await summaryOf())?.overdue_count === overdueBefore + 1, 'pedido aberto com prazo ultrapassado conta como em atraso');
+
+check(
+  (await db.asUser(employeeB.authId, "SELECT public.reopen_it_ticket($1, 'Reabrir pedido em curso')", [highTicket])).error?.includes('Apenas pedidos resolvidos') ?? false,
+  'colaborador só reabre pedidos resolvidos'
+);
+await db.asUser(technician.authId, 'SELECT public.take_it_ticket($1)', [highTicket]);
+await db.asUser(technician.authId, "SELECT public.change_it_ticket_status($1, 'WAITING_USER', 'Indique o número da impressora')", [highTicket]);
+const waitingBefore = (await summaryOf())?.waiting_too_long_count ?? -1;
+await db.asPostgres("UPDATE public.it_tickets SET status_changed_at = now() - interval '2 days', due_at = now() - interval '1 hour' WHERE id = $1", [highTicket]);
+const twoDays = await summaryOf();
+check(twoDays?.waiting_too_long_count === waitingBefore, 'a aguardar há 2 dias ainda não é sinalizado (alerta: 3 dias)');
+check(twoDays?.overdue_count === overdueBefore + 1, 'pedido a aguardar o colaborador não conta como atraso do IT');
+await db.asPostgres("UPDATE public.it_tickets SET status_changed_at = now() - interval '4 days' WHERE id = $1", [highTicket]);
+const fourDays = await summaryOf();
+check(fourDays?.waiting_too_long_count === waitingBefore + 1 && fourDays?.waiting_alert_days === 3, 'a aguardar há mais de 3 dias é sinalizado');
+
+// Após uma reabertura, a alteração de prioridade conta a partir da reabertura, não da abertura original.
+await db.asPostgres("UPDATE public.it_tickets SET created_at = now() - interval '10 days', due_at = now() - interval '9 days', status_changed_at = now() - interval '9 days' WHERE id = $1", [highTicket]);
+await db.asUser(employeeB.authId, "SELECT public.add_it_ticket_comment($1, 'A impressora é a HP do piso 2')", [highTicket]);
+await db.asUser(technician.authId, "SELECT public.resolve_it_ticket($1, 'Impressora religada à rede')", [highTicket]);
+check(!(await db.asUser(employeeB.authId, "SELECT public.reopen_it_ticket($1, 'Voltou a perder a ligação')", [highTicket])).error, 'colaborador reabre o pedido resolvido');
+check(
+  await db.scalar<boolean>("SELECT due_at > now() + interval '23 hours' AS value FROM public.it_tickets WHERE id = $1", [highTicket]),
+  'reabertura reinicia o prazo (24 h a partir da reabertura)'
+);
+check(!(await db.asUser(technician.authId, "SELECT public.update_it_ticket_priority($1, 'MEDIUM')", [highTicket])).error, 'técnico altera a prioridade do pedido reaberto');
+check(
+  (await db.scalar<number>(
+    "SELECT round(extract(epoch FROM (t.due_at - e.created_at)) / 3600)::int AS value FROM public.it_tickets t JOIN public.it_ticket_events e ON e.ticket_id = t.id AND e.event_type = 'REOPENED' WHERE t.id = $1",
+    [highTicket]
+  )) === 72,
+  'prazo recalculado a partir da reabertura (média = 72 h), não da abertura original'
+);
+
+// =============================================================================
+report.section('Ativos: ciclo de vida e permissões');
+check(
+  (await db.asUser(employeeA.authId, "UPDATE public.it_assets SET location = 'Casa' WHERE id = $1", [assetA])).affectedRows === 0,
+  'colaborador não altera o equipamento que lhe está atribuído'
+);
+check(
+  (await db.asUser(manager.authId, "UPDATE public.it_assets SET location = 'Outro' WHERE id = $1", [assetA])).affectedRows === 0,
+  'gestor sem IT_ASSETS_MANAGE não altera equipamentos'
+);
+check((await db.asUser(admin.authId, 'DELETE FROM public.it_assets WHERE id = $1', [assetA])).error?.includes('permission denied') ?? false, 'nem o administrador apaga equipamentos');
+check(
+  (await db.asUser(technician.authId, 'UPDATE public.it_assets SET assigned_to = $1 WHERE id = $2', [technician2.profileId, assetA])).error?.includes('inativo') ?? false,
+  'equipamento não é atribuído a utilizador inativo'
+);
+await db.asPostgres("INSERT INTO public.departments (code, name, description, active) VALUES ('OLD', 'Departamento extinto', '', false)");
+check(
+  (await db.asUser(technician.authId, "UPDATE public.it_assets SET department_id = (SELECT id FROM public.departments WHERE code = 'OLD') WHERE id = $1", [assetA])).error?.includes('inativo') ?? false,
+  'equipamento não é associado a departamento inativo'
+);
+check(
+  !(await db.asUser(technician.authId, "UPDATE public.it_assets SET status = 'RETIRED', assigned_to = NULL WHERE id = $1", [assetA])).error,
+  'técnico abate o equipamento (estado RETIRED)'
+);
+check(
+  (await db.asUser<{ status: string }>(technician.authId, 'SELECT status FROM public.it_assets WHERE id = $1', [assetA])).rows[0]?.status === 'RETIRED',
+  'equipamento abatido permanece no inventário'
+);
+check((await db.countAudit('it_asset.status_changed')) >= 1, 'mudança de estado do equipamento auditada');
+check(
+  (await db.asUser(technician.authId, 'SELECT id FROM public.it_tickets WHERE asset_id = $1', [assetA])).rows.length === 2 &&
+    (await db.asUser(technician.authId, 'SELECT id FROM public.it_interventions WHERE asset_id = $1', [assetA])).rows.length === 1,
+  'ficha do equipamento: pedidos e intervenções associados'
+);
+check(
+  (await db.asUser(employeeA.authId, 'SELECT id FROM public.it_tickets WHERE asset_id = $1', [assetA])).rows.length === 2 &&
+    (await db.asUser(employeeA.authId, 'SELECT id FROM public.it_interventions WHERE asset_id = $1', [assetA])).rows.length === 0,
+  'colaborador vê o equipamento nos seus pedidos, sem o registo técnico'
+);
+
+// =============================================================================
+report.section('Administrador e notificações sem técnicos');
+check(!(await db.asUser(admin.authId, 'SELECT public.take_it_ticket($1)', [lowTicket])).error, 'administrador pode assumir um pedido por iniciativa própria');
+check((await ticketValue<string>(lowTicket, 'assigned_to')) === admin.profileId, 'pedido atribuído ao administrador que o assumiu');
+await db.asUser(admin.authId, 'UPDATE public.profiles SET is_active = false WHERE id = $1', [technician.profileId]);
+const noTechnicianTicket = await createWithPriority(employeeA.authId, 'Sem técnicos disponíveis', 'MEDIUM');
+check(noTechnicianTicket !== '', 'pedido aberto sem técnicos ativos');
+check((await notificationsOf(admin.profileId, 'IT_TICKET_CREATED')) === 1, 'sem técnicos ativos, os administradores são notificados dos novos pedidos');
 
 // =============================================================================
 report.section('Acesso anónimo');

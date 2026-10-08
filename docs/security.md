@@ -108,9 +108,9 @@ Todas são `SECURITY DEFINER`, `SET search_path = ''`, usam `get_current_profile
 | :--- | :--- | :--- |
 | `create_it_ticket` | `IT_TICKET_CREATE` | Categoria ativa; o colaborador só associa equipamentos que lhe estão atribuídos (quem tem `IT_ASSETS_READ` pode associar qualquer um); prazo calculado no servidor |
 | `take_it_ticket` | `IT_TICKETS_MANAGE` | Atribui a quem chama; um pedido aberto passa a "Em atendimento" |
-| `assign_it_ticket` | `IT_TICKETS_ASSIGN` + `IT_TICKETS_MANAGE` | O responsável tem de ser um técnico ativo (`IT_TICKETS_MANAGE`) |
+| `assign_it_ticket` | `IT_TICKETS_ASSIGN` + `IT_TICKETS_MANAGE` | O responsável tem de ser um técnico de IT ativo (ver "Técnicos") |
 | `change_it_ticket_status` | `IT_TICKETS_MANAGE` | Apenas `IN_PROGRESS` ou `WAITING_USER`; `WAITING_USER` exige a informação pedida |
-| `update_it_ticket_priority` | `IT_TICKETS_MANAGE` | Recalcula o prazo a partir da data de abertura; motivo opcional (≤ 1000) |
+| `update_it_ticket_priority` | `IT_TICKETS_MANAGE` | Recalcula o prazo a partir da abertura ou, se o pedido foi reaberto, da última reabertura; motivo opcional (≤ 1000) |
 | `update_it_ticket_category`, `set_it_ticket_asset` | `IT_TICKETS_MANAGE` | Pedido em curso; categoria ativa / equipamento existente |
 | `resolve_it_ticket` | `IT_TICKETS_MANAGE` | Resolução obrigatória (5–2000) |
 | `close_it_ticket` | Solicitante ou técnico | Apenas a partir de "Resolvido" |
@@ -124,9 +124,17 @@ Transições inválidas (ex.: alterar um pedido resolvido sem o reabrir, fechar 
 
 ### Técnicos
 
-Um técnico é um utilizador **ativo** com `IT_TICKETS_MANAGE` (por omissão os perfis IT e ADMIN). Uma conta desativada perde imediatamente o acesso, mesmo que continue atribuída a pedidos.
+- **Técnico de IT** (`private.is_it_technician`): utilizador **ativo** com `IT_TICKETS_MANAGE` que **não** tem o perfil ADMIN. Só os técnicos aparecem no diretório (`list_it_technicians`), podem receber pedidos por atribuição e recebem as notificações da fila (pedido novo, reabertura de pedido sem técnico).
+- **ADMIN**: mantém todas as permissões do IT (vê e opera a fila, gere equipamentos) e pode **assumir** um pedido por iniciativa própria, mas não aparece como técnico disponível nem pode receber pedidos atribuídos por terceiros. Sem esta regra, cada administrador recebia uma notificação por cada pedido novo e aparecia na lista "Atribuir técnico".
+- **Sem técnicos ativos**, as notificações da fila vão para os administradores (`private.it_queue_recipients`), para que nenhum pedido fique sem ninguém avisado.
+- Uma conta desativada perde imediatamente o acesso e sai do diretório, mesmo que continue atribuída a pedidos (o nome continua visível no pedido e no histórico).
+
+### Notas internas e autoria
+
+- Uma mensagem com `is_internal = true` só pode ser criada por quem tem `IT_TICKETS_MANAGE` e só é lida por quem tem `IT_TICKETS_READ`. Os eventos internos (nota interna, intervenção) seguem a mesma regra; a RLS filtra-os para o colaborador e não geram notificações.
+- O autor de comentários e eventos é sempre o utilizador da sessão: as funções não recebem autor como parâmetro e não há `INSERT`/`UPDATE` direto (não é possível forjar o autor nem tornar pública uma nota interna).
 
 ### Auditoria e notificações
 
 - Cada evento do histórico (exceto comentários e intervenções, que têm registo próprio) gera um evento de auditoria `it_ticket.<tipo>` (ex.: `it_ticket.resolved`). Os equipamentos geram `it_asset.created`, `it_asset.status_changed`, `it_asset.assigned` e `it_asset.updated`; as intervenções `it_intervention.created`. O cliente continua sem poder inserir eventos de auditoria.
-- As notificações são criadas por trigger em `notifications` (mecanismo existente) e nunca para eventos internos: novo pedido → técnicos; atribuição → técnico e solicitante; pedido de informação → solicitante; resposta do colaborador e comentários → a outra parte; prioridade alterada, resolução, fecho e reabertura → a parte interessada. Tipos: `IT_TICKET_CREATED`, `IT_TICKET_ASSIGNED`, `IT_TICKET_UPDATED`, `IT_TICKET_WAITING_USER`, `IT_TICKET_USER_REPLIED`, `IT_TICKET_COMMENT`, `IT_TICKET_RESOLVED`, `IT_TICKET_CLOSED`, `IT_TICKET_REOPENED`.
+- As notificações são criadas por trigger em `notifications` (mecanismo existente) e nunca para eventos internos: novo pedido → técnicos (ou administradores, se não houver técnicos ativos); atribuição → técnico e solicitante; pedido de informação → solicitante; resposta do colaborador e comentários → a outra parte; prioridade alterada, resolução, fecho e reabertura → a parte interessada. Tipos: `IT_TICKET_CREATED`, `IT_TICKET_ASSIGNED`, `IT_TICKET_UPDATED`, `IT_TICKET_WAITING_USER`, `IT_TICKET_USER_REPLIED`, `IT_TICKET_COMMENT`, `IT_TICKET_RESOLVED`, `IT_TICKET_CLOSED`, `IT_TICKET_REOPENED`.

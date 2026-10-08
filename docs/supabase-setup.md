@@ -62,13 +62,15 @@ Num projeto onde as migrations 1 a 5 já estão aplicadas, execute **apenas** `2
 
 Depois de aplicar:
 
-1. Os prazos de resolução por prioridade e o alerta de espera ficam em `system_settings` (`IT_SLA_HOURS_CRITICAL` = 8, `IT_SLA_HOURS_HIGH` = 24, `IT_SLA_HOURS_MEDIUM` = 72, `IT_SLA_HOURS_LOW` = 120, `IT_WAITING_USER_ALERT_DAYS` = 3). Para os alterar, use o SQL Editor, por exemplo:
+1. **Prazos iniciais (SLA) do módulo IT**, criados em `system_settings`: crítica **8 h**, alta **24 h**, média **72 h**, baixa **120 h**; alerta de espera pelo colaborador: **3 dias** (`IT_SLA_HOURS_CRITICAL`, `IT_SLA_HOURS_HIGH`, `IT_SLA_HOURS_MEDIUM`, `IT_SLA_HOURS_LOW`, `IT_WAITING_USER_ALERT_DAYS`). Nesta fase não há interface para os alterar; se for necessário, use o SQL Editor, por exemplo:
    ```sql
    UPDATE public.system_settings SET value = '12' WHERE key = 'IT_SLA_HOURS_CRITICAL';
    ```
    O valor é validado no servidor. A alteração aplica-se a pedidos novos, a mudanças de prioridade e a reaberturas.
-2. Atribua o perfil **IT** aos técnicos em **Utilizadores**. Os utilizadores com perfil **ADMIN** também contam como técnicos.
+2. Atribua o perfil **IT** aos técnicos em **Utilizadores**. Os administradores (perfil **ADMIN**) podem consultar e operar a fila, mas não contam como técnicos disponíveis: só recebem as notificações de pedidos novos se não existir nenhum técnico ativo.
 3. Para verificar, entre como colaborador, abra um pedido em **Pedidos de suporte** e confirme que a equipa de IT o vê em **Suporte IT › Solicitações** e recebe a notificação.
+
+**Versão da migration:** o prefixo `20261010000000` segue a sequência das migrations anteriores e é posterior à data de desenvolvimento. Não há impedimento técnico (a Supabase CLI ordena as migrations pela versão e não a compara com o relógio). Até essa data passar, as novas migrations devem usar uma versão **superior** a `20261010000000` (ex.: `20261011000000_<nome>.sql`), em vez da gerada por `supabase migration new`, para não ficarem ordenadas antes de uma migration já aplicada.
 
 ## 7. Frontend
 

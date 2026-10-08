@@ -100,9 +100,6 @@ export const TicketsPage: React.FC = () => {
     filters.categoryId !== ALL ||
     filters.assignee !== ALL;
 
-  const technicianName = (profileId: string | null) =>
-    profileId ? (technicians.find((technician) => technician.profileId === profileId)?.fullName ?? 'Técnico') : null;
-
   const now = new Date();
   const columns: DataTableColumn<TicketSummary>[] = [
     {
@@ -131,7 +128,8 @@ export const TicketsPage: React.FC = () => {
     {
       id: 'assignee',
       header: 'Técnico',
-      render: (ticket) => technicianName(ticket.assignedTo) ?? <span className="text-text-muted">Sem técnico</span>,
+      render: (ticket) =>
+        ticket.assignedTo ? (ticket.assigneeName ?? 'Responsável atribuído') : <span className="text-text-muted">Sem técnico</span>,
     },
     {
       id: 'due',
