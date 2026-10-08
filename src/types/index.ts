@@ -245,3 +245,22 @@ export interface SystemHealthStatus {
   activeUsersCount: number;
   recentSecurityEventsCount: number;
 }
+
+/** Resumo de um timesheet com colaborador e horas agregadas (listas, relatórios, aprovações). */
+export interface TimesheetSummary {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  employeeNumber: string | null;
+  departmentId: string | null;
+  departmentName: string | null;
+  periodStart: string;
+  periodEnd: string;
+  status: TimesheetStatus;
+  submittedAt: string | null;
+  approvedAt: string | null;
+  rejectedAt: string | null;
+  rejectionReason: string | null;
+  entryCount: number;
+  totalMinutes: number;
+}

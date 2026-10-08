@@ -20,6 +20,7 @@ import { UserAvatar } from '../../components/ui/UserAvatar';
 import { UserFormModal } from '../../components/admin/UserFormModal';
 import { RoleAssignModal } from '../../components/admin/RoleAssignModal';
 import { UserStatusDialog } from '../../components/admin/UserStatusDialog';
+import { ManagerScopePanel } from '../../components/admin/ManagerScopePanel';
 import { formatDate, formatDateTime, formatMinutesAsHours, formatPeriod } from '../../utils/format';
 import { isUuid } from '../../utils/validation';
 
@@ -156,6 +157,10 @@ export const UserDetailPage: React.FC = () => {
           <DetailItem label="Último acesso">{formatDateTime(profile.last_login_at, 'Nunca acedeu')}</DetailItem>
         </dl>
       </Panel>
+
+      {profile.role?.code === 'MANAGER' && (
+        <ManagerScopePanel manager={profile} departments={departments} canManage={hasPermission('USERS_UPDATE')} />
+      )}
 
       <Panel title="Timesheets" description="Períodos registados por este colaborador." flush>
         {timesheets.error && (

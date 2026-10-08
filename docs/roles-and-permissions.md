@@ -87,4 +87,15 @@
 | `/audit` | `AUDIT_READ` | — |
 | `/system-health` | `SYSTEM_HEALTH_READ` | — |
 | `/settings` | `SYSTEM_SETTINGS_READ` | alterar: `SYSTEM_SETTINGS_MANAGE` |
-| `/reports` | `REPORTS_READ` | exportar CSV: `REPORTS_EXPORT` |
+| `/reports` | `REPORTS_READ` | exportar CSV: `REPORTS_EXPORT` (os dados respeitam sempre o âmbito) |
+
+## 6. Navegação do Manager e do timesheet próprio
+
+| Rota | Permissão exigida | Ações adicionais |
+| :--- | :--- | :--- |
+| `/timesheets`, `/timesheets/:id` | `SELF_TIMESHEET_READ` | criar período: `SELF_TIMESHEET_CREATE`; registar horas: `SELF_TIMESHEET_UPDATE`; submeter: `SELF_TIMESHEET_SUBMIT` |
+| `/team`, `/team/:id` | `TEAM_READ` | apenas leitura (dados administrativos são do Admin) |
+| `/approvals`, `/approvals/:id` | `TEAM_TIMESHEET_REVIEW` | aprovar (incl. em massa): `TEAM_TIMESHEET_APPROVE`; rejeitar: `TEAM_TIMESHEET_REJECT` |
+| `/activity` | `TEAM_TIMESHEET_READ` | — |
+
+Os dados destas páginas são sempre limitados ao `manager_scopes` do gestor pelo servidor.

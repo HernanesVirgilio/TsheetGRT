@@ -9,6 +9,10 @@ No **SQL Editor** do projeto, execute cada ficheiro **uma única vez, por esta o
 1. `supabase/migrations/20261001000000_initial_schema.sql` — tabelas, constraints, índices e triggers de integridade.
 2. `supabase/migrations/20261001000001_rls_policies.sql` — funções de segurança, triggers de proteção e auditoria, políticas RLS e privilégios.
 3. `supabase/migrations/20261001000002_seed_data.sql` — departamentos, perfis de acesso, permissões, atividades e configurações.
+4. `supabase/migrations/20261008000000_manager_scope_and_reviews.sql` — módulo Manager: âmbito de gestão, leitura por âmbito, submissão e decisão de timesheets por funções do servidor, notificações e auditoria da equipa.
+5. `supabase/migrations/20261009000000_scope_rules_and_reviewer_visibility.sql` — âmbito por departamento limitado a colaboradores (EMPLOYEE), exclusão de administradores e leitura limitada de quem decidiu um timesheet.
+
+Execute apenas os ficheiros que ainda não aplicou, pela ordem indicada.
 
 Estes ficheiros são a **única fonte de verdade** do schema. Alterações futuras devem ser feitas em novas migrations.
 
@@ -47,7 +51,11 @@ supabase functions deploy admin-create-user --no-verify-jwt
 
 A função `bootstrap_first_admin` só pode ser executada a partir do SQL Editor e recusa a operação se já existir um administrador ativo. A partir daí, os utilizadores são criados na área Admin.
 
-## 5. Frontend
+## 5. Atribuir equipas aos gestores
+
+Na área Admin, abra **Utilizadores › (utilizador com perfil MANAGER) › Âmbito de gestão** e atribua departamentos e/ou colaboradores. Sem âmbito, o gestor não vê nenhuma equipa nem pode aprovar timesheets.
+
+## 6. Frontend
 
 ```bash
 cp .env.example .env   # preencher VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY
@@ -60,7 +68,8 @@ npm run dev
 | Comando | O que verifica |
 | :--- | :--- |
 | `npm run typecheck` | TypeScript em modo `strict` |
-| `npm test` | Regras de validação, erros, CSV, relatórios e regras de timesheet |
+| `npm test` | Regras de validação, erros, CSV, relatórios, timesheets **e** testes de segurança da base de dados |
+| `npm run test:db` | Apenas os testes de segurança: aplica todas as migrations em PostgreSQL 17 (PGlite) com um ambiente que simula o Supabase e verifica RLS, âmbito de gestão, aprovações, auditoria e acessos proibidos |
 | `npm run build` | Build de produção |
 
-Durante a implementação, as migrations foram executadas em PostgreSQL 17 com um ambiente que simula o Supabase (roles `anon`/`authenticated`/`service_role`, `auth.users`, `auth.uid()`), e foram verificados: isolamento por RLS, proteção do último administrador, escalada de privilégios, imutabilidade da auditoria e bloqueio do acesso anónimo. Esse harness não faz parte do repositório.
+Os testes de segurança (`supabase/tests/security.test.ts`) não precisam de ligação ao Supabase.

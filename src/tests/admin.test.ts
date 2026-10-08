@@ -89,6 +89,7 @@ const baseTimesheet: ReportTimesheet = {
   id: 't1',
   employeeId: 'e1',
   employeeName: 'Ana',
+  employeeNumber: 'SIH-0001',
   departmentId: 'd1',
   departmentName: 'Finanças',
   periodStart: '2026-09-01',
@@ -96,6 +97,8 @@ const baseTimesheet: ReportTimesheet = {
   status: 'APPROVED',
   submittedAt: null,
   approvedAt: null,
+  rejectedAt: null,
+  rejectionReason: null,
   entryCount: 2,
   totalMinutes: 480,
 };

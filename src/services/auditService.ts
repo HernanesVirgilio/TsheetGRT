@@ -16,6 +16,8 @@ export interface AuditQuery {
   pageSize: number;
   action: string;
   actor: string;
+  /** Limita a um tipo de entidade (ex.: 'timesheets' na atividade da equipa). */
+  entityType?: string;
 }
 
 export interface AuditPage {
@@ -42,6 +44,10 @@ export async function listAuditEvents(query: AuditQuery): Promise<AuditPage> {
     .select(AUDIT_SELECT, { count: 'exact' })
     .order('created_at', { ascending: false })
     .range(from, from + query.pageSize - 1);
+
+  if (query.entityType) {
+    request = request.eq('entity_type', query.entityType);
+  }
 
   if (query.action.trim()) {
     request = request.ilike('action', toIlikePattern(query.action));

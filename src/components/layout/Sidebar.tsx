@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 import {
   Activity,
   BarChart3,
+  History,
   Bell,
   Building2,
   ClipboardCheck,
@@ -26,6 +27,13 @@ interface NavigationItem {
   icon: LucideIcon;
   permission: PermissionCode;
 }
+
+// Área de gestão de equipa: apresentada a gestores, sempre condicionada à permissão.
+const TEAM_ITEMS: NavigationItem[] = [
+  { to: '/team', label: 'Minha Equipa', icon: Users, permission: 'TEAM_READ' },
+  { to: '/approvals', label: 'Aprovações', icon: ClipboardCheck, permission: 'TEAM_TIMESHEET_REVIEW' },
+  { to: '/activity', label: 'Atividade', icon: History, permission: 'TEAM_TIMESHEET_READ' },
+];
 
 const ANALYSIS_ITEMS: NavigationItem[] = [
   { to: '/reports', label: 'Relatórios', icon: BarChart3, permission: 'REPORTS_READ' },
@@ -76,6 +84,9 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ onNavigate }) => {
   const { currentUser, role, hasPermission, signOut } = useAuth();
 
+  const isTeamManager = role === 'MANAGER';
+  const showOwnTimesheet = (role === 'EMPLOYEE' || role === 'MANAGER') && hasPermission('SELF_TIMESHEET_READ');
+  const visibleTeamItems = isTeamManager ? TEAM_ITEMS.filter((item) => hasPermission(item.permission)) : [];
   const visibleAnalysisItems = ANALYSIS_ITEMS.filter((item) => hasPermission(item.permission));
   const visibleAdministrationItems = ADMINISTRATION_ITEMS.filter((item) => hasPermission(item.permission));
 
@@ -89,18 +100,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNavigate }) => {
         <ul className="space-y-1">
           <SidebarLink to="/dashboard" label="Dashboard" icon={LayoutDashboard} onNavigate={onNavigate} />
 
-          {/* Módulos de timesheet e equipa (fases seguintes): mantidos sem alterações de comportamento. */}
-          {(role === 'EMPLOYEE' || role === 'MANAGER') && (
+          {showOwnTimesheet && (
             <SidebarLink to="/timesheets" label="Meu Timesheet" icon={Clock3} onNavigate={onNavigate} />
           )}
-          {role === 'ADMIN' && <SidebarLink to="/timesheets" label="Timesheets" icon={Clock3} onNavigate={onNavigate} />}
-          {role === 'MANAGER' && (
-            <>
-              <SidebarLink to="/team" label="Minha Equipa" icon={Users} onNavigate={onNavigate} />
-              <SidebarLink to="/approvals" label="Aprovações" icon={ClipboardCheck} onNavigate={onNavigate} />
-            </>
-          )}
         </ul>
+
+        {visibleTeamItems.length > 0 && (
+          <SidebarSection title="Gestão de equipa">
+            {visibleTeamItems.map((item) => (
+              <SidebarLink key={item.to} {...item} onNavigate={onNavigate} />
+            ))}
+          </SidebarSection>
+        )}
 
         {visibleAnalysisItems.length > 0 && (
           <SidebarSection title="Análise">

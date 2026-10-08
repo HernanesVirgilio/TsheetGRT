@@ -62,7 +62,8 @@ Apenas a chave pública (publishable) é usada no frontend. A `service_role` exi
 npm install
 npm run dev        # http://localhost:3000
 npm run typecheck  # TypeScript strict
-npm test           # testes de regras e utilitários
+npm test           # testes de regras, utilitários e segurança da base de dados
+npm run test:db    # apenas segurança da base de dados (RLS, âmbitos, aprovações)
 npm run build      # build de produção
 ```
 
@@ -91,7 +92,7 @@ supabase/
 └── scripts/          # Configuração do primeiro administrador
 ```
 
-> **Estado dos módulos:** a área Admin (utilizadores, departamentos, perfis e permissões, auditoria, saúde do sistema, configurações e relatórios) está integrada com o Supabase. Os módulos de timesheet, equipa e aprovações, e as dashboards de Colaborador, Gestor e IT, ainda usam a camada temporária `src/services/dataService.ts` e serão migrados nas próximas fases.
+> **Estado dos módulos:** integrados com o Supabase: área Admin; módulo Manager (equipa por âmbito, aprovações e rejeições, aprovação em massa, atividade, relatórios por âmbito); "Meu Timesheet" (períodos, registos de horas e submissão). Ainda usam a camada temporária `src/services/dataService.ts`: as dashboards de Colaborador e de IT, que serão migradas nas próximas fases.
 
 ---
 

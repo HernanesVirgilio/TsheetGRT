@@ -1,227 +1,110 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import {
-  ClipboardCheck,
-  Users,
-  AlertCircle,
-  ArrowRight,
-  Building,
-  UserCheck,
-} from 'lucide-react';
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { ArrowRight, CheckCircle2, ClipboardCheck, Users, XCircle } from 'lucide-react';
 import { useAuth } from '../../lib/auth/AuthContext';
-import { dataService, formatMinutesToHours } from '../../services/dataService';
-import { Timesheet, Profile } from '../../types';
+import { useAsyncData } from '../../hooks/useAsyncData';
+import { listMyScopes, listTeamMembers, listTeamTimesheets } from '../../services/managerService';
 import { PageHeader } from '../../components/ui/PageHeader';
+import { Panel } from '../../components/ui/Panel';
+import { Alert } from '../../components/ui/Alert';
 import { StatCard } from '../../components/ui/StatCard';
-import { StatusBadge } from '../../components/ui/StatusBadge';
-import { UserAvatar } from '../../components/ui/UserAvatar';
+import { EmptyState } from '../../components/ui/EmptyState';
+import { ErrorState, LoadingState } from '../../components/ui/States';
+import { formatDateTime, formatMinutesAsHours, formatPeriod, pluralize } from '../../utils/format';
+import { summarizeTimesheets } from '../../utils/timesheets';
+
+const PENDING_PREVIEW_LIMIT = 5;
+const ALL_TIMESHEETS = { status: null, employeeId: null, periodFrom: null, periodTo: null };
+
+const PanelLink: React.FC<{ to: string; children: React.ReactNode }> = ({ to, children }) => (
+  <Link to={to} className="inline-flex items-center gap-1 text-sm font-semibold text-primary-hover hover:underline">
+    {children}
+    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+  </Link>
+);
 
 export const ManagerDashboard: React.FC = () => {
   const { currentUser } = useAuth();
-  const navigate = useNavigate();
-  const [teamTimesheets, setTeamTimesheets] = useState<Timesheet[]>([]);
-  const [teamMembers, setTeamMembers] = useState<Profile[]>([]);
-
-  useEffect(() => {
-    if (currentUser) {
-      const allTs = dataService.getTimesheets(currentUser);
-      setTeamTimesheets(allTs);
-
-      const allProfiles = dataService.getProfiles();
-      const departmentMembers = allProfiles.filter(
-        (p) => p.department_id === currentUser.department_id && p.id !== currentUser.id
-      );
-      setTeamMembers(departmentMembers);
-    }
-  }, [currentUser]);
-
-  // Pending approvals
-  const pendingApprovals = teamTimesheets.filter(
-    (t) => t.status === 'SUBMITTED' && t.employee_id !== currentUser?.id
+  const profileId = currentUser?.id ?? '';
+  const overview = useAsyncData(
+    () => Promise.all([listMyScopes(profileId), listTeamMembers(), listTeamTimesheets(ALL_TIMESHEETS)]),
+    [profileId]
   );
 
-  // Missing or draft submissions
-  const draftTimesheets = teamTimesheets.filter((t) => t.status === 'DRAFT');
+  if (overview.error) return <ErrorState message={overview.error} onRetry={overview.reload} />;
+  if (!overview.data) return <LoadingState label="A carregar a sua equipa..." />;
 
-  // Total team hours in current periods
-  const totalTeamMinutes = teamTimesheets.reduce((acc, t) => acc + (t.total_minutes || 0), 0);
+  const [scopes, members, timesheets] = overview.data;
+  const totals = summarizeTimesheets(timesheets);
+  // Mais antigos primeiro: são os que esperam há mais tempo.
+  const pending = timesheets
+    .filter((timesheet) => timesheet.status === 'SUBMITTED')
+    .sort((first, second) => (first.submittedAt ?? '').localeCompare(second.submittedAt ?? ''));
+  const activeMembers = members.filter((member) => member.is_active).length;
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Dashboard da Equipa"
-        subtitle="Acompanhe o estado operacional, validação de horas e aprovações da sua equipa."
-        actions={
-          <button
-            onClick={() => navigate('/approvals')}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-[#1F5FAD] hover:bg-[#184d8f] text-white text-sm font-semibold rounded shadow-xs transition"
-          >
-            <ClipboardCheck className="w-4 h-4" />
-            Rever aprovações ({pendingApprovals.length})
-          </button>
-        }
-      />
+      <PageHeader title="Equipa" subtitle="Timesheets e aprovações dos colaboradores no seu âmbito de gestão." />
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {scopes.length === 0 ? (
+        <Alert variant="warning" title="Sem âmbito de gestão">
+          Ainda não lhe foi atribuído nenhum departamento ou colaborador. Contacte a administração.
+        </Alert>
+      ) : (
+        <p className="text-sm text-text-secondary">
+          <span className="font-medium text-text">Âmbito:</span>{' '}
+          {scopes
+            .map((scope) => (scope.departmentName ? `Departamento ${scope.departmentName}` : scope.employeeName ?? '—'))
+            .join(' · ')}
+        </p>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Colaboradores" value={members.length} supporting={pluralize(activeMembers, 'ativo', 'ativos')} icon={Users} />
         <StatCard
-          label="Aprovações Pendentes"
-          value={pendingApprovals.length}
-          badge={
-            pendingApprovals.length > 0 ? (
-              <span className="px-2 py-0.5 text-xs font-semibold rounded bg-amber-100 text-amber-800">
-                Ação necessária
-              </span>
-            ) : undefined
-          }
-          supporting={pendingApprovals.length === 0 ? 'Sem submissões pendentes' : 'Submissões aguardando revisão'}
+          label="Por aprovar"
+          value={totals.submittedCount}
+          supporting={`${formatMinutesAsHours(totals.pendingMinutes)} a validar`}
           icon={ClipboardCheck}
         />
         <StatCard
-          label="Membros na Equipa"
-          value={teamMembers.length}
-          supporting={`Departamento: ${currentUser?.department?.name || 'Operações'}`}
-          icon={Users}
+          label="Aprovados"
+          value={totals.approvedCount}
+          supporting={`${formatMinutesAsHours(totals.approvedMinutes)} aprovadas`}
+          icon={CheckCircle2}
         />
         <StatCard
-          label="Horas Consolidadas"
-          value={formatMinutesToHours(totalTeamMinutes)}
-          supporting="Total de horas registadas no ciclo"
-          icon={UserCheck}
-        />
-        <StatCard
-          label="Submissões em Rascunho"
-          value={draftTimesheets.length}
-          supporting="Folhas de ponto ainda abertas"
-          icon={Building}
+          label="Rejeitados"
+          value={totals.rejectedCount}
+          supporting="A aguardar correção do colaborador"
+          icon={XCircle}
         />
       </div>
 
-      {/* Two columns: Pending Approvals list & Team Overview */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Pending Approvals priority table */}
-        <div className="lg:col-span-2 bg-white rounded-lg border border-[#D9E0E7] shadow-xs p-5">
-          <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
-            <div>
-              <h2 className="text-sm font-bold text-[#1F2937]">Aprovações que Requerem Atenção</h2>
-              <p className="text-xs text-[#64748B]">Timesheets submetidos por colaboradores da sua equipa</p>
-            </div>
-            <button
-              onClick={() => navigate('/approvals')}
-              className="text-xs font-semibold text-[#1F5FAD] hover:underline flex items-center gap-1"
-            >
-              Ver todas
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          {pendingApprovals.length === 0 ? (
-            <div className="p-8 text-center text-xs text-slate-500 bg-slate-50 rounded border border-dashed border-slate-200">
-              <ClipboardCheck className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
-              <p className="font-semibold text-slate-700">Todas as aprovações estão em dia</p>
-              <p className="text-slate-500 mt-1">Não existem submissões de timesheet pendentes de validação neste momento.</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-slate-200 text-slate-500 bg-slate-50">
-                    <th className="py-2.5 px-3 font-semibold">Colaborador</th>
-                    <th className="py-2.5 px-3 font-semibold">Período</th>
-                    <th className="py-2.5 px-3 font-semibold">Total Horas</th>
-                    <th className="py-2.5 px-3 font-semibold">Data Submissão</th>
-                    <th className="py-2.5 px-3 font-semibold text-right">Ação</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {pendingApprovals.map((ts) => (
-                    <tr key={ts.id} className="hover:bg-slate-50">
-                      <td className="py-3 px-3">
-                        <div className="flex items-center gap-2">
-                          <UserAvatar name={ts.employee?.full_name || 'Colaborador'} size="sm" />
-                          <div>
-                            <div className="font-semibold text-slate-800">
-                              {ts.employee?.full_name}
-                            </div>
-                            <div className="text-[11px] text-slate-500">
-                              {ts.employee?.employee_number}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-3 px-3 text-slate-700 whitespace-nowrap">
-                        {ts.period_start} a {ts.period_end}
-                      </td>
-                      <td className="py-3 px-3 font-bold text-[#1F5FAD] whitespace-nowrap">
-                        {formatMinutesToHours(ts.total_minutes || 0)}
-                      </td>
-                      <td className="py-3 px-3 text-slate-500 whitespace-nowrap">
-                        {ts.submitted_at ? new Date(ts.submitted_at).toLocaleDateString('pt-PT') : 'Hoje'}
-                      </td>
-                      <td className="py-3 px-3 text-right">
-                        <button
-                          onClick={() => navigate('/approvals')}
-                          className="px-2.5 py-1 bg-[#1F5FAD] hover:bg-[#184d8f] text-white font-medium rounded text-xs transition"
-                        >
-                          Rever
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        {/* Team Members List */}
-        <div className="bg-white rounded-lg border border-[#D9E0E7] shadow-xs p-5">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
-            <h3 className="text-sm font-bold text-[#1F2937]">Membros da Equipa</h3>
-            <span className="text-xs text-slate-500">{teamMembers.length} pessoas</span>
-          </div>
-
-          <div className="space-y-3">
-            {teamMembers.map((member) => {
-              const memberTs = teamTimesheets.find((t) => t.employee_id === member.id && t.period_start === '2026-10-01');
-              return (
-                <div
-                  key={member.id}
-                  className="p-2.5 rounded border border-slate-100 hover:border-slate-300 transition flex items-center justify-between"
+      <Panel title="A aguardar a sua decisão" actions={<PanelLink to="/approvals">Ver aprovações</PanelLink>} flush>
+        {pending.length === 0 ? (
+          <EmptyState bordered={false} icon={ClipboardCheck} title="Não existem timesheets pendentes para a sua equipa." />
+        ) : (
+          <ul className="divide-y divide-border">
+            {pending.slice(0, PENDING_PREVIEW_LIMIT).map((timesheet) => (
+              <li key={timesheet.id}>
+                <Link
+                  to={`/approvals/${timesheet.id}`}
+                  className="flex flex-col gap-1 px-5 py-3 hover:bg-background sm:flex-row sm:items-center sm:justify-between"
                 >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <UserAvatar name={member.full_name} size="sm" />
-                    <div className="min-w-0">
-                      <div className="text-xs font-semibold text-slate-800 truncate">
-                        {member.full_name}
-                      </div>
-                      <div className="text-[11px] text-slate-500 truncate">
-                        {member.job_title || 'Técnico Operacional'}
-                      </div>
-                    </div>
-                  </div>
-                  <div>
-                    {memberTs ? (
-                      <StatusBadge status={memberTs.status} size="sm" />
-                    ) : (
-                      <span className="text-[11px] text-slate-400">Sem registo</span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="mt-4 pt-3 border-t border-slate-100">
-            <button
-              onClick={() => navigate('/team')}
-              className="w-full py-1.5 text-xs text-[#1F5FAD] font-semibold hover:bg-slate-50 rounded transition text-center"
-            >
-              Consultar detalhes da equipa
-            </button>
-          </div>
-        </div>
-      </div>
+                  <span>
+                    <span className="block text-sm font-semibold text-text">{timesheet.employeeName}</span>
+                    <span className="block text-xs text-text-secondary">
+                      {formatPeriod(timesheet.periodStart, timesheet.periodEnd)} · {formatMinutesAsHours(timesheet.totalMinutes)}
+                    </span>
+                  </span>
+                  <span className="text-xs text-text-muted">Submetido em {formatDateTime(timesheet.submittedAt)}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Panel>
     </div>
   );
 };

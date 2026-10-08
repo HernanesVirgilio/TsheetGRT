@@ -1,129 +1,195 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Users, Mail, Phone, Calendar, Clock, ChevronRight } from 'lucide-react';
-import { useAuth } from '../../lib/auth/AuthContext';
-import { dataService, formatMinutesToHours } from '../../services/dataService';
-import { Profile, Timesheet } from '../../types';
+import React, { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Users } from 'lucide-react';
+import { useAsyncData } from '../../hooks/useAsyncData';
+import { listTeamMembers, listTeamTimesheets } from '../../services/managerService';
+import type { Profile, TimesheetSummary } from '../../types';
 import { PageHeader } from '../../components/ui/PageHeader';
-import { UserAvatar } from '../../components/ui/UserAvatar';
-import { StatusBadge } from '../../components/ui/StatusBadge';
+import { Panel } from '../../components/ui/Panel';
+import { Button } from '../../components/ui/Button';
+import { FilterSelect, SearchInput } from '../../components/ui/FormField';
+import { DataTable } from '../../components/ui/DataTable';
+import type { DataTableColumn, SortState } from '../../components/ui/DataTable';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { ErrorState, LoadingState } from '../../components/ui/States';
+import { StatusBadge } from '../../components/ui/StatusBadge';
+import { UserAvatar } from '../../components/ui/UserAvatar';
+import { formatDateTime, formatPeriod } from '../../utils/format';
+import { lastActivityAt, latestTimesheetByEmployee } from '../../utils/timesheets';
+
+const ALL = '';
+const NO_TIMESHEET = 'NONE';
+
+type TeamSortKey = 'name' | 'activity';
+
+interface TeamRow {
+  member: Profile;
+  latestTimesheet: TimesheetSummary | null;
+  lastActivity: string | null;
+}
+
+const ALL_TIMESHEETS = { status: null, employeeId: null, periodFrom: null, periodTo: null };
 
 export const TeamPage: React.FC = () => {
-  const { currentUser } = useAuth();
-  const navigate = useNavigate();
-  const [teamMembers, setTeamMembers] = useState<Profile[]>([]);
-  const [teamTimesheets, setTeamTimesheets] = useState<Timesheet[]>([]);
+  const team = useAsyncData(() => Promise.all([listTeamMembers(), listTeamTimesheets(ALL_TIMESHEETS)]), []);
+  const [search, setSearch] = useState('');
+  const [departmentId, setDepartmentId] = useState(ALL);
+  const [timesheetStatus, setTimesheetStatus] = useState(ALL);
+  const [sort, setSort] = useState<SortState<TeamSortKey>>({ key: 'name', direction: 'asc' });
 
-  useEffect(() => {
-    if (currentUser) {
-      const allProfiles = dataService.getProfiles();
-      const myTeam = allProfiles.filter(
-        (p) => p.department_id === currentUser.department_id && p.id !== currentUser.id
-      );
-      setTeamMembers(myTeam);
+  const rows = useMemo<TeamRow[]>(() => {
+    if (!team.data) return [];
+    const [members, timesheets] = team.data;
+    const latest = latestTimesheetByEmployee(timesheets);
+    return members.map((member) => {
+      const latestTimesheet = latest.get(member.id) ?? null;
+      return { member, latestTimesheet, lastActivity: latestTimesheet ? lastActivityAt(latestTimesheet) : null };
+    });
+  }, [team.data]);
 
-      const allTs = dataService.getTimesheets(currentUser);
-      setTeamTimesheets(allTs);
-    }
-  }, [currentUser]);
+  const departments = useMemo(() => {
+    const byId = new Map<string, string>();
+    for (const { member } of rows) if (member.department) byId.set(member.department.id, member.department.name);
+    return [...byId.entries()].sort((first, second) => first[1].localeCompare(second[1], 'pt-PT'));
+  }, [rows]);
+
+  const term = search.trim().toLowerCase();
+  const visible = rows
+    .filter(({ member, latestTimesheet }) => {
+      const matchesSearch =
+        !term ||
+        member.full_name.toLowerCase().includes(term) ||
+        member.email.toLowerCase().includes(term) ||
+        (member.employee_number ?? '').toLowerCase().includes(term);
+      const matchesDepartment = !departmentId || member.department_id === departmentId;
+      const matchesStatus =
+        !timesheetStatus ||
+        (timesheetStatus === NO_TIMESHEET ? latestTimesheet === null : latestTimesheet?.status === timesheetStatus);
+      return matchesSearch && matchesDepartment && matchesStatus;
+    })
+    .sort((first, second) => {
+      const direction = sort.direction === 'asc' ? 1 : -1;
+      if (sort.key === 'name') return first.member.full_name.localeCompare(second.member.full_name, 'pt-PT') * direction;
+      return (first.lastActivity ?? '').localeCompare(second.lastActivity ?? '') * direction;
+    });
+
+  const hasFilters = Boolean(term || departmentId || timesheetStatus);
+
+  const columns: DataTableColumn<TeamRow, TeamSortKey>[] = [
+    {
+      id: 'name',
+      header: 'Colaborador',
+      sortKey: 'name',
+      render: ({ member }) => (
+        <Link to={`/team/${member.id}`} className="flex items-center gap-3 hover:underline">
+          <UserAvatar name={member.full_name} size="sm" />
+          <span>
+            <span className="block font-semibold text-text">{member.full_name}</span>
+            <span className="block text-xs text-text-muted">{member.employee_number}</span>
+          </span>
+        </Link>
+      ),
+    },
+    { id: 'department', header: 'Departamento', render: ({ member }) => member.department?.name ?? 'Sem departamento' },
+    { id: 'job', header: 'Função', render: ({ member }) => member.job_title ?? '—' },
+    { id: 'contact', header: 'Contacto', render: ({ member }) => member.phone ?? member.email },
+    {
+      id: 'account',
+      header: 'Conta',
+      render: ({ member }) => <StatusBadge status={member.is_active ? 'ACTIVE' : 'INACTIVE'} size="sm" />,
+    },
+    {
+      id: 'timesheet',
+      header: 'Último timesheet',
+      render: ({ latestTimesheet }) =>
+        latestTimesheet ? (
+          <span className="flex flex-col items-end gap-1 md:items-start">
+            <StatusBadge status={latestTimesheet.status} size="sm" />
+            <span className="text-xs text-text-muted">{formatPeriod(latestTimesheet.periodStart, latestTimesheet.periodEnd)}</span>
+          </span>
+        ) : (
+          'Sem timesheets'
+        ),
+    },
+    {
+      id: 'activity',
+      header: 'Última atividade',
+      sortKey: 'activity',
+      render: ({ lastActivity }) => formatDateTime(lastActivity, 'Sem submissões'),
+    },
+  ];
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Minha Equipa"
-        subtitle={`Colaboradores alocados ao departamento de ${currentUser?.department?.name || 'Operações'}.`}
-      />
+      <PageHeader title="Minha Equipa" subtitle="Colaboradores no seu âmbito de gestão e o estado dos respetivos timesheets." />
 
-      {teamMembers.length === 0 ? (
-        <EmptyState
-          title="Nenhum colaborador alocado"
-          message="Não existem colaboradores registados sob o seu departamento de momento."
-          icon={Users}
-        />
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {teamMembers.map((member) => {
-            const memberTs = teamTimesheets.filter((t) => t.employee_id === member.id);
-            const currentPeriodTs = memberTs.find((t) => t.period_start === '2026-10-01') || memberTs[0];
-
-            return (
-              <div
-                key={member.id}
-                className="bg-white rounded-lg border border-[#D9E0E7] shadow-xs p-5 flex flex-col justify-between hover:border-slate-300 transition"
-              >
-                <div>
-                  <div className="flex items-start justify-between gap-3 mb-4">
-                    <div className="flex items-center gap-3">
-                      <UserAvatar name={member.full_name} size="md" />
-                      <div>
-                        <h3 className="text-sm font-bold text-slate-800">{member.full_name}</h3>
-                        <p className="text-xs text-[#1F5FAD] font-medium">
-                          {member.job_title || 'Técnico Operacional'}
-                        </p>
-                      </div>
-                    </div>
-                    <StatusBadge status={member.is_active ? 'ACTIVE' : 'INACTIVE'} size="sm" />
-                  </div>
-
-                  <div className="space-y-2 text-xs text-slate-600 border-t border-slate-100 pt-3 mb-4">
-                    <div className="flex items-center gap-2 text-slate-500">
-                      <Mail className="w-3.5 h-3.5 shrink-0 text-slate-400" />
-                      <span className="truncate">{member.email}</span>
-                    </div>
-                    {member.phone && (
-                      <div className="flex items-center gap-2 text-slate-500">
-                        <Phone className="w-3.5 h-3.5 shrink-0 text-slate-400" />
-                        <span>{member.phone}</span>
-                      </div>
-                    )}
-                    <div className="flex items-center gap-2 text-slate-500">
-                      <span className="font-semibold text-slate-700">Nº de Colaborador:</span>
-                      <span>{member.employee_number || 'SIH-0000'}</span>
-                    </div>
-                  </div>
-
-                  {/* Current Timesheet Status */}
-                  <div className="p-3 bg-slate-50 rounded border border-slate-200 text-xs mb-4">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-slate-500 font-medium">Timesheet em Curso:</span>
-                      {currentPeriodTs ? (
-                        <StatusBadge status={currentPeriodTs.status} size="sm" />
-                      ) : (
-                        <span className="text-slate-400">Sem registo</span>
-                      )}
-                    </div>
-                    {currentPeriodTs && (
-                      <div className="flex items-center justify-between text-slate-700">
-                        <span>Horas Apuradas:</span>
-                        <span className="font-bold text-[#1F5FAD]">
-                          {formatMinutesToHours(currentPeriodTs.total_minutes || 0)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="border-t border-slate-100 pt-3">
-                  <button
-                    onClick={() => {
-                      if (currentPeriodTs) {
-                        navigate(`/timesheets/${currentPeriodTs.id}`);
-                      } else {
-                        navigate('/approvals');
-                      }
-                    }}
-                    className="w-full py-1.5 px-3 text-xs font-semibold text-[#1F5FAD] hover:bg-slate-50 rounded transition flex items-center justify-center gap-1.5"
-                  >
-                    <span>Inspecionar Folha de Ponto</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+      <Panel flush>
+        <div className="grid grid-cols-1 gap-3 border-b border-border p-4 sm:grid-cols-3">
+          <SearchInput label="Pesquisar nome, e-mail ou nº" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <FilterSelect label="Filtrar por departamento" value={departmentId} onChange={(event) => setDepartmentId(event.target.value)}>
+            <option value={ALL}>Todos os departamentos</option>
+            {departments.map(([id, name]) => (
+              <option key={id} value={id}>
+                {name}
+              </option>
+            ))}
+          </FilterSelect>
+          <FilterSelect
+            label="Filtrar por estado do último timesheet"
+            value={timesheetStatus}
+            onChange={(event) => setTimesheetStatus(event.target.value)}
+          >
+            <option value={ALL}>Todos os estados de timesheet</option>
+            <option value="SUBMITTED">Por aprovar</option>
+            <option value="REJECTED">Rejeitado</option>
+            <option value="DRAFT">Em rascunho</option>
+            <option value="APPROVED">Aprovado</option>
+            <option value={NO_TIMESHEET}>Sem timesheets</option>
+          </FilterSelect>
         </div>
-      )}
+
+        {team.error && (
+          <div className="p-4">
+            <ErrorState message={team.error} onRetry={team.reload} />
+          </div>
+        )}
+        {team.isLoading && !team.data && <LoadingState label="A carregar equipa..." />}
+        {team.data && visible.length === 0 && (
+          <EmptyState
+            bordered={false}
+            icon={Users}
+            title={hasFilters ? 'Nenhum colaborador corresponde aos filtros.' : 'Não tem colaboradores no seu âmbito de gestão.'}
+            message={hasFilters ? undefined : 'A atribuição de equipas é feita pela administração.'}
+            action={
+              hasFilters && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setSearch('');
+                    setDepartmentId(ALL);
+                    setTimesheetStatus(ALL);
+                  }}
+                >
+                  Limpar filtros
+                </Button>
+              )
+            }
+          />
+        )}
+        {visible.length > 0 && (
+          <DataTable
+            caption="Colaboradores da equipa"
+            columns={columns}
+            rows={visible}
+            getRowKey={(row) => row.member.id}
+            sort={sort}
+            onSortChange={(key) =>
+              setSort((current) => ({ key, direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc' }))
+            }
+          />
+        )}
+      </Panel>
     </div>
   );
 };

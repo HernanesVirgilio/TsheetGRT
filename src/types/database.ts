@@ -272,7 +272,15 @@ export type Database = {
         Relationships: [];
       };
     };
-    Views: { [_ in never]: never };
+    Views: {
+      /** Perfis no manager_scope do utilizador autenticado (exclui o próprio). */
+      my_team_members: {
+        Row: ProfileRow;
+        Relationships: [
+          Relationship<'profiles_department_id_fkey', 'department_id', 'departments', false>,
+        ];
+      };
+    };
     Functions: {
       get_current_profile_id: { Args: NoArgs; Returns: string | null };
       has_permission: { Args: { p_permission_code: string }; Returns: boolean };
@@ -293,6 +301,27 @@ export type Database = {
       };
       set_role_permissions: { Args: { p_role_code: string; p_permission_codes: string[] }; Returns: undefined };
       update_system_settings: { Args: { p_settings: Json }; Returns: undefined };
+      submit_timesheet: { Args: { p_timesheet_id: string }; Returns: undefined };
+      review_timesheet: {
+        Args: { p_timesheet_id: string; p_decision: string; p_comment?: string | null };
+        Returns: undefined;
+      };
+      get_timesheet_decisions: {
+        Args: { p_timesheet_id: string };
+        Returns: {
+          decision_id: string;
+          status: string;
+          comment: string | null;
+          created_at: string;
+          reviewer_name: string | null;
+          reviewer_job_title: string | null;
+          reviewer_email: string | null;
+        }[];
+      };
+      approve_timesheets: {
+        Args: { p_timesheet_ids: string[]; p_comment?: string | null };
+        Returns: { timesheet_id: string; approved: boolean; message: string }[];
+      };
     };
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };

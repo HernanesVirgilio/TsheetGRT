@@ -17,11 +17,16 @@ import { DashboardPage } from './pages/dashboard/DashboardPage';
 import { ProfilePage } from './pages/profile/ProfilePage';
 import { NotificationsPage } from './pages/notifications/NotificationsPage';
 
-// Timesheets e equipa (fases seguintes)
+// Timesheet próprio
 import { TimesheetListPage } from './pages/timesheets/TimesheetListPage';
 import { TimesheetDetailPage } from './pages/timesheets/TimesheetDetailPage';
+
+// Gestão de equipa (Manager)
 import { TeamPage } from './pages/manager/TeamPage';
+import { TeamMemberPage } from './pages/manager/TeamMemberPage';
 import { ApprovalsPage } from './pages/manager/ApprovalsPage';
+import { TimesheetReviewPage } from './pages/manager/TimesheetReviewPage';
+import { TeamActivityPage } from './pages/manager/TeamActivityPage';
 
 // Administração
 import { ReportsPage } from './pages/reports/ReportsPage';
@@ -43,7 +48,14 @@ interface PermissionRoute {
   element: React.ReactNode;
 }
 
-const ADMINISTRATION_ROUTES: PermissionRoute[] = [
+const PERMISSION_ROUTES: PermissionRoute[] = [
+  { path: '/timesheets', permission: 'SELF_TIMESHEET_READ', element: <TimesheetListPage /> },
+  { path: '/timesheets/:id', permission: 'SELF_TIMESHEET_READ', element: <TimesheetDetailPage /> },
+  { path: '/team', permission: 'TEAM_READ', element: <TeamPage /> },
+  { path: '/team/:id', permission: 'TEAM_READ', element: <TeamMemberPage /> },
+  { path: '/approvals', permission: 'TEAM_TIMESHEET_REVIEW', element: <ApprovalsPage /> },
+  { path: '/approvals/:id', permission: 'TEAM_TIMESHEET_REVIEW', element: <TimesheetReviewPage /> },
+  { path: '/activity', permission: 'TEAM_TIMESHEET_READ', element: <TeamActivityPage /> },
   { path: '/reports', permission: 'REPORTS_READ', element: <ReportsPage /> },
   { path: '/users', permission: 'USERS_READ', element: <UsersPage /> },
   { path: '/users/:id', permission: 'USERS_READ', element: <UserDetailPage /> },
@@ -77,21 +89,7 @@ export const App: React.FC = () => (
           <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
           <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
 
-          <Route
-            path="/timesheets"
-            element={<ProtectedRoute allowedRoles={['EMPLOYEE', 'MANAGER', 'ADMIN']}><TimesheetListPage /></ProtectedRoute>}
-          />
-          <Route
-            path="/timesheets/:id"
-            element={<ProtectedRoute allowedRoles={['EMPLOYEE', 'MANAGER', 'ADMIN']}><TimesheetDetailPage /></ProtectedRoute>}
-          />
-          <Route path="/team" element={<ProtectedRoute allowedRoles={['MANAGER', 'ADMIN']}><TeamPage /></ProtectedRoute>} />
-          <Route
-            path="/approvals"
-            element={<ProtectedRoute allowedRoles={['MANAGER', 'ADMIN']}><ApprovalsPage /></ProtectedRoute>}
-          />
-
-          {ADMINISTRATION_ROUTES.map((route) => (
+          {PERMISSION_ROUTES.map((route) => (
             <Route
               key={route.path}
               path={route.path}

@@ -1,19 +1,7 @@
-import type { TimesheetStatus } from '../types';
+import type { TimesheetStatus, TimesheetSummary } from '../types';
 
-export interface ReportTimesheet {
-  id: string;
-  employeeId: string;
-  employeeName: string;
-  departmentId: string | null;
-  departmentName: string | null;
-  periodStart: string;
-  periodEnd: string;
-  status: TimesheetStatus;
-  submittedAt: string | null;
-  approvedAt: string | null;
-  entryCount: number;
-  totalMinutes: number;
-}
+/** Mantido como alias: os relatórios trabalham sobre o resumo comum de timesheets. */
+export type ReportTimesheet = TimesheetSummary;
 
 export interface ReportGroup {
   key: string;

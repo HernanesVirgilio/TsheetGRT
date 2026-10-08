@@ -99,5 +99,7 @@ Todas as migrações encontram-se em `supabase/migrations/` e são executadas po
 1. `20261001000000_initial_schema.sql`: tabelas, constraints, índices e triggers de integridade.
 2. `20261001000001_rls_policies.sql`: funções de segurança, proteção do último administrador, auditoria, privilégios e políticas RLS.
 3. `20261001000002_seed_data.sql`: departamentos, perfis de acesso, permissões, atividades e configurações. **Não cria utilizadores.**
+4. `20261008000000_manager_scope_and_reviews.sql`: módulo Manager. Leitura por âmbito, funções `submit_timesheet`/`review_timesheet`/`approve_timesheets`, validação e auditoria de `manager_scopes`, vista `my_team_members`, notificações por trigger.
+5. `20261009000000_scope_rules_and_reviewer_visibility.sql`: âmbito por departamento limitado a colaboradores (EMPLOYEE), administradores excluídos do âmbito e função `get_timesheet_decisions` (nome, cargo e e-mail de quem decidiu).
 
 O primeiro administrador é configurado com `supabase/scripts/bootstrap_first_admin.sql`.

@@ -1,8 +1,7 @@
 import { supabase } from '../lib/supabase/client';
 import { toServiceError } from '../lib/errors';
-import type { TimesheetStatus } from '../types';
-import { isTimesheetStatus } from '../types';
-import type { ReportTimesheet } from '../utils/reports';
+import type { TimesheetStatus, TimesheetSummary } from '../types';
+import { isPresent, mapTimesheetSummary, TIMESHEET_SUMMARY_SELECT } from './mappers';
 
 export interface ReportFilters {
   status: TimesheetStatus | null;
@@ -12,15 +11,14 @@ export interface ReportFilters {
   periodTo: string | null;
 }
 
-// Literal único: o supabase-js infere o tipo da resposta a partir desta string.
-const REPORT_SELECT =
-  'id, employee_id, period_start, period_end, status, submitted_at, approved_at, employee:profiles!timesheets_employee_id_fkey(full_name, department:departments(id, name)), entries:timesheet_entries(total_minutes)' as const;
-
-/** Timesheets visíveis ao utilizador (o âmbito é decidido pela RLS no servidor). */
-export async function listReportTimesheets(filters: ReportFilters): Promise<ReportTimesheet[]> {
+/**
+ * Timesheets para relatórios. O âmbito é decidido pela RLS no servidor:
+ * administradores veem a empresa, gestores apenas o seu manager_scope e os próprios.
+ */
+export async function listReportTimesheets(filters: ReportFilters): Promise<TimesheetSummary[]> {
   let request = supabase
     .from('timesheets')
-    .select(REPORT_SELECT)
+    .select(TIMESHEET_SUMMARY_SELECT)
     .order('period_start', { ascending: false });
 
   if (filters.status) request = request.eq('status', filters.status);
@@ -32,24 +30,7 @@ export async function listReportTimesheets(filters: ReportFilters): Promise<Repo
   if (error) throw toServiceError(error, 'Não foi possível gerar o relatório.');
 
   return data
-    .flatMap((row): ReportTimesheet[] => {
-      if (!isTimesheetStatus(row.status)) return [];
-      return [
-        {
-          id: row.id,
-          employeeId: row.employee_id,
-          employeeName: row.employee?.full_name ?? 'Colaborador sem acesso visível',
-          departmentId: row.employee?.department?.id ?? null,
-          departmentName: row.employee?.department?.name ?? null,
-          periodStart: row.period_start,
-          periodEnd: row.period_end,
-          status: row.status,
-          submittedAt: row.submitted_at,
-          approvedAt: row.approved_at,
-          entryCount: row.entries.length,
-          totalMinutes: row.entries.reduce((total, entry) => total + entry.total_minutes, 0),
-        },
-      ];
-    })
+    .map(mapTimesheetSummary)
+    .filter(isPresent)
     .filter((timesheet) => !filters.departmentId || timesheet.departmentId === filters.departmentId);
 }
