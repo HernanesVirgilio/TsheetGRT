@@ -8,8 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
-    "test": "tsx src/tests/admin.test.ts && tsx src/tests/timesheets.test.ts && tsx src/tests/it.test.ts && npm run test:db",
-    "test:db": "tsx supabase/tests/security.test.ts && tsx supabase/tests/it.security.test.ts",
+    "test": "tsx src/tests/admin.test.ts && tsx src/tests/timesheets.test.ts && tsx src/tests/it.test.ts && tsx src/tests/work.test.ts && npm run test:db",
+    "test:db": "tsx supabase/tests/security.test.ts && tsx supabase/tests/it.security.test.ts && tsx supabase/tests/timesheet-core.security.test.ts",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit"
   },

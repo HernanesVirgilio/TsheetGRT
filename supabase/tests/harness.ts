@@ -39,6 +39,21 @@ const SUPABASE_STUB = `
   ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
   ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
   ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO anon, authenticated, service_role;
+  -- Subconjunto do Supabase Storage usado pelas migrations (buckets e objetos com RLS ativa).
+  CREATE SCHEMA storage;
+  CREATE TABLE storage.buckets (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, public BOOLEAN NOT NULL DEFAULT false,
+    file_size_limit BIGINT, allowed_mime_types TEXT[], created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+  CREATE TABLE storage.objects (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), bucket_id TEXT REFERENCES storage.buckets(id),
+    name TEXT NOT NULL, owner UUID DEFAULT auth.uid(), metadata JSONB, created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (bucket_id, name)
+  );
+  ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+  GRANT USAGE ON SCHEMA storage TO anon, authenticated, service_role;
+  GRANT ALL ON storage.objects TO anon, authenticated, service_role;
+  GRANT SELECT ON storage.buckets TO anon, authenticated, service_role;
 `;
 
 export class TestDatabase {
