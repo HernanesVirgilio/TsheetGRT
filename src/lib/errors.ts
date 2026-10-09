@@ -25,6 +25,9 @@ const UNIQUE_CONSTRAINT_MESSAGES: Record<string, string> = {
   timesheets_period_unique: 'Já existe um timesheet para este período.',
   it_assets_asset_tag_key: 'Já existe um equipamento com este código patrimonial.',
   it_assets_serial_number_key: 'Já existe um equipamento com este número de série.',
+  companies_name_unique: 'Já existe uma empresa com este nome.',
+  companies_nuit_key: 'Já existe uma empresa com este NUIT.',
+  absence_types_code_key: 'Já existe um tipo de ausência com este código.',
 };
 
 const CHECK_CONSTRAINT_MESSAGES: Record<string, string> = {
@@ -39,6 +42,28 @@ const CHECK_CONSTRAINT_MESSAGES: Record<string, string> = {
   it_assets_assignment_status: 'Apenas equipamentos em uso, em reparação ou perdidos podem ter utilizador responsável.',
   it_interventions_problem_length: 'Descreva o problema (5 a 2000 carateres).',
   it_interventions_work_length: 'Descreva o trabalho realizado (5 a 4000 carateres).',
+  tasks_title_length: 'O título da tarefa deve ter pelo menos 3 carateres.',
+  tasks_description_length: 'A descrição não pode exceder 5000 carateres.',
+  tasks_estimate_range: 'A estimativa tem de estar entre 1 minuto e 100 000 minutos.',
+  tasks_late_reason: 'A tarefa foi concluída depois do prazo: indique o motivo do atraso.',
+  meetings_title_length: 'O título da reunião deve ter pelo menos 3 carateres.',
+  meetings_time_range: 'A reunião tem de terminar depois de começar (máximo de 24 horas).',
+  meetings_url_format: 'A ligação tem de começar por http:// ou https://.',
+  companies_name_length: 'O nome da empresa deve ter pelo menos 2 carateres.',
+  companies_nuit_format: 'O NUIT tem 9 dígitos.',
+  companies_email_format: 'O e-mail da empresa não é válido.',
+  companies_website_format: 'O site tem de começar por http:// ou https://.',
+  opportunities_title_length: 'O título da oportunidade deve ter pelo menos 3 carateres.',
+  opportunities_contact_email_format: 'O e-mail do contacto não é válido.',
+  opportunities_probability_range: 'A probabilidade tem de estar entre 0 e 100.',
+  opportunities_currency_format: 'A moeda tem de ser um código de 3 letras (ex.: MZN).',
+  opportunities_initial_value_positive: 'O valor inicial não pode ser negativo.',
+  opportunities_estimated_value_positive: 'O valor estimado não pode ser negativo.',
+  absence_requests_period_valid: 'O período de ausência é inválido (máximo de um ano).',
+  calendar_events_title_length: 'O título do evento deve ter pelo menos 3 carateres.',
+  calendar_events_time_range: 'O evento tem de terminar depois de começar (máximo de 31 dias).',
+  timesheet_entries_context: 'Selecione o registo a que o tempo se refere.',
+  timesheet_entries_unplanned_description: 'Descreva a atividade extraordinária (mínimo 5 carateres).',
 };
 
 function findConstraintMessage(error: ErrorLike, messages: Record<string, string>): string | null {
