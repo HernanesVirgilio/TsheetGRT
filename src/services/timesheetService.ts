@@ -13,6 +13,9 @@ export interface TimesheetEntryDetail {
   breakMinutes: number;
   totalMinutes: number;
   description: string;
+  /** Contexto do tempo (tarefa, reunião, oportunidade ou atividade extraordinária). */
+  kind: string;
+  context: { label: string; to: string | null } | null;
 }
 
 /** Dados de quem decidiu, expostos pelo servidor de forma limitada (sem o restante perfil). */
@@ -46,7 +49,7 @@ export interface TimesheetEntryInput {
 }
 
 const DETAIL_SELECT =
-  'id, employee_id, period_start, period_end, status, submitted_at, approved_at, rejected_at, rejection_reason, employee:profiles!timesheets_employee_id_fkey(full_name, employee_number, department:departments(id, name)), entries:timesheet_entries(id, work_date, activity_id, start_time, end_time, break_minutes, total_minutes, description, activity:activities(name))' as const;
+  'id, employee_id, period_start, period_end, status, submitted_at, approved_at, rejected_at, rejection_reason, employee:profiles!timesheets_employee_id_fkey(full_name, employee_number, department:departments(id, name)), entries:timesheet_entries(id, work_date, activity_id, start_time, end_time, break_minutes, total_minutes, description, kind, activity:activities(name), task:tasks(id, reference, title), meeting:meetings(id, title), opportunity:opportunities(id, reference, title))' as const;
 
 const APPROVAL_STATUSES: readonly ApprovalStatus[] = ['PENDING', 'APPROVED', 'REJECTED'];
 
@@ -116,6 +119,14 @@ export async function getTimesheetDetail(timesheetId: string): Promise<Timesheet
         breakMinutes: entry.break_minutes,
         totalMinutes: entry.total_minutes,
         description: entry.description,
+        kind: entry.kind,
+        context: entry.task
+          ? { label: `${entry.task.reference} · ${entry.task.title}`, to: `/timesheet/tasks/${entry.task.id}` }
+          : entry.meeting
+            ? { label: entry.meeting.title, to: `/timesheet/meetings/${entry.meeting.id}` }
+            : entry.opportunity
+              ? { label: `${entry.opportunity.reference} · ${entry.opportunity.title}`, to: `/timesheet/opportunities/${entry.opportunity.id}` }
+              : null,
       }))
       .sort((first, second) => first.workDate.localeCompare(second.workDate) || first.startTime.localeCompare(second.startTime)),
     decisions,
