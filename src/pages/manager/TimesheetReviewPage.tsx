@@ -15,6 +15,7 @@ import { ErrorState, LoadingState } from '../../components/ui/States';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { TimesheetEntriesTable } from '../../components/timesheets/TimesheetEntriesTable';
 import { TimesheetStatusNotice } from '../../components/timesheets/TimesheetStatusNotice';
+import { PeriodAbsencesNotice } from '../../components/work/PeriodAbsencesNotice';
 import { DecisionHistory } from '../../components/timesheets/DecisionHistory';
 import { ReviewDecisionModal } from '../../components/manager/ReviewDecisionModal';
 import { formatMinutesAsHours, formatPeriod } from '../../utils/format';
@@ -96,6 +97,7 @@ export const TimesheetReviewPage: React.FC = () => {
         </Alert>
       )}
       <TimesheetStatusNotice summary={summary} decisions={decisions} audience="reviewer" />
+      <PeriodAbsencesNotice employeeId={summary.employeeId} from={summary.periodStart} to={summary.periodEnd} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard label="Horas registadas" value={formatMinutesAsHours(summary.totalMinutes)} />

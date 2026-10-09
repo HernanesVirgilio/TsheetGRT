@@ -28,6 +28,20 @@ import { ApprovalsPage } from './pages/manager/ApprovalsPage';
 import { TimesheetReviewPage } from './pages/manager/TimesheetReviewPage';
 import { TeamActivityPage } from './pages/manager/TeamActivityPage';
 
+// Trabalho (Timesheet Core)
+import { WorkCenterPage } from './pages/work/WorkCenterPage';
+import { TasksPage } from './pages/work/TasksPage';
+import { TaskDetailPage } from './pages/work/TaskDetailPage';
+import { WorkLogPage } from './pages/work/WorkLogPage';
+import { CalendarPage } from './pages/work/CalendarPage';
+import { MeetingsPage } from './pages/work/MeetingsPage';
+import { MeetingDetailPage } from './pages/work/MeetingDetailPage';
+import { AbsencesPage } from './pages/work/AbsencesPage';
+import { OpportunitiesPage } from './pages/work/OpportunitiesPage';
+import { OpportunityDetailPage } from './pages/work/OpportunityDetailPage';
+import { CompaniesPage } from './pages/work/CompaniesPage';
+import { TeamWorkPage } from './pages/work/TeamWorkPage';
+
 // Suporte IT
 import { SupportTicketsPage } from './pages/it/SupportTicketsPage';
 import { ITDashboardPage } from './pages/it/ITDashboardPage';
@@ -60,6 +74,18 @@ interface PermissionRoute {
 const PERMISSION_ROUTES: PermissionRoute[] = [
   { path: '/timesheets', permission: 'SELF_TIMESHEET_READ', element: <TimesheetListPage /> },
   { path: '/timesheets/:id', permission: 'SELF_TIMESHEET_READ', element: <TimesheetDetailPage /> },
+  { path: '/timesheet', permission: 'TIMESHEET_TASK_READ', element: <WorkCenterPage /> },
+  { path: '/timesheet/tasks', permission: 'TIMESHEET_TASK_READ', element: <TasksPage /> },
+  { path: '/timesheet/tasks/:id', permission: 'TIMESHEET_TASK_READ', element: <TaskDetailPage /> },
+  { path: '/timesheet/activities', permission: 'SELF_TIMESHEET_READ', element: <WorkLogPage /> },
+  { path: '/timesheet/calendar', permission: 'TIMESHEET_CALENDAR_READ', element: <CalendarPage /> },
+  { path: '/timesheet/meetings', permission: 'TIMESHEET_MEETING_READ', element: <MeetingsPage /> },
+  { path: '/timesheet/meetings/:id', permission: 'TIMESHEET_MEETING_READ', element: <MeetingDetailPage /> },
+  { path: '/timesheet/absences', permission: 'TIMESHEET_ABSENCE_CREATE', element: <AbsencesPage /> },
+  { path: '/timesheet/opportunities', permission: 'TIMESHEET_OPPORTUNITY_READ', element: <OpportunitiesPage /> },
+  { path: '/timesheet/opportunities/:id', permission: 'TIMESHEET_OPPORTUNITY_READ', element: <OpportunityDetailPage /> },
+  { path: '/timesheet/companies', permission: 'TIMESHEET_OPPORTUNITY_READ', element: <CompaniesPage /> },
+  { path: '/timesheet/team', permission: 'TEAM_READ', element: <TeamWorkPage /> },
   { path: '/team', permission: 'TEAM_READ', element: <TeamPage /> },
   { path: '/team/:id', permission: 'TEAM_READ', element: <TeamMemberPage /> },
   { path: '/approvals', permission: 'TEAM_TIMESHEET_REVIEW', element: <ApprovalsPage /> },

@@ -22,6 +22,7 @@ import { StatCard } from '../../components/ui/StatCard';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { TimesheetEntriesTable } from '../../components/timesheets/TimesheetEntriesTable';
 import { TimesheetStatusNotice } from '../../components/timesheets/TimesheetStatusNotice';
+import { PeriodAbsencesNotice } from '../../components/work/PeriodAbsencesNotice';
 import { DecisionHistory } from '../../components/timesheets/DecisionHistory';
 import { EntryFormModal } from '../../components/timesheets/EntryFormModal';
 import { formatMinutesAsHours, formatPeriod, pluralize } from '../../utils/format';
@@ -137,6 +138,7 @@ export const TimesheetDetailPage: React.FC = () => {
       {actionError && <Alert variant="error">{actionError}</Alert>}
       {activities.error && <ErrorState message={activities.error} onRetry={activities.reload} />}
       <TimesheetStatusNotice summary={summary} decisions={decisions} audience="owner" />
+      <PeriodAbsencesNotice employeeId={summary.employeeId} from={summary.periodStart} to={summary.periodEnd} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard label="Horas registadas" value={formatMinutesAsHours(summary.totalMinutes)} />

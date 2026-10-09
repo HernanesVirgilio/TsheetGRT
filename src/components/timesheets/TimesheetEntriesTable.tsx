@@ -1,10 +1,30 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { Clock3 } from 'lucide-react';
 import { DataTable } from '../ui/DataTable';
 import type { DataTableColumn } from '../ui/DataTable';
 import { EmptyState } from '../ui/EmptyState';
 import type { TimesheetEntryDetail } from '../../services/timesheetService';
 import { formatCalendarDate, formatMinutesAsHours } from '../../utils/format';
+import { isEntryKind } from '../../types/work';
+import { ENTRY_KIND_LABELS } from '../../utils/work';
+
+function contextCell(entry: TimesheetEntryDetail): React.ReactNode {
+  const kindLabel = isEntryKind(entry.kind) ? ENTRY_KIND_LABELS[entry.kind] : entry.kind;
+  if (entry.kind === 'GENERAL') return <span className="text-text-muted">—</span>;
+  return (
+    <span className="block">
+      <span className="block text-xs text-text-muted">{kindLabel}</span>
+      {entry.context?.to ? (
+        <Link to={entry.context.to} className="text-primary-hover hover:underline">
+          {entry.context.label}
+        </Link>
+      ) : (
+        entry.context?.label
+      )}
+    </span>
+  );
+}
 
 interface TimesheetEntriesTableProps {
   entries: TimesheetEntryDetail[];
@@ -21,6 +41,7 @@ export const TimesheetEntriesTable: React.FC<TimesheetEntriesTableProps> = ({ en
   const columns: DataTableColumn<TimesheetEntryDetail>[] = [
     { id: 'date', header: 'Data', className: 'whitespace-nowrap', render: (entry) => formatCalendarDate(entry.workDate) },
     { id: 'activity', header: 'Atividade', render: (entry) => entry.activityName ?? '—' },
+    { id: 'context', header: 'Contexto', className: 'min-w-40', render: contextCell },
     {
       id: 'time',
       header: 'Horário',

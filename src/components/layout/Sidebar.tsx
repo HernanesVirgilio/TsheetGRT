@@ -3,6 +3,9 @@ import { NavLink } from 'react-router-dom';
 import {
   Activity,
   BarChart3,
+  Briefcase,
+  CalendarDays,
+  CalendarOff,
   History,
   Bell,
   Building2,
@@ -11,14 +14,19 @@ import {
   FileClock,
   Gauge,
   LayoutDashboard,
+  LayoutGrid,
   LifeBuoy,
   ListChecks,
+  ListTodo,
   LogOut,
+  MessagesSquare,
   Monitor,
   Settings,
   ShieldCheck,
+  Timer,
   UserCircle,
   Users,
+  UsersRound,
   Wrench,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -40,6 +48,18 @@ const TEAM_ITEMS: NavigationItem[] = [
   { to: '/team', label: 'Minha Equipa', icon: Users, permission: 'TEAM_READ' },
   { to: '/approvals', label: 'Aprovações', icon: ClipboardCheck, permission: 'TEAM_TIMESHEET_REVIEW' },
   { to: '/activity', label: 'Atividade', icon: History, permission: 'TEAM_TIMESHEET_READ' },
+];
+
+// Trabalho (Timesheet Core): cada entrada depende da permissão correspondente.
+const WORK_ITEMS: NavigationItem[] = [
+  { to: '/timesheet', label: 'Centro de trabalho', icon: LayoutGrid, permission: 'TIMESHEET_TASK_READ', end: true },
+  { to: '/timesheet/tasks', label: 'Tarefas', icon: ListTodo, permission: 'TIMESHEET_TASK_READ' },
+  { to: '/timesheet/calendar', label: 'Calendário', icon: CalendarDays, permission: 'TIMESHEET_CALENDAR_READ' },
+  { to: '/timesheet/meetings', label: 'Reuniões', icon: MessagesSquare, permission: 'TIMESHEET_MEETING_READ' },
+  { to: '/timesheet/activities', label: 'Atividades', icon: Timer, permission: 'SELF_TIMESHEET_READ' },
+  { to: '/timesheet/absences', label: 'Ausências', icon: CalendarOff, permission: 'TIMESHEET_ABSENCE_CREATE' },
+  { to: '/timesheet/opportunities', label: 'Oportunidades', icon: Briefcase, permission: 'TIMESHEET_OPPORTUNITY_READ' },
+  { to: '/timesheet/team', label: 'Carga da equipa', icon: UsersRound, permission: 'TEAM_READ' },
 ];
 
 // Área da equipa de IT: cada entrada depende da permissão correspondente.
@@ -104,6 +124,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNavigate }) => {
   const showOwnTimesheet = (role === 'EMPLOYEE' || role === 'MANAGER') && hasPermission('SELF_TIMESHEET_READ');
   const visibleTeamItems = isTeamManager ? TEAM_ITEMS.filter((item) => hasPermission(item.permission)) : [];
   const showSupportRequests = hasPermission('IT_TICKET_CREATE');
+  const visibleWorkItems = WORK_ITEMS.filter((item) => hasPermission(item.permission));
   const visibleItItems = IT_ITEMS.filter((item) => hasPermission(item.permission));
   const visibleAnalysisItems = ANALYSIS_ITEMS.filter((item) => hasPermission(item.permission));
   const visibleAdministrationItems = ADMINISTRATION_ITEMS.filter((item) => hasPermission(item.permission));
@@ -126,6 +147,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNavigate }) => {
             <SidebarLink to="/support" label="Pedidos de suporte" icon={LifeBuoy} onNavigate={onNavigate} />
           )}
         </ul>
+
+        {visibleWorkItems.length > 0 && (
+          <SidebarSection title="Trabalho">
+            {visibleWorkItems.map((item) => (
+              <SidebarLink key={item.to} {...item} onNavigate={onNavigate} />
+            ))}
+          </SidebarSection>
+        )}
 
         {visibleTeamItems.length > 0 && (
           <SidebarSection title="Gestão de equipa">

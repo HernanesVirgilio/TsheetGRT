@@ -33,6 +33,7 @@ const MODULE_LABELS: Record<string, string> = {
   health: 'Saúde do sistema',
   settings: 'Configurações',
   it: 'Suporte IT',
+  work: 'Trabalho (Timesheet Core)',
   reports: 'Relatórios',
   admin: 'Administração global',
 };
