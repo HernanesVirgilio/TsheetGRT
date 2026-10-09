@@ -51,6 +51,24 @@
 | `IT_TICKETS_ASSIGN` | it | Atribuir pedidos a outros técnicos |
 | `IT_ASSETS_READ` | it | Consultar o inventário de equipamentos |
 | `IT_ASSETS_MANAGE` | it | Registar e editar equipamentos |
+| `TIMESHEET_TASK_READ` | work | Ver as próprias tarefas (com `TEAM_READ`, as da equipa do âmbito) |
+| `TIMESHEET_TASK_UPDATE` | work | Executar as tarefas atribuídas (iniciar, bloquear, concluir, comentar) |
+| `TIMESHEET_TASK_CREATE` | work | Planear tarefas e tarefas adicionais |
+| `TIMESHEET_TASK_ASSIGN` | work | Atribuir, alterar prazos e prioridades, cancelar tarefas do âmbito |
+| `TIMESHEET_TASK_REOPEN` | work | Reabrir tarefas concluídas do âmbito |
+| `TIMESHEET_CALENDAR_READ` | work | Ver o calendário operacional |
+| `TIMESHEET_CALENDAR_MANAGE` | work | Criar eventos internos |
+| `TIMESHEET_MEETING_READ` | work | Ver as reuniões em que participa |
+| `TIMESHEET_MEETING_CREATE` | work | Organizar reuniões |
+| `TIMESHEET_ABSENCE_CREATE` | work | Pedir e acompanhar as próprias ausências |
+| `TIMESHEET_ABSENCE_READ` | work | Ver as ausências da equipa do âmbito |
+| `TIMESHEET_ABSENCE_APPROVE` | work | Aprovar, rejeitar ou devolver ausências do âmbito |
+| `TIMESHEET_OPPORTUNITY_READ` | work | Ver as oportunidades em que participa |
+| `TIMESHEET_OPPORTUNITY_UPDATE` | work | Trabalhar as oportunidades de que é responsável ou membro |
+| `TIMESHEET_OPPORTUNITY_CREATE` | work | Registar oportunidades e empresas |
+| `TIMESHEET_OPPORTUNITY_MANAGE` | work | Alterar responsáveis, cancelar e reabrir oportunidades |
+| `TIMESHEET_ATTACHMENT_CREATE` | work | Anexar ficheiros aos registos em que trabalha |
+| `TIMESHEET_ATTACHMENT_DELETE` | work | Remover anexos de terceiros em registos do âmbito |
 
 ---
 
@@ -60,17 +78,20 @@
   - `SELF_ACCESS`, `SELF_PROFILE_READ`, `SELF_PROFILE_UPDATE`
   - `SELF_TIMESHEET_READ`, `SELF_TIMESHEET_CREATE`, `SELF_TIMESHEET_UPDATE`, `SELF_TIMESHEET_SUBMIT`
   - `IT_TICKET_CREATE`
+  - Trabalho: `TIMESHEET_TASK_READ`, `TIMESHEET_TASK_UPDATE`, `TIMESHEET_CALENDAR_READ`, `TIMESHEET_MEETING_READ`, `TIMESHEET_MEETING_CREATE`, `TIMESHEET_ABSENCE_CREATE`, `TIMESHEET_OPPORTUNITY_READ`, `TIMESHEET_OPPORTUNITY_UPDATE`, `TIMESHEET_ATTACHMENT_CREATE`
 
 - **MANAGER:**
   - Todas as permissões de `EMPLOYEE`
   - `TEAM_READ`, `TEAM_TIMESHEET_READ`, `TEAM_TIMESHEET_REVIEW`, `TEAM_TIMESHEET_APPROVE`, `TEAM_TIMESHEET_REJECT`
   - `REPORTS_READ`
   - (`IT_TICKET_CREATE` incluída nas permissões de `EMPLOYEE`)
+  - Todas as 18 permissões `TIMESHEET_*` (o MANAGER assume, por agora, as funções do futuro GESTOR)
 
 - **IT:**
   - `SELF_ACCESS`, `SELF_PROFILE_READ`, `SELF_PROFILE_UPDATE`
   - `USERS_READ`, `SYSTEM_HEALTH_READ`, `AUDIT_READ`
   - `IT_TICKET_CREATE`, `IT_TICKETS_READ`, `IT_TICKETS_MANAGE`, `IT_TICKETS_ASSIGN`, `IT_ASSETS_READ`, `IT_ASSETS_MANAGE`
+  - Uso pessoal do trabalho (sem gestão nem oportunidades): `TIMESHEET_TASK_READ`, `TIMESHEET_TASK_UPDATE`, `TIMESHEET_CALENDAR_READ`, `TIMESHEET_MEETING_READ`, `TIMESHEET_MEETING_CREATE`, `TIMESHEET_ABSENCE_CREATE`, `TIMESHEET_ATTACHMENT_CREATE`
 
 - **ADMIN:**
   - Todas as permissões anteriores + `USERS_CREATE`, `USERS_UPDATE`, `USERS_DISABLE`, `USERS_ASSIGN_ROLE`, `ROLES_READ`, `ROLES_MANAGE`, `PERMISSIONS_READ`, `PERMISSIONS_MANAGE`, `DEPARTMENTS_READ`, `DEPARTMENTS_MANAGE`, `SYSTEM_SETTINGS_READ`, `SYSTEM_SETTINGS_MANAGE`, `REPORTS_EXPORT`, `ADMIN_ACCESS`
@@ -122,3 +143,22 @@ Os dados destas páginas são sempre limitados ao `manager_scopes` do gestor pel
 **Técnicos de IT:** utilizadores ativos com `IT_TICKETS_MANAGE` que não têm o perfil ADMIN. O ADMIN mantém todas as permissões do IT e pode assumir pedidos, mas não aparece na lista de técnicos para atribuição nem recebe as notificações de pedidos novos (exceto se não existir nenhum técnico ativo). Ver `docs/security.md` §8.
 
 A secção **Suporte IT** da barra lateral e a entrada **Pedidos de suporte** só aparecem a quem tem a permissão correspondente. As permissões podem ser ajustadas em **Roles e Permissões** (módulo "Suporte IT").
+
+## 8. Navegação do Trabalho (Timesheet Core)
+
+| Rota | Permissão exigida | Ações adicionais |
+| :--- | :--- | :--- |
+| `/timesheet` | `TIMESHEET_TASK_READ` | Centro de trabalho; é também a dashboard do perfil EMPLOYEE |
+| `/timesheet/tasks`, `/timesheet/tasks/:id` | `TIMESHEET_TASK_READ` | executar: `TIMESHEET_TASK_UPDATE`; criar: `TIMESHEET_TASK_CREATE`; atribuir, editar e cancelar: `TIMESHEET_TASK_ASSIGN`; reabrir: `TIMESHEET_TASK_REOPEN`; separador "Equipa": `TEAM_READ` |
+| `/timesheet/activities` | `SELF_TIMESHEET_READ` | registar tempo: `SELF_TIMESHEET_UPDATE` |
+| `/timesheet/calendar` | `TIMESHEET_CALENDAR_READ` | eventos internos: `TIMESHEET_CALENDAR_MANAGE`; vista "Equipa": `TEAM_READ` |
+| `/timesheet/meetings`, `/timesheet/meetings/:id` | `TIMESHEET_MEETING_READ` | organizar: `TIMESHEET_MEETING_CREATE` |
+| `/timesheet/absences` | `TIMESHEET_ABSENCE_CREATE` | separador "Aprovações": `TIMESHEET_ABSENCE_APPROVE` |
+| `/timesheet/opportunities`, `/timesheet/opportunities/:id`, `/timesheet/companies` | `TIMESHEET_OPPORTUNITY_READ` | criar: `TIMESHEET_OPPORTUNITY_CREATE`; trabalhar: `TIMESHEET_OPPORTUNITY_UPDATE`; cancelar, reabrir e mudar o responsável: `TIMESHEET_OPPORTUNITY_MANAGE` |
+| `/timesheet/team` | `TEAM_READ` | — |
+
+**Preparação para o perfil GESTOR:**
+- Toda a autorização usa permissões e o âmbito existente (`manager_scopes`), nunca o código do perfil.
+- Para separar as funções, basta criar o perfil e atribuir-lhe as permissões `TIMESHEET_*` adequadas.
+- O único ponto a rever é a regra de `manager_scopes`, que hoje só aceita âmbitos para o perfil MANAGER.
+

@@ -93,7 +93,16 @@ supabase/
 └── scripts/          # Configuração do primeiro administrador
 ```
 
-> **Estado dos módulos:** integrados com o Supabase: área Admin; módulo Manager (equipa por âmbito, aprovações e rejeições, aprovação em massa, atividade, relatórios por âmbito); "Meu Timesheet" (períodos, registos de horas e submissão); módulo **Suporte IT** (pedidos de suporte, fila do IT, histórico, equipamentos, intervenções e painel operacional). Ainda usa a camada temporária `src/services/dataService.ts`: a dashboard do Colaborador, que será migrada numa próxima fase.
+> **Timesheet Core:**
+> - Tarefas com histórico e atraso calculado.
+> - Tempo com contexto (tarefa, reunião, oportunidade, atividade extraordinária).
+> - Calendário operacional, reuniões, ausências com aprovação, oportunidades e empresas.
+> - Anexos privados.
+> - Centro de trabalho do colaborador e carga da equipa do gestor.
+>
+> Ver [docs/timesheet-core.md](docs/timesheet-core.md).
+
+> **Estado dos módulos:** integrados com o Supabase: área Admin; módulo Manager (equipa por âmbito, aprovações e rejeições, aprovação em massa, atividade, relatórios por âmbito); "Meu Timesheet" (períodos, registos de horas e submissão); módulo **Suporte IT** (pedidos de suporte, fila do IT, histórico, equipamentos, intervenções e painel operacional). A dashboard do Colaborador passou a ser o centro de trabalho real, e a camada temporária de dados de demonstração (`dataService`/`mockData`) foi removida.
 
 ### Módulo Suporte IT
 
@@ -111,3 +120,4 @@ supabase/
 - [Esquema da Base de Dados & Migrações](docs/database.md)
 - [Políticas de Segurança & RLS](docs/security.md)
 - [Matriz de Roles e Permissões](docs/roles-and-permissions.md)
+- [Timesheet Core](docs/timesheet-core.md)

@@ -151,6 +151,35 @@ Regras de cálculo (servidor):
 - O prazo **não é suspenso** enquanto o pedido aguarda o colaborador; nesse estado o pedido não conta como atraso do IT, mas volta a contar quando regressa ao atendimento.
 - Painel (`get_it_dashboard_summary`): "prazo ultrapassado" = `OPEN`/`IN_PROGRESS` com `due_at` no passado; "espera prolongada" = `WAITING_USER` há mais de `IT_WAITING_USER_ALERT_DAYS` dias (desde `status_changed_at`). O painel sinaliza ainda, na lista "Requer atenção", os pedidos cujo prazo termina nas próximas 4 horas.
 
+## 3.2 Timesheet Core (trabalho, tempo com contexto, ausências, oportunidades)
+
+Descrição completa em [timesheet-core.md](timesheet-core.md). Resumo do modelo:
+
+| Tabela | Papel | Escrita pela API |
+| :--- | :--- | :--- |
+| `tasks` / `task_events` | Tarefas (sem estado "atrasada": o atraso é calculado) e o seu histórico append-only | Não — funções `create_task`, `assign_task`, `update_task`, `start_task`, `block_task`, `unblock_task`, `complete_task`, `reopen_task`, `cancel_task`, `add_task_comment` |
+| `meetings` / `meeting_participants` / `meeting_events` | Reuniões, participantes e histórico | Não — `create_meeting`, `update_meeting`, `confirm_meeting`, `complete_meeting`, `update_meeting_outcome`, `cancel_meeting` |
+| `absence_types` | Tipos de ausência configuráveis | `INSERT`/`UPDATE` só com `ADMIN_ACCESS`; sem `DELETE` |
+| `absence_requests` / `absence_events` | Pedidos de ausência e histórico | Não — `save_absence_request`, `submit_absence_request`, `decide_absence_request`, `cancel_absence_request` |
+| `companies` | Empresas / clientes | `INSERT`/`UPDATE` sob RLS (autor definido pelo servidor, auditado); sem `DELETE` (estado `INACTIVE`) |
+| `opportunities` / `opportunity_members` / `opportunity_events` | Oportunidades, equipa e histórico | Não — `create_opportunity`, `update_opportunity`, `change_opportunity_status`, `set_opportunity_owner`, `add/remove_opportunity_member`, `add_opportunity_comment` |
+| `calendar_events` | Eventos internos | `INSERT`/`UPDATE` sob RLS (`TIMESHEET_CALENDAR_MANAGE`); sem `DELETE` (estado `CANCELLED`) |
+| `attachments` | Metadados dos anexos (ficheiro no bucket privado `work-attachments`) | Não — `register_attachment`, `confirm_attachment`, `remove_attachment` (remoção lógica) |
+
+`timesheet_entries` ganhou `kind` (`GENERAL`, `TASK`, `MEETING`, `OPPORTUNITY`, `UNPLANNED`), `task_id`, `meeting_id` e `opportunity_id`. Os registos anteriores ficam `GENERAL`. Um trigger valida o contexto (só tarefas atribuídas ao próprio, reuniões em que participa, oportunidades de que é responsável ou membro) e deriva a oportunidade da tarefa ou da reunião. Atividades extraordinárias (`UNPLANNED`) exigem descrição.
+
+Regras de integridade principais (restrições na base de dados):
+
+- Uma tarefa planeada não tem responsável; nos restantes estados ativos tem.
+- Uma conclusão depois do prazo exige `late_reason`, que não pode ser apagado.
+- Bloqueio e cancelamento exigem motivo.
+- As datas de conclusão e cancelamento são coerentes com o estado.
+- As reuniões terminam depois de começar (máximo de 24 horas) e as ligações são apenas `http(s)`.
+- As ausências têm um período válido (máximo de um ano), decisor registado e nunca são decididas pelo próprio; a rejeição exige motivo.
+- Nas oportunidades, probabilidade entre 0 e 100, valores não negativos, data de fecho coerente com o estado, e a perda exige motivo.
+- O nome e o NUIT das empresas são únicos.
+- Os anexos têm no máximo 10 MB e remoção lógica com autor.
+
 ## 4. Ficheiros de Migração (fonte única de verdade)
 
 Todas as migrações encontram-se em `supabase/migrations/` e são executadas por ordem (ver `docs/supabase-setup.md`):
@@ -160,5 +189,12 @@ Todas as migrações encontram-se em `supabase/migrations/` e são executadas po
 4. `20261008000000_manager_scope_and_reviews.sql`: módulo Manager. Leitura por âmbito, funções `submit_timesheet`/`review_timesheet`/`approve_timesheets`, validação e auditoria de `manager_scopes`, vista `my_team_members`, notificações por trigger.
 5. `20261009000000_scope_rules_and_reviewer_visibility.sql`: âmbito por departamento limitado a colaboradores (EMPLOYEE), administradores excluídos do âmbito e função `get_timesheet_decisions` (nome, cargo e e-mail de quem decidiu).
 6. `20261010000000_it_support_module.sql`: módulo Suporte IT. Permissões `IT_*`, definições de prazos, tabelas do ponto 3.1, funções de transição dos pedidos, histórico, auditoria e notificações por trigger, políticas RLS e privilégios.
+
+7. `20261011000000_timesheet_core_schema.sql`: Timesheet Core — permissões `TIMESHEET_*`, tabelas, restrições, índices, contexto do tempo e funções internas.
+8. `20261011000001_timesheet_core_workflows.sql`: funções das tarefas, registo de tempo e totais de tempo.
+9. `20261011000002_timesheet_core_meetings_absences_opportunities.sql`: reuniões, ausências, empresas e oportunidades.
+10. `20261011000003_timesheet_core_security.sql`: anexos (Storage), eventos internos, calendário, resumos, RLS e privilégios.
+
+> **Histórico remoto:** no projeto Supabase, o módulo IT foi aplicado com a versão `20261008174215_it_support_module` (o SQL é idêntico ao ficheiro `20261010000000_it_support_module.sql`). Ver [supabase-setup.md](supabase-setup.md#versões-das-migrations).
 
 O primeiro administrador é configurado com `supabase/scripts/bootstrap_first_admin.sql`.

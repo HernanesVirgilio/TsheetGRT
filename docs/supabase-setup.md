@@ -12,6 +12,10 @@ No **SQL Editor** do projeto, execute cada ficheiro **uma única vez, por esta o
 4. `supabase/migrations/20261008000000_manager_scope_and_reviews.sql` — módulo Manager: âmbito de gestão, leitura por âmbito, submissão e decisão de timesheets por funções do servidor, notificações e auditoria da equipa.
 5. `supabase/migrations/20261009000000_scope_rules_and_reviewer_visibility.sql` — âmbito por departamento limitado a colaboradores (EMPLOYEE), exclusão de administradores e leitura limitada de quem decidiu um timesheet.
 6. `supabase/migrations/20261010000000_it_support_module.sql` — módulo Suporte IT: permissões, prazos de resolução, pedidos, histórico, equipamentos, intervenções, RLS, auditoria e notificações.
+7. `supabase/migrations/20261011000000_timesheet_core_schema.sql` — Timesheet Core: permissões, tabelas, restrições e contexto do tempo.
+8. `supabase/migrations/20261011000001_timesheet_core_workflows.sql` — tarefas e registo de tempo.
+9. `supabase/migrations/20261011000002_timesheet_core_meetings_absences_opportunities.sql` — reuniões, ausências, empresas e oportunidades.
+10. `supabase/migrations/20261011000003_timesheet_core_security.sql` — anexos (bucket privado `work-attachments`), calendário, resumos, RLS e privilégios.
 
 Execute apenas os ficheiros que ainda não aplicou, pela ordem indicada.
 
@@ -72,7 +76,27 @@ Depois de aplicar:
 
 **Versão da migration:** o prefixo `20261010000000` segue a sequência das migrations anteriores e é posterior à data de desenvolvimento. Não há impedimento técnico (a Supabase CLI ordena as migrations pela versão e não a compara com o relógio). Até essa data passar, as novas migrations devem usar uma versão **superior** a `20261010000000` (ex.: `20261011000000_<nome>.sql`), em vez da gerada por `supabase migration new`, para não ficarem ordenadas antes de uma migration já aplicada.
 
-## 7. Frontend
+## 7. Timesheet Core
+
+As migrations 7 a 10 não alteram nem apagam dados. Fazem o seguinte:
+- criam as tabelas do Timesheet Core;
+- acrescentam colunas opcionais a `timesheet_entries` (os registos existentes ficam com o contexto `GENERAL`);
+- atribuem as permissões `TIMESHEET_*` aos perfis;
+- criam os tipos de ausência iniciais;
+- criam o bucket privado `work-attachments` e as suas políticas.
+
+Depois de as aplicar, confirme no painel do Supabase:
+- em **Storage**, que o bucket `work-attachments` existe e não é público;
+- em **Database › Policies**, as políticas `work_attachments_select` e `work_attachments_insert` em `storage.objects`.
+
+### Versões das migrations
+
+Situação verificada em 2026-10-08 no projeto `iahgopefwixbprfzcwbd`:
+- O módulo IT foi aplicado com a versão remota `20261008174215_it_support_module`. O conteúdo é idêntico ao ficheiro local `20261010000000_it_support_module.sql`.
+- Para a Supabase CLI não tentar aplicar o módulo IT outra vez, alinhe o nome do ficheiro local com a versão remota **antes** de usar `supabase db push`: `20261010000000_it_support_module.sql` → `20261008174215_it_support_module.sql`. O conteúdo não muda.
+- Em alternativa, aplique as migrations 7 a 10 pelo SQL Editor, pela ordem indicada.
+
+## 8. Frontend
 
 ```bash
 cp .env.example .env   # preencher VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY
@@ -89,4 +113,4 @@ npm run dev
 | `npm run test:db` | Apenas os testes de segurança: aplica todas as migrations em PostgreSQL 17 (PGlite) com um ambiente que simula o Supabase e verifica RLS, âmbito de gestão, aprovações, auditoria, acessos proibidos e o módulo IT (transições, notas internas, notificações, equipamentos, escalada de privilégios, acesso anónimo) |
 | `npm run build` | Build de produção |
 
-Os testes de segurança (`supabase/tests/security.test.ts` e `supabase/tests/it.security.test.ts`) não precisam de ligação ao Supabase.
+Os testes de segurança (`supabase/tests/security.test.ts`, `supabase/tests/it.security.test.ts` e `supabase/tests/timesheet-core.security.test.ts`) não precisam de ligação ao Supabase. A harness simula o essencial do Supabase (roles, `auth.uid()` e um subconjunto de `storage`).
