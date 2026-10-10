@@ -6,6 +6,8 @@ import { getErrorMessage } from '../../lib/errors';
 import * as notificationService from '../../services/notificationService';
 import type { NotificationItem } from '../../types';
 import { formatDateTime } from '../../utils/format';
+import { safeNotificationLink } from '../../utils/notifications';
+import { NotificationCategoryBadge } from './NotificationCategoryBadge';
 
 const NOTIFICATION_PREVIEW_LIMIT = 10;
 const NOTIFICATION_REFRESH_INTERVAL_MS = 60_000;
@@ -19,7 +21,11 @@ export const NotificationDropdown: React.FC = () => {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const currentUserId = currentUser?.id;
 
-  const loadNotifications = useCallback(async () => {
+  const loadNotifications = useCallback(async (refreshAlerts = false) => {
+    if (refreshAlerts) {
+      // Os alertas de prazo são gerados a pedido (sem agendador); uma falha não impede a leitura.
+      await notificationService.refreshDeadlineAlerts().catch(() => undefined);
+    }
     try {
       setNotifications(await notificationService.listNotifications(NOTIFICATION_PREVIEW_LIMIT));
       setErrorMessage(null);
@@ -30,8 +36,8 @@ export const NotificationDropdown: React.FC = () => {
 
   useEffect(() => {
     if (!currentUserId) return undefined;
-    loadNotifications();
-    const interval = window.setInterval(loadNotifications, NOTIFICATION_REFRESH_INTERVAL_MS);
+    loadNotifications(true);
+    const interval = window.setInterval(() => loadNotifications(), NOTIFICATION_REFRESH_INTERVAL_MS);
     return () => window.clearInterval(interval);
   }, [currentUserId, loadNotifications]);
 
@@ -66,7 +72,10 @@ export const NotificationDropdown: React.FC = () => {
     <div className="relative" ref={dropdownRef}>
       <button
         type="button"
-        onClick={() => setIsOpen((open) => !open)}
+        onClick={() => {
+          if (!isOpen) loadNotifications(true);
+          setIsOpen((open) => !open);
+        }}
         aria-expanded={isOpen}
         aria-label={unreadCount > 0 ? `Notificações: ${unreadCount} por ler` : 'Notificações'}
         className="relative rounded-md p-2 text-text-secondary hover:bg-surface-muted hover:text-text"
@@ -104,7 +113,14 @@ export const NotificationDropdown: React.FC = () => {
               <button
                 type="button"
                 key={notification.id}
-                onClick={() => runAndReload(() => notificationService.markNotificationAsRead(notification.id))}
+                onClick={() => {
+                  const link = safeNotificationLink(notification.link);
+                  runAndReload(() => notificationService.markNotificationAsRead(notification.id));
+                  if (link) {
+                    setIsOpen(false);
+                    navigate(link);
+                  }
+                }}
                 className={`block w-full px-4 py-3 text-left hover:bg-background ${notification.read_at ? '' : 'bg-primary-soft'}`}
               >
                 <span className="flex items-start justify-between gap-2">
@@ -112,6 +128,7 @@ export const NotificationDropdown: React.FC = () => {
                     {notification.title}
                   </span>
                   {!notification.read_at && <span className="sr-only">(por ler)</span>}
+                  <NotificationCategoryBadge category={notification.category} />
                 </span>
                 <span className="mt-1 line-clamp-2 block text-sm text-text-secondary">{notification.message}</span>
                 <span className="mt-1 block text-xs text-text-muted">{formatDateTime(notification.created_at)}</span>

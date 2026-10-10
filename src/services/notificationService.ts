@@ -11,6 +11,16 @@ export async function listNotifications(limit?: number): Promise<NotificationIte
   return data;
 }
 
+/**
+ * Gera, no servidor, os alertas de prazo de quem está autenticado (prazos nas próximas 24 h, tarefas em
+ * atraso e, para o gestor da equipa, atrasos da equipa). Não há duplicados: pode ser chamado sempre que
+ * as notificações são carregadas. Uma falha não impede a leitura das notificações.
+ */
+export async function refreshDeadlineAlerts(): Promise<void> {
+  const { error } = await supabase.rpc('refresh_deadline_alerts');
+  if (error) throw toServiceError(error, 'Não foi possível atualizar os alertas de prazo.');
+}
+
 export async function markNotificationAsRead(notificationId: string): Promise<void> {
   const { error } = await supabase
     .from('notifications')
