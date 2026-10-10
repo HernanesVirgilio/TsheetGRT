@@ -140,6 +140,7 @@ export const OpportunitiesPage: React.FC = () => {
         opportunity={null}
         companies={companies.data ?? []}
         owners={owners.data ?? []}
+        canCreateCompany={hasPermission('TIMESHEET_OPPORTUNITY_CREATE')}
         onClose={() => setIsCreateOpen(false)}
         onSaved={(opportunityId) => {
           setIsCreateOpen(false);

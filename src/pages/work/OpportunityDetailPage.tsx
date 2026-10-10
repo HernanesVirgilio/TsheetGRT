@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, CalendarPlus, Clock3, GitBranch, ListPlus, Pencil, UserMinus, UserPlus, Users } from 'lucide-react';
+import { ArrowLeft, CalendarPlus, CheckCircle2, Clock3, GitBranch, ListPlus, Pencil, Send, Undo2, UserMinus, UserPlus, Users, XCircle } from 'lucide-react';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import {
   addOpportunityComment,
   addOpportunityMember,
+  cancelOpportunityApproval,
   getOpportunity,
   getOpportunityPeople,
   listCompanies,
+  listOpportunityApprovals,
   listOpportunityEvents,
   removeOpportunityMember,
   setOpportunityOwner,
@@ -17,7 +19,7 @@ import { listRelatedTasks } from '../../services/work/taskService';
 import { listRelatedMeetings } from '../../services/work/meetingService';
 import { getWorkTimeTotals } from '../../services/work/workLogService';
 import { listWorkPeople } from '../../services/work/calendarService';
-import type { OpportunityDetail } from '../../types/work';
+import type { ApprovalRequest, OpportunityDetail, WorkPerson } from '../../types/work';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Panel } from '../../components/ui/Panel';
 import { Alert } from '../../components/ui/Alert';
@@ -32,8 +34,10 @@ import { AttachmentsPanel } from '../../components/work/AttachmentsPanel';
 import { OpportunityFormModal, OpportunityStatusModal } from '../../components/work/OpportunityModals';
 import { TaskFormModal } from '../../components/work/TaskFormModal';
 import { MeetingFormModal } from '../../components/work/MeetingFormModal';
+import { ApprovalDecisionModal, RequestApprovalModal } from '../../components/work/ApprovalModals';
+import { ApprovalStatusBadge } from '../../components/work/ApprovalStatusBadge';
 import { WorkLogFormModal } from '../../components/work/WorkLogFormModal';
-import { formatMoney, isOpportunityActive } from '../../utils/work';
+import { canRequestOpportunityApproval, formatMoney, isOpportunityActive, OPPORTUNITY_APPROVAL_LABELS } from '../../utils/work';
 import { formatDate, formatDateTime, formatMinutesAsHours } from '../../utils/format';
 import { isUuid } from '../../utils/validation';
 
@@ -43,14 +47,15 @@ async function loadOpportunity(opportunityId: string) {
   if (!isUuid(opportunityId)) return null;
   const opportunity = await getOpportunity(opportunityId);
   if (!opportunity) return null;
-  const [people, events, tasks, meetings, totals] = await Promise.all([
+  const [people, events, tasks, meetings, totals, approvals] = await Promise.all([
     getOpportunityPeople(opportunityId),
     listOpportunityEvents(opportunityId),
     listRelatedTasks('opportunity_id', opportunityId),
     listRelatedMeetings('opportunity_id', opportunityId),
     getWorkTimeTotals('OPPORTUNITY', opportunityId),
+    listOpportunityApprovals(opportunityId),
   ]);
-  return { opportunity, people, events, tasks, meetings, totals };
+  return { opportunity, people, events, tasks, meetings, totals, approvals };
 }
 
 const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
@@ -67,10 +72,14 @@ export const OpportunityDetailPage: React.FC = () => {
   const viewerId = currentUser?.id ?? '';
   const detail = useAsyncData(() => loadOpportunity(id), [id]);
   const participants = useAsyncData(() => listWorkPeople('PARTICIPANT'), []);
+  // Convidáveis para reuniões: equipa e chefias de quem organiza (os envolvidos na oportunidade juntam-se abaixo).
+  const meetingPeople = useAsyncData(() => (hasPermission('TIMESHEET_MEETING_CREATE') ? listWorkPeople('MEETING') : Promise.resolve([])), []);
   const assignees = useAsyncData(() => (hasPermission('TIMESHEET_TASK_CREATE') || hasPermission('TIMESHEET_OPPORTUNITY_MANAGE') ? listWorkPeople('ASSIGNEE') : Promise.resolve([])), []);
   const companies = useAsyncData(() => listCompanies('', null), []);
   const [modal, setModal] = useState<ModalKind>(null);
   const [statusFor, setStatusFor] = useState<OpportunityDetail | null>(null);
+  const [approvalFor, setApprovalFor] = useState<OpportunityDetail | null>(null);
+  const [decision, setDecision] = useState<{ request: ApprovalRequest; decision: 'APPROVED' | 'REJECTED' } | null>(null);
   const [message, setMessage] = useState<{ variant: 'success' | 'error'; text: string } | null>(null);
 
   const backLink = (
@@ -97,7 +106,8 @@ export const OpportunityDetailPage: React.FC = () => {
     );
   }
 
-  const { opportunity, people, events, tasks, meetings, totals } = detail.data;
+  const { opportunity, people, events, tasks, meetings, totals, approvals } = detail.data;
+  const pendingApproval = approvals.find((request) => request.status === 'PENDING') ?? null;
   const isOwner = opportunity.ownerId === viewerId;
   const isMember = people.some((person) => person.profileId === viewerId && !person.isOwner);
   // Espelho de private.manages_opportunity: responsável, criador, gestor do responsável ou administração.
@@ -107,9 +117,24 @@ export const OpportunityDetailPage: React.FC = () => {
   const active = isOpportunityActive(opportunity.status);
   const totalMinutes = totals.reduce((sum, row) => sum + row.totalMinutes, 0);
 
+  const canRequestApproval = canUpdate && canRequestOpportunityApproval(opportunity.status, opportunity.approvalStatus);
+  // Quem pediu e o responsável nunca decidem (o servidor confirma o âmbito do Manager).
+  const canDecideApproval =
+    pendingApproval !== null && hasPermission('TIMESHEET_OPPORTUNITY_APPROVE') && pendingApproval.requestedBy !== viewerId && !isOwner;
+  const canCancelApproval = pendingApproval !== null && (pendingApproval.requestedBy === viewerId || canUpdate);
+  const opportunityPeopleAsWorkPeople: WorkPerson[] = people
+    .filter((person) => person.profileId !== viewerId)
+    .map((person) => ({ profileId: person.profileId, fullName: person.fullName, jobTitle: person.jobTitle, departmentName: null }));
+  const invitable = [
+    ...(meetingPeople.data ?? []),
+    ...opportunityPeopleAsWorkPeople.filter((person) => !(meetingPeople.data ?? []).some((existing) => existing.profileId === person.profileId)),
+  ];
+
   const afterAction = (text: string) => {
     setModal(null);
     setStatusFor(null);
+    setApprovalFor(null);
+    setDecision(null);
     setMessage({ variant: 'success', text });
     detail.reload();
   };
@@ -145,6 +170,11 @@ export const OpportunityDetailPage: React.FC = () => {
       {message && (
         <Alert variant={message.variant} onDismiss={() => setMessage(null)}>
           {message.text}
+        </Alert>
+      )}
+      {opportunity.approvalStatus === 'NOT_SUBMITTED' && active && (
+        <Alert variant="info" title="Aprovação do Manager por pedir">
+          A oportunidade só avança para Proposta, Negociação ou Ganha depois de aprovada.
         </Alert>
       )}
       {opportunity.status === 'LOST' && opportunity.lostReason && (
@@ -214,7 +244,7 @@ export const OpportunityDetailPage: React.FC = () => {
             actions={
               hasPermission('TIMESHEET_MEETING_CREATE') &&
               opportunity.status !== 'CANCELLED' && (
-                <Button size="sm" variant="secondary" icon={CalendarPlus} onClick={() => setModal('meeting')} disabled={!participants.data}>
+                <Button size="sm" variant="secondary" icon={CalendarPlus} onClick={() => setModal('meeting')} disabled={!meetingPeople.data}>
                   Marcar reunião
                 </Button>
               )
@@ -255,6 +285,67 @@ export const OpportunityDetailPage: React.FC = () => {
         </div>
 
         <div className="space-y-6">
+          <Panel title="Aprovação" flush>
+            <div className="space-y-3 px-5 py-4">
+              <p className="text-sm font-medium text-text">{OPPORTUNITY_APPROVAL_LABELS[opportunity.approvalStatus]}</p>
+              {pendingApproval && (
+                <p className="text-xs text-text-secondary">
+                  {pendingApproval.reference} · {pendingApproval.amount === null ? 'sem valor' : formatMoney(pendingApproval.amount, pendingApproval.currency ?? '')} · pedido em{' '}
+                  {formatDateTime(pendingApproval.createdAt)}
+                </p>
+              )}
+              <div className="flex flex-wrap gap-2">
+                {canRequestApproval && (
+                  <Button size="sm" icon={Send} onClick={() => setApprovalFor(opportunity)}>
+                    Pedir aprovação
+                  </Button>
+                )}
+                {canDecideApproval && pendingApproval && (
+                  <>
+                    <Button size="sm" icon={CheckCircle2} onClick={() => setDecision({ request: pendingApproval, decision: 'APPROVED' })}>
+                      Aprovar
+                    </Button>
+                    <Button size="sm" variant="danger" icon={XCircle} onClick={() => setDecision({ request: pendingApproval, decision: 'REJECTED' })}>
+                      Rejeitar
+                    </Button>
+                  </>
+                )}
+                {canCancelApproval && pendingApproval && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    icon={Undo2}
+                    onClick={() =>
+                      cancelOpportunityApproval(pendingApproval.id, null)
+                        .then(() => afterAction('Pedido de aprovação anulado.'))
+                        .catch((error: unknown) => setMessage({ variant: 'error', text: error instanceof Error ? error.message : 'Não foi possível anular o pedido.' }))
+                    }
+                  >
+                    Anular pedido
+                  </Button>
+                )}
+              </div>
+            </div>
+            {approvals.length > 0 && (
+              <ul className="divide-y divide-border border-t border-border">
+                {approvals.map((request) => (
+                  <li key={request.id} className="space-y-1 px-5 py-3 text-xs">
+                    <span className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-semibold text-text">{request.reference}</span>
+                      <ApprovalStatusBadge status={request.status} />
+                    </span>
+                    <span className="block whitespace-pre-line text-text-secondary">{request.justification}</span>
+                    {request.decidedAt && (
+                      <span className="block text-text-muted">
+                        {request.deciderName ?? 'Manager'} · {formatDateTime(request.decidedAt)}
+                        {request.decisionComment ? ` · ${request.decisionComment}` : ''}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
           <Panel
             title="Equipa"
             actions={
@@ -329,6 +420,13 @@ export const OpportunityDetailPage: React.FC = () => {
         onSaved={(_opportunityId, text) => afterAction(text)}
       />
       <OpportunityStatusModal opportunity={statusFor} canManage={canManage} onClose={() => setStatusFor(null)} onSaved={afterAction} />
+      <RequestApprovalModal opportunity={approvalFor} onClose={() => setApprovalFor(null)} onRequested={afterAction} />
+      <ApprovalDecisionModal
+        request={decision?.request ?? null}
+        decision={decision?.decision ?? null}
+        onClose={() => setDecision(null)}
+        onDecided={afterAction}
+      />
       <TicketSelectModal
         isOpen={modal === 'owner'}
         title="Alterar responsável"
@@ -363,6 +461,7 @@ export const OpportunityDetailPage: React.FC = () => {
         task={null}
         assignees={assignees.data ?? []}
         links={{ opportunityId: opportunity.id }}
+        canRequestManagerReview={hasPermission('TIMESHEET_TASK_ASSIGN') && !hasPermission('TEAM_SUPERVISE')}
         contextLabel={`Tarefa da oportunidade ${opportunity.reference}.`}
         onClose={() => setModal(null)}
         onSaved={(taskId) => {
@@ -374,7 +473,7 @@ export const OpportunityDetailPage: React.FC = () => {
         isOpen={modal === 'meeting'}
         meeting={null}
         participantIds={people.filter((person) => person.profileId !== viewerId).map((person) => person.profileId)}
-        people={participants.data ?? []}
+        people={invitable}
         links={{ opportunityId: opportunity.id }}
         contextLabel={`Reunião da oportunidade ${opportunity.reference}.`}
         onClose={() => setModal(null)}

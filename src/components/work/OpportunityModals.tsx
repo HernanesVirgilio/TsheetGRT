@@ -3,12 +3,15 @@ import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Alert } from '../ui/Alert';
 import { SelectField, TextAreaField, TextField } from '../ui/FormField';
+import { InlineCompanyForm } from './InlineCompanyForm';
 import { getErrorMessage } from '../../lib/errors';
 import { changeOpportunityStatus, createCompany, createOpportunity, updateCompany, updateOpportunity } from '../../services/work/opportunityService';
 import type { Company, OpportunityDetail, OpportunityStatus, WorkPerson } from '../../types/work';
 import type { CompanyFormField, CompanyFormValues, OpportunityFormField, OpportunityFormValues } from '../../utils/work';
 import {
   OPPORTUNITY_STATUS_LABELS,
+  isOpportunityActive,
+  isOpportunityCleared,
   nextOpportunityStatuses,
   opportunityStatusNeedsNote,
   parseAmount,
@@ -139,6 +142,8 @@ interface OpportunityFormModalProps {
   companies: Company[];
   /** Responsáveis possíveis (só na criação; a mudança de responsável é uma ação própria). */
   owners: WorkPerson[];
+  /** Permite registar a empresa sem sair do formulário (TIMESHEET_OPPORTUNITY_CREATE). */
+  canCreateCompany?: boolean;
   onClose: () => void;
   onSaved: (opportunityId: string, message: string) => void;
 }
@@ -169,8 +174,19 @@ function initialOpportunityValues(opportunity: OpportunityDetail | null): Opport
   };
 }
 
-export const OpportunityFormModal: React.FC<OpportunityFormModalProps> = ({ isOpen, opportunity, companies, owners, onClose, onSaved }) => {
+export const OpportunityFormModal: React.FC<OpportunityFormModalProps> = ({
+  isOpen,
+  opportunity,
+  companies,
+  owners,
+  canCreateCompany = false,
+  onClose,
+  onSaved,
+}) => {
   const [values, setValues] = useState<OpportunityFormValues>(() => initialOpportunityValues(opportunity));
+  const [createdCompanies, setCreatedCompanies] = useState<Company[]>([]);
+  const [isCompanyFormOpen, setIsCompanyFormOpen] = useState(false);
+  const [companyNotice, setCompanyNotice] = useState<string | null>(null);
   const [reason, setReason] = useState('');
   const [fieldErrors, setFieldErrors] = useState<FieldErrors<OpportunityFormField | 'reason'>>({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -180,6 +196,9 @@ export const OpportunityFormModal: React.FC<OpportunityFormModalProps> = ({ isOp
   useEffect(() => {
     if (!isOpen) return;
     setValues(initialOpportunityValues(opportunity));
+    setCreatedCompanies([]);
+    setIsCompanyFormOpen(false);
+    setCompanyNotice(null);
     setReason('');
     setFieldErrors({});
     setErrorMessage(null);
@@ -231,7 +250,10 @@ export const OpportunityFormModal: React.FC<OpportunityFormModalProps> = ({ isOp
     }
   };
 
-  const selectableCompanies = companies.filter((company) => company.status === 'ACTIVE' || company.id === opportunity?.companyId);
+  const allCompanies = [...createdCompanies.filter((created) => !companies.some((company) => company.id === created.id)), ...companies];
+  const selectableCompanies = allCompanies
+    .filter((company) => company.status === 'ACTIVE' || company.id === opportunity?.companyId)
+    .sort((first, second) => first.name.localeCompare(second.name, 'pt'));
   const formId = 'opportunity-form';
   return (
     <Modal
@@ -254,15 +276,34 @@ export const OpportunityFormModal: React.FC<OpportunityFormModalProps> = ({ isOp
       <form id={formId} onSubmit={handleSubmit} className="space-y-4" noValidate>
         {errorMessage && <Alert variant="error">{errorMessage}</Alert>}
         <TextField label="Título" required maxLength={200} value={values.title} error={fieldErrors.title} onChange={(event) => updateValue('title', event.target.value)} />
+        {isCompanyFormOpen && (
+          <InlineCompanyForm
+            onCancel={() => setIsCompanyFormOpen(false)}
+            onSelected={(company, notice) => {
+              setCreatedCompanies((current) => (current.some((existing) => existing.id === company.id) ? current : [company, ...current]));
+              updateValue('companyId', company.id);
+              setCompanyNotice(notice);
+              setIsCompanyFormOpen(false);
+            }}
+          />
+        )}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <SelectField label="Empresa" required value={values.companyId} error={fieldErrors.companyId} onChange={(event) => updateValue('companyId', event.target.value)}>
-            <option value="">Selecione…</option>
-            {selectableCompanies.map((company) => (
-              <option key={company.id} value={company.id}>
-                {company.name}
-              </option>
-            ))}
-          </SelectField>
+          <div className="space-y-1">
+            <SelectField label="Empresa" required value={values.companyId} error={fieldErrors.companyId} onChange={(event) => updateValue('companyId', event.target.value)}>
+              <option value="">Selecione…</option>
+              {selectableCompanies.map((company) => (
+                <option key={company.id} value={company.id}>
+                  {company.name}
+                </option>
+              ))}
+            </SelectField>
+            {canCreateCompany && !isCompanyFormOpen && (
+              <button type="button" onClick={() => setIsCompanyFormOpen(true)} className="text-xs font-semibold text-primary-hover hover:underline">
+                A empresa não existe? Criar empresa
+              </button>
+            )}
+            {companyNotice && <p className="text-xs text-success">{companyNotice}</p>}
+          </div>
           {!opportunity && owners.length > 0 && (
             <SelectField label="Responsável" value={values.ownerId} hint="Por omissão, fica consigo." onChange={(event) => updateValue('ownerId', event.target.value)}>
               <option value="">Eu próprio</option>
@@ -283,11 +324,11 @@ export const OpportunityFormModal: React.FC<OpportunityFormModalProps> = ({ isOp
           <TextField label="Probabilidade (%)" type="number" min={0} max={100} value={values.probability} error={fieldErrors.probability} onChange={(event) => updateValue('probability', event.target.value)} />
         </div>
         <TextAreaField label="Descrição" rows={2} maxLength={5000} value={values.description} onChange={(event) => updateValue('description', event.target.value)} />
-        <TextAreaField label="Problema / oportunidade identificada" rows={2} maxLength={5000} value={values.problem} onChange={(event) => updateValue('problem', event.target.value)} />
+        <TextAreaField label="Necessidade identificada" rows={2} maxLength={5000} value={values.problem} onChange={(event) => updateValue('problem', event.target.value)} />
         <TextAreaField label="Proposta" rows={2} maxLength={5000} value={values.proposal} onChange={(event) => updateValue('proposal', event.target.value)} />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <TextField label="Próximo passo" maxLength={300} value={values.nextStep} onChange={(event) => updateValue('nextStep', event.target.value)} />
-          <TextField label="Data do próximo passo" type="date" value={values.nextStepDate} hint="Aparece no calendário." onChange={(event) => updateValue('nextStepDate', event.target.value)} />
+          <TextField label="Próxima atividade" maxLength={300} value={values.nextStep} onChange={(event) => updateValue('nextStep', event.target.value)} />
+          <TextField label="Data da próxima atividade" type="date" value={values.nextStepDate} hint="Aparece no calendário." onChange={(event) => updateValue('nextStepDate', event.target.value)} />
         </div>
         <TextAreaField label="Observações" rows={2} maxLength={5000} value={values.notes} onChange={(event) => updateValue('notes', event.target.value)} />
         {isClosed && (
@@ -313,7 +354,8 @@ export const OpportunityStatusModal: React.FC<OpportunityStatusModalProps> = ({ 
   const [noteError, setNoteError] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const options = opportunity ? nextOpportunityStatuses(opportunity.status, canManage) : [];
+  const options = opportunity ? nextOpportunityStatuses(opportunity.status, canManage, opportunity.approvalStatus) : [];
+  const awaitingApproval = opportunity !== null && isOpportunityActive(opportunity.status) && !isOpportunityCleared(opportunity.approvalStatus);
   const needsNote = opportunity !== null && status !== '' && opportunityStatusNeedsNote(opportunity.status, status);
 
   useEffect(() => {
@@ -365,6 +407,9 @@ export const OpportunityStatusModal: React.FC<OpportunityStatusModalProps> = ({ 
     >
       <form id={formId} onSubmit={handleSubmit} className="space-y-4" noValidate>
         {errorMessage && <Alert variant="error">{errorMessage}</Alert>}
+        {awaitingApproval && (
+          <Alert variant="info">Proposta, Negociação e Ganha ficam disponíveis depois da aprovação do Manager.</Alert>
+        )}
         <SelectField
           label="Novo estado"
           required

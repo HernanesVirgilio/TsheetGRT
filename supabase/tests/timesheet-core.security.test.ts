@@ -51,10 +51,11 @@ const workPermissions = (roleCode: string) =>
     "SELECT count(*)::int AS value FROM public.role_permissions rp JOIN public.roles r ON r.id = rp.role_id JOIN public.permissions p ON p.id = rp.permission_id WHERE r.code = $1 AND p.module = 'work'",
     [roleCode]
   );
-check((await workPermissions('EMPLOYEE')) === 9, 'EMPLOYEE: 9 permissões de trabalho (sem criar/atribuir/aprovar)');
-check((await workPermissions('MANAGER')) === 18, 'MANAGER: as 18 permissões de trabalho (assume as funções do futuro GESTOR)');
-check((await workPermissions('IT')) === 7, 'IT: apenas uso pessoal (sem oportunidades nem gestão)');
-check((await workPermissions('ADMIN')) === 18, 'ADMIN: todas as permissões de trabalho');
+check((await workPermissions('EMPLOYEE')) === 8, 'EMPLOYEE: 8 permissões de trabalho (sem agendar reuniões, criar, atribuir ou aprovar)');
+check((await workPermissions('MANAGER')) === 19, 'MANAGER: 18 permissões de trabalho originais + aprovar oportunidades');
+check((await workPermissions('GESTOR')) === 17, 'GESTOR: gestão da equipa direta, sem decisão final de ausências nem aprovação de oportunidades');
+check((await workPermissions('IT')) === 6, 'IT: apenas uso pessoal (sem agendar reuniões, oportunidades nem gestão)');
+check((await workPermissions('ADMIN')) === 20, 'ADMIN: todas as permissões de trabalho');
 
 // =============================================================================
 report.section('Tarefas: criação, âmbito e visibilidade');
@@ -323,47 +324,51 @@ check(
 // =============================================================================
 report.section('Reuniões');
 const meetingResult = await db.asUser<{ id: string }>(
-  ana.authId,
-  "SELECT public.create_meeting('Apresentação inicial', $1::timestamptz, $2::timestamptz, 'Apresentar a proposta', 'Validar âmbito', 'Sala 2', 'https://meet.example.com/x', ARRAY[$3::uuid], $4) AS id",
-  [inHours(24), inHours(25), rui.profileId, anaTask]
+  managerOps.authId,
+  "SELECT public.create_meeting('Apresentação inicial', $1::timestamptz, $2::timestamptz, 'Apresentar a proposta', 'Validar âmbito', 'Sala 2', 'https://meet.example.com/x', ARRAY[$3::uuid, $5::uuid], $4) AS id",
+  [inHours(24), inHours(25), rui.profileId, anaTask, ana.profileId]
 );
-check(!meetingResult.error, `colaborador organiza reunião ${meetingResult.error ?? ''}`);
+check(!meetingResult.error, `gestor organiza reunião com a equipa ${meetingResult.error ?? ''}`);
+check(
+  (await db.asUser(ana.authId, "SELECT public.create_meeting('Reunião do colaborador', $1::timestamptz, $2::timestamptz)", [inHours(24), inHours(25)])).code === '42501',
+  'colaborador comum não agenda reuniões'
+);
 const meetingId = meetingResult.rows[0]?.id ?? '';
 check((await notificationsOf(rui.profileId, 'MEETING_INVITED')) === 1, 'participante notificado do convite');
 check(
-  (await db.asUser(ana.authId, "SELECT public.create_meeting('Reunião impossível', $1::timestamptz, $2::timestamptz)", [inHours(5), inHours(4)])).error?.includes('terminar depois') ?? false,
+  (await db.asUser(managerOps.authId, "SELECT public.create_meeting('Reunião impossível', $1::timestamptz, $2::timestamptz)", [inHours(5), inHours(4)])).error?.includes('terminar depois') ?? false,
   'reunião que termina antes de começar é recusada'
 );
 check(
-  (await db.asUser(ana.authId, "SELECT public.create_meeting('Ligação perigosa', $1::timestamptz, $2::timestamptz, '', '', NULL, 'javascript:alert(1)')", [inHours(5), inHours(6)])).code === '23514',
+  (await db.asUser(managerOps.authId, "SELECT public.create_meeting('Ligação perigosa', $1::timestamptz, $2::timestamptz, '', '', NULL, 'javascript:alert(1)')", [inHours(5), inHours(6)])).code === '23514',
   'ligação não http(s) recusada'
 );
 check((await db.asUser(rui.authId, 'SELECT id FROM public.meetings WHERE id = $1', [meetingId])).rows.length === 1, 'participante vê a reunião');
 check((await db.asUser(bruno.authId, 'SELECT id FROM public.meetings WHERE id = $1', [meetingId])).rows.length === 0, 'não participante não vê a reunião');
-check((await db.asUser(managerOps.authId, 'SELECT id FROM public.meetings WHERE id = $1', [meetingId])).rows.length === 1, 'gestor do organizador vê a reunião');
+check((await db.asUser(admin.authId, 'SELECT id FROM public.meetings WHERE id = $1', [meetingId])).rows.length === 1, 'administração vê a reunião');
 check(
   (await db.asUser(rui.authId, "SELECT public.cancel_meeting($1, 'Não posso ir')", [meetingId])).code === '42501',
   'participante não cancela a reunião'
 );
 check(
-  (await db.asUser(ana.authId, "SELECT public.complete_meeting($1, 'Proposta aceite')", [meetingId])).error?.includes('ainda não começou') ?? false,
+  (await db.asUser(managerOps.authId, "SELECT public.complete_meeting($1, 'Proposta aceite')", [meetingId])).error?.includes('ainda não começou') ?? false,
   'reunião futura não é dada como concluída'
 );
 await db.asPostgres("UPDATE public.meetings SET starts_at = now() - interval '2 hours', ends_at = now() - interval '1 hour' WHERE id = $1", [meetingId]);
 check(
-  (await db.asUser(ana.authId, "SELECT public.complete_meeting($1, '')", [meetingId])).error?.includes('resultado') ?? false,
+  (await db.asUser(managerOps.authId, "SELECT public.complete_meeting($1, '')", [meetingId])).error?.includes('resultado') ?? false,
   'conclusão exige o resultado'
 );
 check(
-  !(await db.asUser(ana.authId, "SELECT public.complete_meeting($1, 'Cliente aceitou avançar', 'Avançar com proposta', 'Enviar orçamento')", [meetingId])).error,
+  !(await db.asUser(managerOps.authId, "SELECT public.complete_meeting($1, 'Cliente aceitou avançar', 'Avançar com proposta', 'Enviar orçamento')", [meetingId])).error,
   'organizador regista resultado, decisões e próximos passos'
 );
 check(
-  (await db.asUser(ana.authId, "SELECT public.update_meeting_outcome($1, 'Cliente aceitou avançar com ajustes', NULL, NULL, '')", [meetingId])).error?.includes('motivo') ?? false,
+  (await db.asUser(managerOps.authId, "SELECT public.update_meeting_outcome($1, 'Cliente aceitou avançar com ajustes', NULL, NULL, '')", [meetingId])).error?.includes('motivo') ?? false,
   'corrigir o resultado exige motivo'
 );
 check(
-  !(await db.asUser(ana.authId, "SELECT public.update_meeting_outcome($1, 'Cliente aceitou avançar com ajustes', 'Avançar com proposta', 'Enviar orçamento', 'Correção após confirmação por e-mail')", [meetingId])).error,
+  !(await db.asUser(managerOps.authId, "SELECT public.update_meeting_outcome($1, 'Cliente aceitou avançar com ajustes', 'Avançar com proposta', 'Enviar orçamento', 'Correção após confirmação por e-mail')", [meetingId])).error,
   'resultado corrigido com motivo'
 );
 check(
@@ -681,7 +686,7 @@ check(
   'colaborador só se vê a si próprio como responsável'
 );
 const people = await db.asUser<{ full_name: string; is_organizer: boolean }>(rui.authId, 'SELECT * FROM public.get_meeting_people($1)', [meetingId]);
-check(people.rows.length === 2 && people.rows[0]?.is_organizer === true, 'participante vê quem organiza e participa');
+check(people.rows.length === 3 && people.rows[0]?.is_organizer === true, 'participante vê quem organiza e participa');
 check(
   (await db.asUser(bruno.authId, 'SELECT * FROM public.get_meeting_people($1)', [meetingId])).error?.includes('não encontrada') ?? false,
   'não participante não lê os participantes'

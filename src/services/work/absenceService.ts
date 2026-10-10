@@ -1,12 +1,12 @@
 import { supabase } from '../../lib/supabase/client';
 import { toServiceError } from '../../lib/errors';
-import type { AbsenceDecision, AbsenceRequest, AbsenceStatus, AbsenceType, WorkEvent } from '../../types/work';
+import type { AbsenceDecision, AbsenceRequest, AbsenceStatus, AbsenceType, AbsenceValidation, WorkEvent } from '../../types/work';
 import { isAbsenceStatus } from '../../types/work';
 import { isPresent } from '../mappers';
 import { mapWorkEvent, WORK_EVENT_COLUMNS } from './workEvents';
 
 const ABSENCE_SELECT =
-  'id, reference, employee_id, absence_type_id, start_date, end_date, reason, status, submitted_at, decided_at, decision_comment, created_at, employee:profiles!absence_requests_employee_id_fkey(full_name), type:absence_types(name, requires_attachment)' as const;
+  'id, reference, employee_id, absence_type_id, start_date, end_date, reason, status, submitted_at, validated_at, validation_comment, decided_at, decision_comment, created_at, employee:profiles!absence_requests_employee_id_fkey(full_name), type:absence_types(name, requires_attachment)' as const;
 
 interface AbsenceRow {
   id: string;
@@ -18,6 +18,8 @@ interface AbsenceRow {
   reason: string;
   status: string;
   submitted_at: string | null;
+  validated_at: string | null;
+  validation_comment: string | null;
   decided_at: string | null;
   decision_comment: string | null;
   created_at: string;
@@ -40,6 +42,8 @@ function mapAbsence(row: AbsenceRow): AbsenceRequest | null {
     reason: row.reason,
     status: row.status,
     submittedAt: row.submitted_at,
+    validatedAt: row.validated_at,
+    validationComment: row.validation_comment,
     decidedAt: row.decided_at,
     decisionComment: row.decision_comment,
     createdAt: row.created_at,
@@ -49,11 +53,17 @@ function mapAbsence(row: AbsenceRow): AbsenceRequest | null {
 export async function listAbsenceTypes(): Promise<AbsenceType[]> {
   const { data, error } = await supabase
     .from('absence_types')
-    .select('id, code, name, requires_attachment')
+    .select('id, code, name, requires_attachment, requires_manager_approval')
     .eq('active', true)
     .order('sort_order');
   if (error) throw toServiceError(error, 'Não foi possível carregar os tipos de ausência.');
-  return data.map((row) => ({ id: row.id, code: row.code, name: row.name, requiresAttachment: row.requires_attachment }));
+  return data.map((row) => ({
+    id: row.id,
+    code: row.code,
+    name: row.name,
+    requiresAttachment: row.requires_attachment,
+    requiresManagerApproval: row.requires_manager_approval,
+  }));
 }
 
 export async function listMyAbsences(employeeId: string): Promise<AbsenceRequest[]> {
@@ -67,7 +77,7 @@ export async function listMyAbsences(employeeId: string): Promise<AbsenceRequest
   return data.map(mapAbsence).filter(isPresent);
 }
 
-/** Pedidos da equipa (RLS: âmbito do gestor com TIMESHEET_ABSENCE_READ, ou administração). */
+/** Pedidos da equipa (RLS: âmbito do gestor ou do Manager com TIMESHEET_ABSENCE_READ, ou administração). */
 export async function listTeamAbsences(viewerId: string, statuses: AbsenceStatus[]): Promise<AbsenceRequest[]> {
   let request = supabase
     .from('absence_requests')
@@ -138,4 +148,10 @@ export async function cancelAbsence(requestId: string, reason: string | null): P
 export async function decideAbsence(requestId: string, decision: AbsenceDecision, comment: string | null): Promise<void> {
   const { error } = await supabase.rpc('decide_absence_request', { p_request_id: requestId, p_decision: decision, p_comment: comment });
   if (error) throw toServiceError(error, 'Não foi possível registar a decisão.');
+}
+
+/** 1.º nível: o gestor da equipa valida e encaminha ao Manager, ou devolve para correção. */
+export async function validateAbsence(requestId: string, decision: AbsenceValidation, comment: string | null): Promise<void> {
+  const { error } = await supabase.rpc('validate_absence_request', { p_request_id: requestId, p_decision: decision, p_comment: comment });
+  if (error) throw toServiceError(error, 'Não foi possível registar a validação.');
 }

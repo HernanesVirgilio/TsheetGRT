@@ -4,8 +4,8 @@ import { Button } from '../ui/Button';
 import { Alert } from '../ui/Alert';
 import { SelectField, TextAreaField, TextField } from '../ui/FormField';
 import { getErrorMessage } from '../../lib/errors';
-import { decideAbsence, saveAbsence } from '../../services/work/absenceService';
-import type { AbsenceDecision, AbsenceRequest, AbsenceType } from '../../types/work';
+import { decideAbsence, saveAbsence, validateAbsence } from '../../services/work/absenceService';
+import type { AbsenceDecision, AbsenceRequest, AbsenceType, AbsenceValidation } from '../../types/work';
 import type { AbsenceFormField, AbsenceFormValues } from '../../utils/work';
 import { daysBetween, validateAbsenceForm, validateReason } from '../../utils/work';
 import { formatDate } from '../../utils/format';
@@ -74,7 +74,7 @@ export const AbsenceFormModal: React.FC<AbsenceFormModalProps> = ({ isOpen, requ
     <Modal
       isOpen={isOpen}
       title={request ? `Corrigir ${request.reference}` : 'Novo pedido de ausência'}
-      description="O pedido fica em rascunho até o submeter para aprovação."
+      description="O pedido fica em rascunho até o submeter. Segue para o gestor da equipa (validação) e depois para o Manager (decisão)."
       isBusy={isSubmitting}
       onClose={onClose}
       footer={
@@ -91,7 +91,7 @@ export const AbsenceFormModal: React.FC<AbsenceFormModalProps> = ({ isOpen, requ
       <form id={formId} onSubmit={handleSubmit} className="space-y-4" noValidate>
         {errorMessage && <Alert variant="error">{errorMessage}</Alert>}
         {request?.decisionComment && (
-          <Alert variant="warning" title="Correção pedida pelo gestor">
+          <Alert variant="warning" title="Correção pedida">
             {request.decisionComment}
           </Alert>
         )}
@@ -102,6 +102,9 @@ export const AbsenceFormModal: React.FC<AbsenceFormModalProps> = ({ isOpen, requ
             </option>
           ))}
         </SelectField>
+        {selectedType && !selectedType.requiresManagerApproval && (
+          <Alert variant="info">Este tipo de ausência fica aprovado com a validação do gestor da equipa.</Alert>
+        )}
         {selectedType?.requiresAttachment && (
           <Alert variant="info">Este tipo exige um comprovativo: anexe-o ao pedido antes de o submeter.</Alert>
         )}
@@ -142,7 +145,7 @@ const DECISION_COPY: Record<AbsenceDecision, { title: string; confirm: string; l
   },
 };
 
-/** Decisão do gestor: validada no servidor (permissão, âmbito, estado, sem autoaprovação). */
+/** Decisão final (Manager ou administração): validada no servidor (permissão, âmbito, estado, sem autoaprovação). */
 export const AbsenceDecisionModal: React.FC<AbsenceDecisionModalProps> = ({ request, decision, onClose, onDecided }) => {
   const [comment, setComment] = useState('');
   const [commentError, setCommentError] = useState<string | null>(null);
@@ -201,6 +204,91 @@ export const AbsenceDecisionModal: React.FC<AbsenceDecisionModalProps> = ({ requ
         <TextAreaField
           label={copy.label}
           required={decision !== 'APPROVED'}
+          rows={3}
+          maxLength={1000}
+          value={comment}
+          error={commentError}
+          onChange={(event) => {
+            setComment(event.target.value);
+            setCommentError(null);
+          }}
+        />
+      </form>
+    </Modal>
+  );
+};
+
+interface AbsenceValidationModalProps {
+  request: AbsenceRequest | null;
+  validation: AbsenceValidation | null;
+  onClose: () => void;
+  onValidated: (message: string) => void;
+}
+
+/** 1.º nível: o gestor da equipa valida e encaminha ao Manager, ou devolve ao colaborador. */
+export const AbsenceValidationModal: React.FC<AbsenceValidationModalProps> = ({ request, validation, onClose, onValidated }) => {
+  const [comment, setComment] = useState('');
+  const [commentError, setCommentError] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    setComment('');
+    setCommentError(null);
+    setErrorMessage(null);
+  }, [request, validation]);
+
+  if (!validation) return null;
+  const isForward = validation === 'VALIDATED';
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!request) return;
+    const check = isForward ? null : validateReason(comment, 'Indique o que deve ser corrigido');
+    setCommentError(check);
+    if (check) return;
+    setIsSubmitting(true);
+    setErrorMessage(null);
+    try {
+      await validateAbsence(request.id, validation, comment.trim() || null);
+      onValidated(isForward ? `Pedido ${request.reference} validado e encaminhado.` : 'Pedido devolvido para correção.');
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error, 'Não foi possível registar a validação.'));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const formId = 'absence-validation-form';
+  return (
+    <Modal
+      isOpen={request !== null}
+      title={isForward ? 'Validar e encaminhar' : 'Pedir correção'}
+      description={request ? `${request.employeeName ?? 'Colaborador'} · ${request.absenceTypeName} · ${formatDate(request.startDate)} a ${formatDate(request.endDate)}` : undefined}
+      size="sm"
+      isBusy={isSubmitting}
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
+            Cancelar
+          </Button>
+          <Button type="submit" form={formId} isLoading={isSubmitting}>
+            {isForward ? 'Validar' : 'Devolver ao colaborador'}
+          </Button>
+        </>
+      }
+    >
+      <form id={formId} onSubmit={handleSubmit} className="space-y-4" noValidate>
+        {errorMessage && <Alert variant="error">{errorMessage}</Alert>}
+        {isForward && (
+          <p className="text-sm text-text-secondary">
+            A decisão final é do Manager, exceto nos tipos que a empresa definiu como aprovados na validação.
+          </p>
+        )}
+        <TextAreaField
+          label={isForward ? 'Parecer para o Manager (opcional)' : 'O que deve ser corrigido'}
+          required={!isForward}
           rows={3}
           maxLength={1000}
           value={comment}
