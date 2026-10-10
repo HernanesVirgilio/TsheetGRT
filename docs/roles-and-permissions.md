@@ -4,8 +4,9 @@
 
 | Código | Designação em Português | Descrição Operacional |
 | :--- | :--- | :--- |
-| **`EMPLOYEE`** | COLABORADOR | Utilizador padrão da empresa. Regista e submete horas de trabalho e tarefas. |
-| **`MANAGER`** | GESTOR / MANAGER | Responsável pela gestão de equipa departamental e validação/aprovação de ponto. |
+| **`EMPLOYEE`** | COLABORADOR | Utilizador padrão da empresa. Executa tarefas, regista atividades e horas, recebe reuniões e pede ausências. |
+| **`GESTOR`** | GESTOR | Gere a equipa direta: atribui e acompanha tarefas, agenda reuniões, valida ausências, regista oportunidades e pede aprovações ao Manager. |
+| **`MANAGER`** | MANAGER | Supervisiona os gestores e as equipas atribuídas, decide ausências e oportunidades, acompanha relatórios gerais. |
 | **`IT`** | SUPORTE IT | Responsável pelo suporte técnico (pedidos, equipamentos, intervenções), monitorização técnica e auditoria. |
 | **`ADMIN`** | ADMINISTRADOR | Nível máximo administrativo da aplicação: utilizadores, departamentos e definições. |
 
@@ -69,6 +70,10 @@
 | `TIMESHEET_OPPORTUNITY_MANAGE` | work | Alterar responsáveis, cancelar e reabrir oportunidades |
 | `TIMESHEET_ATTACHMENT_CREATE` | work | Anexar ficheiros aos registos em que trabalha |
 | `TIMESHEET_ATTACHMENT_DELETE` | work | Remover anexos de terceiros em registos do âmbito |
+| `TEAM_SUPERVISE` | team | Visão de supervisão dos gestores e das suas equipas; recebe escalonamentos |
+| `TEAM_JOB_DESCRIPTION_UPDATE` | team | Atualizar a descrição da função dos colaboradores do âmbito |
+| `TIMESHEET_ABSENCE_VALIDATE` | work | Validar e encaminhar ao Manager as ausências da equipa direta |
+| `TIMESHEET_OPPORTUNITY_APPROVE` | work | Decidir os pedidos de aprovação de oportunidades do âmbito |
 
 ---
 
@@ -78,20 +83,27 @@
   - `SELF_ACCESS`, `SELF_PROFILE_READ`, `SELF_PROFILE_UPDATE`
   - `SELF_TIMESHEET_READ`, `SELF_TIMESHEET_CREATE`, `SELF_TIMESHEET_UPDATE`, `SELF_TIMESHEET_SUBMIT`
   - `IT_TICKET_CREATE`
-  - Trabalho: `TIMESHEET_TASK_READ`, `TIMESHEET_TASK_UPDATE`, `TIMESHEET_CALENDAR_READ`, `TIMESHEET_MEETING_READ`, `TIMESHEET_MEETING_CREATE`, `TIMESHEET_ABSENCE_CREATE`, `TIMESHEET_OPPORTUNITY_READ`, `TIMESHEET_OPPORTUNITY_UPDATE`, `TIMESHEET_ATTACHMENT_CREATE`
+  - Trabalho: `TIMESHEET_TASK_READ`, `TIMESHEET_TASK_UPDATE`, `TIMESHEET_CALENDAR_READ`, `TIMESHEET_MEETING_READ`, `TIMESHEET_ABSENCE_CREATE`, `TIMESHEET_OPPORTUNITY_READ`, `TIMESHEET_OPPORTUNITY_UPDATE`, `TIMESHEET_ATTACHMENT_CREATE` (recebe reuniões, mas não as agenda)
+
+- **GESTOR:**
+  - Uso pessoal: `SELF_*`, `IT_TICKET_CREATE`
+  - Equipa direta: `TEAM_READ`, `TEAM_TIMESHEET_READ`, `TEAM_TIMESHEET_REVIEW`, `TEAM_TIMESHEET_APPROVE`, `TEAM_TIMESHEET_REJECT`, `REPORTS_READ`
+  - Trabalho: `TIMESHEET_TASK_*` (ler, executar, criar, atribuir, reabrir), `TIMESHEET_CALENDAR_READ`, `TIMESHEET_MEETING_READ`, `TIMESHEET_MEETING_CREATE`, `TIMESHEET_ABSENCE_CREATE`, `TIMESHEET_ABSENCE_READ`, `TIMESHEET_ABSENCE_VALIDATE`, `TIMESHEET_OPPORTUNITY_READ`, `TIMESHEET_OPPORTUNITY_UPDATE`, `TIMESHEET_OPPORTUNITY_CREATE`, `TIMESHEET_OPPORTUNITY_MANAGE`, `TIMESHEET_ATTACHMENT_CREATE`, `TIMESHEET_ATTACHMENT_DELETE`
+  - Sem decisão final de ausências, sem aprovação de oportunidades, sem supervisão de outros gestores
 
 - **MANAGER:**
   - Todas as permissões de `EMPLOYEE`
   - `TEAM_READ`, `TEAM_TIMESHEET_READ`, `TEAM_TIMESHEET_REVIEW`, `TEAM_TIMESHEET_APPROVE`, `TEAM_TIMESHEET_REJECT`
   - `REPORTS_READ`
   - (`IT_TICKET_CREATE` incluída nas permissões de `EMPLOYEE`)
-  - Todas as 18 permissões `TIMESHEET_*` (o MANAGER assume, por agora, as funções do futuro GESTOR)
+  - As 18 permissões `TIMESHEET_*` do Timesheet Core e `TIMESHEET_OPPORTUNITY_APPROVE` (sem `TIMESHEET_ABSENCE_VALIDATE`: decide diretamente)
+  - `TEAM_SUPERVISE` e `TEAM_JOB_DESCRIPTION_UPDATE`
 
 - **IT:**
   - `SELF_ACCESS`, `SELF_PROFILE_READ`, `SELF_PROFILE_UPDATE`
   - `USERS_READ`, `SYSTEM_HEALTH_READ`, `AUDIT_READ`
   - `IT_TICKET_CREATE`, `IT_TICKETS_READ`, `IT_TICKETS_MANAGE`, `IT_TICKETS_ASSIGN`, `IT_ASSETS_READ`, `IT_ASSETS_MANAGE`
-  - Uso pessoal do trabalho (sem gestão nem oportunidades): `TIMESHEET_TASK_READ`, `TIMESHEET_TASK_UPDATE`, `TIMESHEET_CALENDAR_READ`, `TIMESHEET_MEETING_READ`, `TIMESHEET_MEETING_CREATE`, `TIMESHEET_ABSENCE_CREATE`, `TIMESHEET_ATTACHMENT_CREATE`
+  - Uso pessoal do trabalho (sem gestão, oportunidades nem agendamento de reuniões): `TIMESHEET_TASK_READ`, `TIMESHEET_TASK_UPDATE`, `TIMESHEET_CALENDAR_READ`, `TIMESHEET_MEETING_READ`, `TIMESHEET_ABSENCE_CREATE`, `TIMESHEET_ATTACHMENT_CREATE`
 
 - **ADMIN:**
   - Todas as permissões anteriores + `USERS_CREATE`, `USERS_UPDATE`, `USERS_DISABLE`, `USERS_ASSIGN_ROLE`, `ROLES_READ`, `ROLES_MANAGE`, `PERMISSIONS_READ`, `PERMISSIONS_MANAGE`, `DEPARTMENTS_READ`, `DEPARTMENTS_MANAGE`, `SYSTEM_SETTINGS_READ`, `SYSTEM_SETTINGS_MANAGE`, `REPORTS_EXPORT`, `ADMIN_ACCESS`
@@ -156,9 +168,13 @@ A secção **Suporte IT** da barra lateral e a entrada **Pedidos de suporte** s�
 | `/timesheet/absences` | `TIMESHEET_ABSENCE_CREATE` | separador "Aprovações": `TIMESHEET_ABSENCE_APPROVE` |
 | `/timesheet/opportunities`, `/timesheet/opportunities/:id`, `/timesheet/companies` | `TIMESHEET_OPPORTUNITY_READ` | criar: `TIMESHEET_OPPORTUNITY_CREATE`; trabalhar: `TIMESHEET_OPPORTUNITY_UPDATE`; cancelar, reabrir e mudar o responsável: `TIMESHEET_OPPORTUNITY_MANAGE` |
 | `/timesheet/team` | `TEAM_READ` | — |
+| `/timesheet/reports` | `TEAM_READ` | filtro por gestor: `TEAM_SUPERVISE`; exportar CSV: `REPORTS_EXPORT` |
+| `/timesheet/approvals` | `TIMESHEET_OPPORTUNITY_READ` | decidir: `TIMESHEET_OPPORTUNITY_APPROVE` (nunca os próprios pedidos) |
+| `/team/:id` | `TEAM_READ` | editar a descrição da função: `TEAM_JOB_DESCRIPTION_UPDATE` |
 
-**Preparação para o perfil GESTOR:**
-- Toda a autorização usa permissões e o âmbito existente (`manager_scopes`), nunca o código do perfil.
-- Para separar as funções, basta criar o perfil e atribuir-lhe as permissões `TIMESHEET_*` adequadas.
-- O único ponto a rever é a regra de `manager_scopes`, que hoje só aceita âmbitos para o perfil MANAGER.
+**Hierarquia (ver [hierarquia-e-gestor.md](hierarquia-e-gestor.md)):**
+- Toda a autorização usa permissões e o âmbito (`manager_scopes`), nunca o código do perfil.
+- O âmbito tem dois níveis: o Manager abrange os gestores que supervisiona e as equipas desses gestores.
+- `manager_scopes` aceita os perfis MANAGER e GESTOR como titulares; um GESTOR só pode ter colaboradores no âmbito.
+- O dashboard inicial depende do perfil: GESTOR → painel da equipa; MANAGER → supervisão.
 

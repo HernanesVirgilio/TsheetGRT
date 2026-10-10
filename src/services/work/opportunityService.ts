@@ -1,6 +1,8 @@
 import { supabase } from '../../lib/supabase/client';
 import { toServiceError } from '../../lib/errors';
 import type {
+  ApprovalRequest,
+  ApprovalRequestStatus,
   Company,
   CompanyStatus,
   OpportunityDetail,
@@ -9,7 +11,7 @@ import type {
   OpportunitySummary,
   WorkEvent,
 } from '../../types/work';
-import { isCompanyStatus, isOpportunityStatus } from '../../types/work';
+import { isApprovalRequestStatus, isCompanyStatus, isOpportunityApprovalStatus, isOpportunityStatus } from '../../types/work';
 import { isPresent } from '../mappers';
 import { toIlikePattern } from '../../utils/validation';
 import { mapWorkEvent, WORK_EVENT_COLUMNS } from './workEvents';
@@ -93,6 +95,26 @@ export async function createCompany(input: CompanyInput): Promise<string> {
   return data.id;
 }
 
+const COMPANY_STOP_WORDS = ['lda', 'limitada', 'sociedade', 'empresa', 'grupo', 'comercial'];
+
+/**
+ * Empresas parecidas (mesmo NUIT ou nome semelhante) antes de registar uma nova: evita duplicados
+ * silenciosos. Os duplicados exatos são também recusados pela base de dados.
+ */
+export async function findSimilarCompanies(name: string, nuit: string | null): Promise<Company[]> {
+  const words = name
+    .trim()
+    .toLowerCase()
+    .split(/[\s,.;()-]+/)
+    .filter((word) => word.length >= 4 && !COMPANY_STOP_WORDS.includes(word));
+  const filters = words.slice(0, 3).map((word) => `name.ilike.${toIlikePattern(word)}`);
+  if (nuit) filters.push(`nuit.eq.${nuit}`);
+  if (filters.length === 0) filters.push(`name.ilike.${toIlikePattern(name.trim())}`);
+  const { data, error } = await supabase.from('companies').select(COMPANY_SELECT).or(filters.join(',')).order('name').limit(10);
+  if (error) throw toServiceError(error, 'Não foi possível verificar empresas semelhantes.');
+  return data.map(mapCompany).filter(isPresent);
+}
+
 export async function updateCompany(companyId: string, input: CompanyInput): Promise<void> {
   const { error } = await supabase.from('companies').update(toCompanyPayload(input)).eq('id', companyId);
   if (error) throw toServiceError(error, 'Não foi possível guardar a empresa.');
@@ -101,7 +123,7 @@ export async function updateCompany(companyId: string, input: CompanyInput): Pro
 // ---------------------------------------------------------------------------- oportunidades
 
 const OPPORTUNITY_SELECT =
-  'id, reference, title, company_id, owner_id, status, estimated_value, initial_value, currency, probability, expected_close_date, next_step, next_step_date, contact_name, contact_phone, contact_email, description, problem, proposal, notes, lost_reason, created_by, closed_at, updated_at, company:companies(name), owner:profiles!opportunities_owner_id_fkey(full_name)' as const;
+  'id, reference, title, company_id, owner_id, status, estimated_value, initial_value, currency, probability, expected_close_date, next_step, next_step_date, contact_name, contact_phone, contact_email, description, problem, proposal, notes, lost_reason, created_by, closed_at, approval_status, updated_at, company:companies(name), owner:profiles!opportunities_owner_id_fkey(full_name)' as const;
 
 interface OpportunityRow {
   id: string;
@@ -127,13 +149,14 @@ interface OpportunityRow {
   lost_reason: string | null;
   created_by: string | null;
   closed_at: string | null;
+  approval_status: string;
   updated_at: string;
   company: { name: string } | null;
   owner: { full_name: string } | null;
 }
 
 function mapOpportunity(row: OpportunityRow): OpportunityDetail | null {
-  if (!isOpportunityStatus(row.status)) return null;
+  if (!isOpportunityStatus(row.status) || !isOpportunityApprovalStatus(row.approval_status)) return null;
   return {
     id: row.id,
     reference: row.reference,
@@ -160,6 +183,7 @@ function mapOpportunity(row: OpportunityRow): OpportunityDetail | null {
     lostReason: row.lost_reason,
     createdBy: row.created_by,
     closedAt: row.closed_at,
+    approvalStatus: row.approval_status,
     updatedAt: row.updated_at,
   };
 }
@@ -316,4 +340,87 @@ export async function removeOpportunityMember(opportunityId: string, profileId: 
 export async function addOpportunityComment(opportunityId: string, body: string): Promise<void> {
   const { error } = await supabase.rpc('add_opportunity_comment', { p_opportunity_id: opportunityId, p_body: body });
   if (error) throw toServiceError(error, 'Não foi possível enviar o comentário.');
+}
+
+// ---------------------------------------------------------------------------- pedidos de aprovação
+
+const APPROVAL_SELECT =
+  'id, reference, opportunity_id, requested_by, title, amount, currency, justification, status, decided_at, decision_comment, created_at, requester:profiles!approval_requests_requested_by_fkey(full_name), decider:profiles!approval_requests_decided_by_fkey(full_name), opportunity:opportunities(reference, title, owner:profiles!opportunities_owner_id_fkey(full_name))' as const;
+
+interface ApprovalRow {
+  id: string;
+  reference: string;
+  opportunity_id: string | null;
+  requested_by: string;
+  title: string;
+  amount: number | null;
+  currency: string | null;
+  justification: string;
+  status: string;
+  decided_at: string | null;
+  decision_comment: string | null;
+  created_at: string;
+  requester: { full_name: string } | null;
+  decider: { full_name: string } | null;
+  opportunity: { reference: string; title: string; owner: { full_name: string } | null } | null;
+}
+
+function mapApproval(row: ApprovalRow): ApprovalRequest | null {
+  if (!isApprovalRequestStatus(row.status)) return null;
+  return {
+    id: row.id,
+    reference: row.reference,
+    opportunityId: row.opportunity_id,
+    opportunityReference: row.opportunity?.reference ?? null,
+    opportunityTitle: row.opportunity?.title ?? null,
+    opportunityOwnerName: row.opportunity?.owner?.full_name ?? null,
+    requestedBy: row.requested_by,
+    // Os nomes só aparecem a quem pode ler esses perfis (RLS de profiles).
+    requesterName: row.requester?.full_name ?? null,
+    title: row.title,
+    amount: row.amount === null ? null : Number(row.amount),
+    currency: row.currency,
+    justification: row.justification,
+    status: row.status,
+    deciderName: row.decider?.full_name ?? null,
+    decidedAt: row.decided_at,
+    decisionComment: row.decision_comment,
+    createdAt: row.created_at,
+  };
+}
+
+/** Pedidos visíveis (RLS: quem vê a oportunidade). Os pendentes vêm do mais antigo para o mais recente. */
+export async function listApprovalRequests(statuses: ApprovalRequestStatus[], limit = 100): Promise<ApprovalRequest[]> {
+  const pendingOnly = statuses.length === 1 && statuses[0] === 'PENDING';
+  let request = supabase.from('approval_requests').select(APPROVAL_SELECT).order('created_at', { ascending: pendingOnly }).limit(limit);
+  if (statuses.length > 0) request = request.in('status', statuses);
+  const { data, error } = await request;
+  if (error) throw toServiceError(error, 'Não foi possível carregar os pedidos de aprovação.');
+  return data.map(mapApproval).filter(isPresent);
+}
+
+export async function listOpportunityApprovals(opportunityId: string): Promise<ApprovalRequest[]> {
+  const { data, error } = await supabase
+    .from('approval_requests')
+    .select(APPROVAL_SELECT)
+    .eq('opportunity_id', opportunityId)
+    .order('created_at', { ascending: false });
+  if (error) throw toServiceError(error, 'Não foi possível carregar os pedidos de aprovação.');
+  return data.map(mapApproval).filter(isPresent);
+}
+
+export async function requestOpportunityApproval(opportunityId: string, justification: string): Promise<string> {
+  const { data, error } = await supabase.rpc('request_opportunity_approval', { p_opportunity_id: opportunityId, p_justification: justification });
+  if (error) throw toServiceError(error, 'Não foi possível pedir a aprovação.');
+  return data;
+}
+
+export async function decideOpportunityApproval(requestId: string, decision: 'APPROVED' | 'REJECTED', comment: string | null): Promise<void> {
+  const { error } = await supabase.rpc('decide_opportunity_approval', { p_request_id: requestId, p_decision: decision, p_comment: comment });
+  if (error) throw toServiceError(error, 'Não foi possível registar a decisão.');
+}
+
+export async function cancelOpportunityApproval(requestId: string, reason: string | null): Promise<void> {
+  const { error } = await supabase.rpc('cancel_opportunity_approval', { p_request_id: requestId, p_reason: reason });
+  if (error) throw toServiceError(error, 'Não foi possível anular o pedido.');
 }

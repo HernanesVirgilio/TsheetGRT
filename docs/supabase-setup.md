@@ -11,11 +11,14 @@ No **SQL Editor** do projeto, execute cada ficheiro **uma única vez, por esta o
 3. `supabase/migrations/20261001000002_seed_data.sql` — departamentos, perfis de acesso, permissões, atividades e configurações.
 4. `supabase/migrations/20261008000000_manager_scope_and_reviews.sql` — módulo Manager: âmbito de gestão, leitura por âmbito, submissão e decisão de timesheets por funções do servidor, notificações e auditoria da equipa.
 5. `supabase/migrations/20261009000000_scope_rules_and_reviewer_visibility.sql` — âmbito por departamento limitado a colaboradores (EMPLOYEE), exclusão de administradores e leitura limitada de quem decidiu um timesheet.
-6. `supabase/migrations/20261010000000_it_support_module.sql` — módulo Suporte IT: permissões, prazos de resolução, pedidos, histórico, equipamentos, intervenções, RLS, auditoria e notificações.
+6. `supabase/migrations/20261008174215_it_support_module.sql` — módulo Suporte IT: permissões, prazos de resolução, pedidos, histórico, equipamentos, intervenções, RLS, auditoria e notificações.
 7. `supabase/migrations/20261011000000_timesheet_core_schema.sql` — Timesheet Core: permissões, tabelas, restrições e contexto do tempo.
 8. `supabase/migrations/20261011000001_timesheet_core_workflows.sql` — tarefas e registo de tempo.
 9. `supabase/migrations/20261011000002_timesheet_core_meetings_absences_opportunities.sql` — reuniões, ausências, empresas e oportunidades.
 10. `supabase/migrations/20261011000003_timesheet_core_security.sql` — anexos (bucket privado `work-attachments`), calendário, resumos, RLS e privilégios.
+11. `supabase/migrations/20261012000000_hierarchy_roles_scope.sql` — hierarquia: perfil GESTOR, permissões, descrição da função, âmbito em dois níveis, categorias das notificações.
+12. `supabase/migrations/20261012000001_hierarchy_workflows.sql` — ausências em dois níveis, aprovação de oportunidades, acompanhamento de tarefas, reuniões dentro do âmbito, alertas de prazo.
+13. `supabase/migrations/20261012000002_hierarchy_dashboards_security.sql` — painéis do Gestor e do Manager, relatórios, RLS e privilégios.
 
 Execute apenas os ficheiros que ainda não aplicou, pela ordem indicada.
 
@@ -62,7 +65,7 @@ Na área Admin, abra **Utilizadores › (utilizador com perfil MANAGER) › Âmb
 
 ## 6. Módulo Suporte IT
 
-Num projeto onde as migrations 1 a 5 já estão aplicadas, execute **apenas** `20261010000000_it_support_module.sql` no SQL Editor (uma única vez). A migration não altera nem apaga tabelas existentes: cria as tabelas do módulo, acrescenta permissões aos perfis existentes e novas definições, e substitui a função `validate_system_setting` mantendo as regras atuais (com validação das novas chaves).
+Num projeto onde as migrations 1 a 5 já estão aplicadas, execute **apenas** `20261008174215_it_support_module.sql` no SQL Editor (uma única vez). A migration não altera nem apaga tabelas existentes: cria as tabelas do módulo, acrescenta permissões aos perfis existentes e novas definições, e substitui a função `validate_system_setting` mantendo as regras atuais (com validação das novas chaves).
 
 Depois de aplicar:
 
@@ -74,7 +77,7 @@ Depois de aplicar:
 2. Atribua o perfil **IT** aos técnicos em **Utilizadores**. Os administradores (perfil **ADMIN**) podem consultar e operar a fila, mas não contam como técnicos disponíveis: só recebem as notificações de pedidos novos se não existir nenhum técnico ativo.
 3. Para verificar, entre como colaborador, abra um pedido em **Pedidos de suporte** e confirme que a equipa de IT o vê em **Suporte IT › Solicitações** e recebe a notificação.
 
-**Versão da migration:** o prefixo `20261010000000` segue a sequência das migrations anteriores e é posterior à data de desenvolvimento. Não há impedimento técnico (a Supabase CLI ordena as migrations pela versão e não a compara com o relógio). Até essa data passar, as novas migrations devem usar uma versão **superior** a `20261010000000` (ex.: `20261011000000_<nome>.sql`), em vez da gerada por `supabase migration new`, para não ficarem ordenadas antes de uma migration já aplicada.
+**Versão das migrations novas:** a Supabase CLI ordena as migrations pela versão e não a compara com o relógio. As migrations novas devem usar uma versão **superior** à última aplicada (hoje `20261012000002`), em vez da gerada por `supabase migration new`, para não ficarem ordenadas antes de uma migration já aplicada.
 
 ## 7. Timesheet Core
 
@@ -91,9 +94,27 @@ Depois de as aplicar, confirme no painel do Supabase:
 
 ### Versões das migrations
 
-Situação verificada em 2026-10-08 no projeto `iahgopefwixbprfzcwbd`:
-- O módulo IT foi aplicado com a versão remota `20261008174215_it_support_module`. O conteúdo é idêntico ao ficheiro local `20261010000000_it_support_module.sql`.
-- Para a Supabase CLI não tentar aplicar o módulo IT outra vez, alinhe o nome do ficheiro local com a versão remota **antes** de usar `supabase db push`: `20261010000000_it_support_module.sql` → `20261008174215_it_support_module.sql`. O conteúdo não muda.
+Situação verificada em 2026-10-09 no projeto `iahgopefwixbprfzcwbd`:
+- O módulo IT foi aplicado com a versão remota `20261008174215`. O ficheiro local foi renomeado para essa versão (o conteúdo não mudou).
+- As migrations do Timesheet Core tinham sido aplicadas fora da CLI. Depois de se confirmar que o esquema remoto era idêntico aos ficheiros (funções, políticas, colunas, restrições, triggers, permissões e bucket), foram registadas com `supabase migration repair --status applied 20261011000000 20261011000001 20261011000002 20261011000003`. Este comando só escreve no histórico; não altera o esquema.
+- As migrations da hierarquia (`20261012000000`–`02`) foram aplicadas com `supabase db push`.
+- Situação em 2026-10-09: 13 de 13 versões alinhadas entre o projeto e os ficheiros locais.
+- Antes de cada `supabase db push`, confirme com `supabase migration list --linked` e `supabase db push --linked --dry-run`.
+
+## 7.1 Hierarquia (Gestor e Manager)
+
+As migrations 11 a 13 não apagam dados. Fazem o seguinte:
+
+- criam o perfil GESTOR e quatro permissões, e retiram `TIMESHEET_MEETING_CREATE` aos perfis EMPLOYEE e IT (a alteração fica auditada);
+- acrescentam colunas e a tabela `approval_requests`;
+- substituem funções e triggers do Timesheet Core para o fluxo em dois níveis;
+- recriam a vista `my_team_members`.
+
+Depois de as aplicar:
+
+1. Em **Utilizadores**, atribua o perfil GESTOR a quem gere equipas. O GESTOR também pode ser escolhido na criação, mas só depois de publicar de novo a Edge Function (`supabase functions deploy admin-create-user`).
+2. No detalhe de cada GESTOR, atribua a equipa (departamentos e/ou colaboradores).
+3. No detalhe de cada MANAGER, atribua os gestores que supervisiona (âmbito "Colaborador") e, se existir, a equipa direta.
 - Em alternativa, aplique as migrations 7 a 10 pelo SQL Editor, pela ordem indicada.
 
 ## 8. Frontend
@@ -113,4 +134,4 @@ npm run dev
 | `npm run test:db` | Apenas os testes de segurança: aplica todas as migrations em PostgreSQL 17 (PGlite) com um ambiente que simula o Supabase e verifica RLS, âmbito de gestão, aprovações, auditoria, acessos proibidos e o módulo IT (transições, notas internas, notificações, equipamentos, escalada de privilégios, acesso anónimo) |
 | `npm run build` | Build de produção |
 
-Os testes de segurança (`supabase/tests/security.test.ts`, `supabase/tests/it.security.test.ts` e `supabase/tests/timesheet-core.security.test.ts`) não precisam de ligação ao Supabase. A harness simula o essencial do Supabase (roles, `auth.uid()` e um subconjunto de `storage`).
+Os testes de segurança (`supabase/tests/security.test.ts`, `supabase/tests/it.security.test.ts`, `supabase/tests/timesheet-core.security.test.ts` e `supabase/tests/hierarchy.security.test.ts`) não precisam de ligação ao Supabase. A harness simula o essencial do Supabase (roles, `auth.uid()` e um subconjunto de `storage`).

@@ -102,6 +102,16 @@ supabase/
 >
 > Ver [docs/timesheet-core.md](docs/timesheet-core.md).
 
+> **Hierarquia (ADMIN → MANAGER → GESTOR → COLABORADORES):**
+> - Perfil GESTOR com painel da equipa; o Manager tem um painel de supervisão.
+> - Âmbito em dois níveis, calculado no servidor.
+> - Ausências validadas pelo gestor e decididas pelo Manager.
+> - Pedidos de aprovação de oportunidades e criação de empresas no próprio formulário.
+> - Acompanhamento de tarefas e calendário com seleção de horário para agendar reuniões.
+> - Notificações por categoria e relatórios da equipa.
+>
+> Ver [docs/hierarquia-e-gestor.md](docs/hierarquia-e-gestor.md).
+
 > **Estado dos módulos:** integrados com o Supabase: área Admin; módulo Manager (equipa por âmbito, aprovações e rejeições, aprovação em massa, atividade, relatórios por âmbito); "Meu Timesheet" (períodos, registos de horas e submissão); módulo **Suporte IT** (pedidos de suporte, fila do IT, histórico, equipamentos, intervenções e painel operacional). A dashboard do Colaborador passou a ser o centro de trabalho real, e a camada temporária de dados de demonstração (`dataService`/`mockData`) foi removida.
 
 ### Módulo Suporte IT
@@ -121,3 +131,4 @@ supabase/
 - [Políticas de Segurança & RLS](docs/security.md)
 - [Matriz de Roles e Permissões](docs/roles-and-permissions.md)
 - [Timesheet Core](docs/timesheet-core.md)
+- [Hierarquia, Gestor e Manager](docs/hierarquia-e-gestor.md)

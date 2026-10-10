@@ -1,5 +1,7 @@
 # Timesheet Core · TsheetGRT
 
+> As regras da hierarquia (perfil GESTOR, supervisão do Manager, ausências em dois níveis, aprovação de oportunidades, acompanhamento de tarefas e categorias das notificações) estão em [hierarquia-e-gestor.md](hierarquia-e-gestor.md). As secções abaixo indicam onde essas migrations mudaram o comportamento.
+
 O Timesheet Core liga o registo de horas ao trabalho real da SI Holdings. O caminho deixa de ser "trabalhei 8 horas" e passa a ser:
 
 ```
@@ -28,7 +30,7 @@ As migrations são quatro, aplicadas por esta ordem:
 - **A oportunidade do tempo é derivada.** Num registo ligado a uma tarefa ou reunião, o servidor preenche `opportunity_id` a partir dela. Assim, "tempo por oportunidade" é sempre coerente.
 - **Cada entidade tem o seu histórico append-only:** `task_events`, `meeting_events`, `absence_events` e `opportunity_events`. Cada evento guarda o ator, o tipo, o campo, o valor anterior, o valor novo, a nota ou motivo, a marca `after_closure` e a data. A auditoria de segurança continua em `audit_events`, alimentada por triggers sobre estes históricos. São conceitos relacionados, mas tabelas distintas.
 - **O âmbito de gestão é o existente.** Toda a regra "o gestor vê/gere" usa `is_manager_of_employee` e `private.scope_covers`; não existe um segundo sistema de âmbito.
-- **Permissões granulares no módulo `work`.** Um futuro perfil (ex.: GESTOR) recebe estas permissões sem reconstrução do modelo. Até lá, o MANAGER assume essas funções. A única restrição a rever será `guard_manager_scope`, que hoje só aceita âmbitos para o perfil MANAGER.
+- **Permissões granulares no módulo `work`.** O perfil GESTOR recebeu-as sem reconstrução do modelo. O âmbito passou a ter dois níveis (ver [hierarquia-e-gestor.md](hierarquia-e-gestor.md)).
 - **Sem remoção física.** Usam-se estados: tarefas `CANCELLED`, reuniões `CANCELLED`, empresas `INACTIVE`, tipos de ausência inativos, eventos `CANCELLED`, anexos com remoção lógica (`deleted_at`).
 - **Concorrência.** As funções bloqueiam a linha (`FOR UPDATE`). As edições de tarefas, reuniões e oportunidades recebem o `updated_at` lido pelo cliente e são recusadas se outra pessoa alterou o registo entretanto.
 
@@ -64,7 +66,7 @@ qualquer estado em aberto ──cancelar (gestão, motivo)──► CANCELLED   
 
 **Reuniões:** `PLANNED → CONFIRMED → COMPLETED` (exige resultado, e só depois do início). `PLANNED`/`CONFIRMED → CANCELLED` (com motivo). Corrigir o resultado de uma reunião concluída exige motivo e fica marcado como pós-encerramento.
 
-**Ausências:** `DRAFT → SUBMITTED → APPROVED | REJECTED`; "pedir correção" devolve a `DRAFT` com comentário.
+**Ausências:** `DRAFT → SUBMITTED` (aguarda a validação do gestor da equipa) `→ PENDING_APPROVAL` (aguarda a decisão do Manager) `→ APPROVED | REJECTED`. "Pedir correção" (gestor ou Manager) devolve a `DRAFT` com comentário. Sem gestor de equipa, a submissão segue diretamente para `PENDING_APPROVAL`.
 - **Cancelamento pelo próprio:** um rascunho ou um pedido pendente pode ser cancelado a qualquer momento; uma ausência aprovada só antes de começar e com motivo.
 - **Sobreposições:** são recusadas.
 - **Tipos com comprovativo:** só são submetidos com o anexo.
@@ -75,19 +77,23 @@ qualquer estado em aberto ──cancelar (gestão, motivo)──► CANCELLED   
 
 ## 4. Permissões
 
-| Permissão | EMPLOYEE | MANAGER | IT | ADMIN |
-| :--- | :---: | :---: | :---: | :---: |
-| `TIMESHEET_TASK_READ`, `TIMESHEET_TASK_UPDATE` | ✓ | ✓ | ✓ | ✓ |
-| `TIMESHEET_TASK_CREATE`, `TIMESHEET_TASK_ASSIGN`, `TIMESHEET_TASK_REOPEN` | | ✓ | | ✓ |
-| `TIMESHEET_CALENDAR_READ` | ✓ | ✓ | ✓ | ✓ |
-| `TIMESHEET_CALENDAR_MANAGE` | | ✓ | | ✓ |
-| `TIMESHEET_MEETING_READ`, `TIMESHEET_MEETING_CREATE` | ✓ | ✓ | ✓ | ✓ |
-| `TIMESHEET_ABSENCE_CREATE` | ✓ | ✓ | ✓ | ✓ |
-| `TIMESHEET_ABSENCE_READ`, `TIMESHEET_ABSENCE_APPROVE` | | ✓ | | ✓ |
-| `TIMESHEET_OPPORTUNITY_READ`, `TIMESHEET_OPPORTUNITY_UPDATE` | ✓ | ✓ | | ✓ |
-| `TIMESHEET_OPPORTUNITY_CREATE`, `TIMESHEET_OPPORTUNITY_MANAGE` | | ✓ | | ✓ |
-| `TIMESHEET_ATTACHMENT_CREATE` | ✓ | ✓ | ✓ | ✓ |
-| `TIMESHEET_ATTACHMENT_DELETE` | | ✓ | | ✓ |
+| Permissão | EMPLOYEE | GESTOR | MANAGER | IT | ADMIN |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| `TIMESHEET_TASK_READ`, `TIMESHEET_TASK_UPDATE` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `TIMESHEET_TASK_CREATE`, `TIMESHEET_TASK_ASSIGN`, `TIMESHEET_TASK_REOPEN` | | ✓ | ✓ | | ✓ |
+| `TIMESHEET_CALENDAR_READ` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `TIMESHEET_CALENDAR_MANAGE` | | | ✓ | | ✓ |
+| `TIMESHEET_MEETING_READ` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `TIMESHEET_MEETING_CREATE` | | ✓ | ✓ | | ✓ |
+| `TIMESHEET_ABSENCE_CREATE` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `TIMESHEET_ABSENCE_READ` | | ✓ | ✓ | | ✓ |
+| `TIMESHEET_ABSENCE_VALIDATE` | | ✓ | | | ✓ |
+| `TIMESHEET_ABSENCE_APPROVE` | | | ✓ | | ✓ |
+| `TIMESHEET_OPPORTUNITY_READ`, `TIMESHEET_OPPORTUNITY_UPDATE` | ✓ | ✓ | ✓ | | ✓ |
+| `TIMESHEET_OPPORTUNITY_CREATE`, `TIMESHEET_OPPORTUNITY_MANAGE` | | ✓ | ✓ | | ✓ |
+| `TIMESHEET_OPPORTUNITY_APPROVE` | | | ✓ | | ✓ |
+| `TIMESHEET_ATTACHMENT_CREATE` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `TIMESHEET_ATTACHMENT_DELETE` | | ✓ | ✓ | | ✓ |
 
 - **Registo de tempo:** reutiliza as permissões existentes `SELF_TIMESHEET_*`, sem permissões novas.
 - **Vista "equipa":** tarefas, reuniões, calendário e carga da equipa usam `TEAM_READ` em conjunto com o âmbito.
@@ -98,8 +104,8 @@ qualquer estado em aberto ──cancelar (gestão, motivo)──► CANCELLED   
 | Registo | Vê | Altera / decide |
 | :--- | :--- | :--- |
 | Tarefa | Responsável, criador, gestor do responsável (âmbito), administração, responsável da oportunidade ligada | Execução: responsável. Planeamento, atribuição, cancelamento e reabertura: administração, criador ou gestor do responsável, com as permissões respetivas |
-| Reunião | Organizador, participantes, gestor do organizador, administração | Organizador, gestor do organizador, administração |
-| Ausência | Próprio, gestor do âmbito com `TIMESHEET_ABSENCE_READ`, administração | Próprio (rascunho, submissão, cancelamento); decisão: gestor do âmbito ou administração, nunca o próprio |
+| Reunião | Organizador, participantes, gestor do organizador, administração | Organizador, gestor do organizador, administração. Só se convida a equipa, as chefias ou os envolvidos no registo ligado |
+| Ausência | Próprio, gestor e Manager do âmbito com `TIMESHEET_ABSENCE_READ`, administração | Próprio (rascunho, submissão, cancelamento); validação: gestor da equipa; decisão: Manager do âmbito ou administração, nunca o próprio |
 | Oportunidade | Responsável, criador, membros, gestor do responsável, administração | Dados e etapa: responsável, criador, gestor, administração; membros comentam e registam tempo |
 | Anexo | Quem vê o registo a que pertence | Quem trabalha no registo, enquanto está aberto; remoção de anexos de terceiros com `TIMESHEET_ATTACHMENT_DELETE` e gestão do registo |
 | Evento interno | Toda a empresa, ou o departamento indicado | Quem o criou (com `TIMESHEET_CALENDAR_MANAGE`) ou a administração |
@@ -114,24 +120,31 @@ A leitura usa **URLs assinados de 2 minutos**: a política de SELECT do Storage 
 
 ## 7. Notificações (mecanismo existente `notifications`)
 
+> Atualizado pela hierarquia: as notificações têm categoria e ligação, e os destinatários seguem o gestor da equipa e o Manager (ver [hierarquia-e-gestor.md](hierarquia-e-gestor.md#9-notificações)).
+
 | Acontecimento | Destinatários |
 | :--- | :--- |
-| Tarefa atribuída ou reatribuída | Novo responsável |
-| Tarefa bloqueada; concluída (ou concluída com atraso) | Quem a criou |
+| Tarefa atribuída ou reatribuída | Novo responsável; o gestor da equipa, se foi outra pessoa a atribuir |
+| Tarefa bloqueada | Quem a criou e o gestor da equipa |
+| Tarefa concluída (ou concluída com atraso) | Quem a criou e o gestor da equipa; se exigir acompanhamento do Manager, quem supervisiona |
+| Conclusão validada | Responsável |
 | Tarefa reaberta ou cancelada; prazo ou prioridade alterados | Responsável |
 | Comentário numa tarefa | Responsável e criador (exceto o autor) |
-| Reunião criada, reagendada ou cancelada | Participantes e organizador (exceto o autor) |
-| Participante acrescentado | O participante |
-| Ausência submetida | Gestores do âmbito com permissão de aprovação; sem gestor, a administração |
-| Ausência aprovada, rejeitada ou devolvida | O colaborador |
-| Ausência aprovada cancelada | Gestores do âmbito |
+| Reunião criada, reagendada ou cancelada; local ou ligação alterados | Participantes e organizador (exceto o autor) |
+| Participante acrescentado ou retirado | O participante |
+| Ausência submetida | Gestor da equipa (validação); sem gestor, quem decide (Manager ou administração) |
+| Ausência validada | Quem decide (Manager ou administração); o colaborador é informado |
+| Ausência aprovada, rejeitada ou devolvida | O colaborador; o gestor que validou é informado da decisão |
+| Ausência cancelada | Quem a tinha pendente (gestor ou Manager); se já estava aprovada, o gestor da equipa e quem decidiu |
 | Oportunidade atribuída; membro acrescentado | O responsável; o membro |
 | Oportunidade ganha, perdida, cancelada ou reaberta | Responsável e criador |
+| Pedido de aprovação de oportunidade | Quem supervisiona o responsável com `TIMESHEET_OPPORTUNITY_APPROVE`; sem ninguém, a administração |
+| Oportunidade aprovada ou rejeitada | Quem pediu e o responsável |
 | Comentário numa oportunidade | O responsável |
 
 Nunca se notifica o próprio autor nem contas inativas.
 
-As notificações de **prazo próximo** não são enviadas, porque exigem um agendador (o projeto não tem `pg_cron`). Os prazos próximos e atrasados aparecem no centro de trabalho, na carga da equipa e no calendário.
+Os **alertas de prazo** (prazo nas próximas 24 h, tarefa em atraso e, para o gestor da equipa, atrasos da equipa) são gerados a pedido por `refresh_deadline_alerts` quando a aplicação carrega as notificações, sem duplicados. Não há agendador (o projeto não tem `pg_cron`). Os prazos também aparecem no centro de trabalho, na carga da equipa e no calendário.
 
 ## 8. Auditoria
 
@@ -165,12 +178,13 @@ As páginas ficam na secção **Trabalho** da barra lateral, cada uma protegida 
 | `/timesheet/absences` | Ausências e aprovações | `TIMESHEET_ABSENCE_CREATE` |
 | `/timesheet/opportunities`, `/timesheet/opportunities/:id`, `/timesheet/companies` | Oportunidades e empresas | `TIMESHEET_OPPORTUNITY_READ` |
 | `/timesheet/team` | Carga da equipa | `TEAM_READ` |
+| `/timesheet/reports` | Relatórios da equipa | `TEAM_READ` |
+| `/timesheet/approvals` | Pedidos de aprovação de oportunidades | `TIMESHEET_OPPORTUNITY_READ` |
 
 O detalhe do timesheet e a revisão do gestor mostram agora o contexto de cada registo de tempo e as ausências aprovadas no período.
 
 ## 11. Fora do âmbito nesta fase
 
-- Perfil GESTOR operacional.
 - Lembretes agendados de prazos (exigem `pg_cron` ou uma Edge Function agendada).
 - Ligação automática entre pedidos de IT e tarefas.
 - Interface para gerir os tipos de ausência: por agora geridos pela administração por SQL ou pela API sob RLS.

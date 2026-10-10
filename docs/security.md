@@ -153,3 +153,22 @@ Detalhe em [timesheet-core.md](timesheet-core.md). Princípios aplicados:
 - **XSS.** As ligações das reuniões e os sites das empresas só aceitam `http(s)` (restrição na base de dados). A interface nunca interpreta HTML vindo dos dados.
 - **Diretórios mínimos.** A escolha de responsáveis e participantes usa `list_work_people`, `get_meeting_people` e `get_opportunity_people`, que devolvem apenas nome, cargo e departamento. A RLS de `profiles` não foi alargada.
 
+## 10. Hierarquia organizacional (Gestor e Manager)
+
+Detalhe em [hierarquia-e-gestor.md](hierarquia-e-gestor.md). Princípios aplicados:
+
+- **Âmbito em dois níveis, calculado no servidor.**
+  - `private.supervises` (usada por `is_manager_of_employee`) estende ao Manager as equipas dos gestores que supervisiona.
+  - O âmbito só vale enquanto o titular tiver `TEAM_READ`.
+  - Um GESTOR nunca tem outros gestores, managers ou administradores no âmbito.
+- **Quem pede não decide.**
+  - Ausências: restrições `absence_requests_no_self_decision` e `absence_requests_no_self_validation`.
+  - Oportunidades: restrição `approval_requests_no_self_decision` e a recusa explícita a quem pediu e ao responsável da oportunidade.
+- **Decisões atómicas.** Cada decisão bloqueia a linha (`FOR UPDATE`) e valida o estado; a segunda decisão concorrente é recusada. Há um único pedido de aprovação pendente por oportunidade (índice único parcial).
+- **Regras impostas na base de dados.** A aprovação de oportunidades é verificada por um trigger para qualquer origem de escrita: sem aprovação, a oportunidade não avança para Proposta, Negociação ou Ganha.
+- **Sem escrita direta.** `approval_requests` não aceita `INSERT`/`UPDATE`/`DELETE` pela API e não tem acesso anónimo. A leitura acompanha a visibilidade da oportunidade.
+- **Agendamento de reuniões.**
+  - Exige `TIMESHEET_MEETING_CREATE` (retirada a EMPLOYEE e IT).
+  - Os convidados são validados no servidor: equipa, chefias ou envolvidos no registo ligado.
+- **Destinatários das notificações no backend.** Gestor da equipa: `private.operational_leads`. Decisores e escalonamentos: `private.supervisors_with`. As ligações das notificações só aceitam caminhos internos (restrição `notifications_link_internal` e validação no frontend).
+- **Descrição da função.** É um dado institucional: pela API direta exige `USERS_UPDATE`; pela função própria exige `TEAM_JOB_DESCRIPTION_UPDATE` e âmbito, nunca a própria. Cada alteração é auditada.

@@ -180,6 +180,22 @@ Regras de integridade principais (restrições na base de dados):
 - O nome e o NUIT das empresas são únicos.
 - Os anexos têm no máximo 10 MB e remoção lógica com autor.
 
+## 3.3 Hierarquia organizacional (Gestor e Manager)
+
+Descrição completa em [hierarquia-e-gestor.md](hierarquia-e-gestor.md). O que muda no modelo:
+
+| Objeto | Alteração |
+| :--- | :--- |
+| `roles` | Novo perfil `GESTOR` |
+| `profiles.job_description` | Descrição da função (≤ 2000 carateres), distinta do cargo (`job_title`) e do perfil técnico |
+| `manager_scopes` | Aceita MANAGER e GESTOR como titulares. Um GESTOR só tem colaboradores no âmbito; o Manager supervisiona gestores por âmbito explícito |
+| `absence_types.requires_manager_approval` | Política por tipo (por omissão, todos exigem a decisão do Manager) |
+| `absence_requests` | Estado `PENDING_APPROVAL`; `validated_by`, `validated_at`, `validation_comment`; sem autovalidação |
+| `opportunities.approval_status` | `NOT_REQUIRED`, `NOT_SUBMITTED`, `PENDING`, `APPROVED`, `REJECTED` |
+| `approval_requests` (nova) | Pedido de aprovação explícito (`APR-00001`): quem pediu, valor, moeda, justificação, estado, decisor, data e motivo. Um único pendente por oportunidade; sem decidir o próprio pedido |
+| `tasks` | `requires_manager_review`, `reviewed_at`, `reviewed_by`, `review_note` (acompanhamento da conclusão) |
+| `notifications` | `category`, `link` (só caminhos internos) e `dedup_key` (alertas sem repetição) |
+
 ## 4. Ficheiros de Migração (fonte única de verdade)
 
 Todas as migrações encontram-se em `supabase/migrations/` e são executadas por ordem (ver `docs/supabase-setup.md`):
@@ -188,13 +204,16 @@ Todas as migrações encontram-se em `supabase/migrations/` e são executadas po
 3. `20261001000002_seed_data.sql`: departamentos, perfis de acesso, permissões, atividades e configurações. **Não cria utilizadores.**
 4. `20261008000000_manager_scope_and_reviews.sql`: módulo Manager. Leitura por âmbito, funções `submit_timesheet`/`review_timesheet`/`approve_timesheets`, validação e auditoria de `manager_scopes`, vista `my_team_members`, notificações por trigger.
 5. `20261009000000_scope_rules_and_reviewer_visibility.sql`: âmbito por departamento limitado a colaboradores (EMPLOYEE), administradores excluídos do âmbito e função `get_timesheet_decisions` (nome, cargo e e-mail de quem decidiu).
-6. `20261010000000_it_support_module.sql`: módulo Suporte IT. Permissões `IT_*`, definições de prazos, tabelas do ponto 3.1, funções de transição dos pedidos, histórico, auditoria e notificações por trigger, políticas RLS e privilégios.
+6. `20261008174215_it_support_module.sql`: módulo Suporte IT. Permissões `IT_*`, definições de prazos, tabelas do ponto 3.1, funções de transição dos pedidos, histórico, auditoria e notificações por trigger, políticas RLS e privilégios.
 
 7. `20261011000000_timesheet_core_schema.sql`: Timesheet Core — permissões `TIMESHEET_*`, tabelas, restrições, índices, contexto do tempo e funções internas.
 8. `20261011000001_timesheet_core_workflows.sql`: funções das tarefas, registo de tempo e totais de tempo.
 9. `20261011000002_timesheet_core_meetings_absences_opportunities.sql`: reuniões, ausências, empresas e oportunidades.
 10. `20261011000003_timesheet_core_security.sql`: anexos (Storage), eventos internos, calendário, resumos, RLS e privilégios.
+11. `20261012000000_hierarchy_roles_scope.sql`: perfil GESTOR, permissões da hierarquia, `profiles.job_description`, âmbito em dois níveis (`private.supervises`), notificações com categoria, ligação e deduplicação.
+12. `20261012000001_hierarchy_workflows.sql`: ausências em dois níveis, `approval_requests` e aprovação de oportunidades, acompanhamento de tarefas, convidados das reuniões dentro do âmbito, encaminhamento das notificações e alertas de prazo.
+13. `20261012000002_hierarchy_dashboards_security.sql`: painéis, relatórios e supervisão, diretório de pessoas, calendário, RLS de `approval_requests`, vista `my_team_members` recriada e privilégios.
 
-> **Histórico remoto:** no projeto Supabase, o módulo IT foi aplicado com a versão `20261008174215_it_support_module` (o SQL é idêntico ao ficheiro `20261010000000_it_support_module.sql`). Ver [supabase-setup.md](supabase-setup.md#versões-das-migrations).
+> **Histórico remoto:** o histórico do projeto Supabase está alinhado com estes 13 ficheiros. O módulo IT usa a versão `20261008174215`, a mesma com que foi aplicado no projeto. Ver [supabase-setup.md](supabase-setup.md#versões-das-migrations).
 
 O primeiro administrador é configurado com `supabase/scripts/bootstrap_first_admin.sql`.
