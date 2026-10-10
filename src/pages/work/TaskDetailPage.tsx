@@ -5,6 +5,7 @@ import {
   Ban,
   CalendarPlus,
   CheckCircle2,
+  BadgeCheck,
   Clock3,
   ListPlus,
   PauseCircle,
@@ -25,6 +26,7 @@ import {
   listRelatedTasks,
   listTaskEvents,
   reopenTask,
+  reviewTask,
   startTask,
   unblockTask,
 } from '../../services/work/taskService';
@@ -54,7 +56,7 @@ import { isTaskOverdue, taskActions } from '../../utils/work';
 import { formatDate, formatDateTime, formatMinutesAsHours } from '../../utils/format';
 import { isUuid } from '../../utils/validation';
 
-type ModalKind = 'edit' | 'assign' | 'block' | 'cancel' | 'reopen' | 'followUp' | 'logTime' | 'meeting' | null;
+type ModalKind = 'edit' | 'assign' | 'block' | 'cancel' | 'reopen' | 'followUp' | 'logTime' | 'meeting' | 'review' | null;
 
 const DetailItem: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
   <div>
@@ -87,7 +89,8 @@ export const TaskDetailPage: React.FC = () => {
     () => (hasPermission('TIMESHEET_TASK_ASSIGN') || hasPermission('TIMESHEET_TASK_CREATE') ? listWorkPeople('ASSIGNEE') : Promise.resolve([])),
     []
   );
-  const participants = useAsyncData(() => (hasPermission('TIMESHEET_MEETING_CREATE') ? listWorkPeople('PARTICIPANT') : Promise.resolve([])), []);
+  // Reuniões: só quem as pode agendar obtém a lista de convidáveis (equipa e chefias).
+  const participants = useAsyncData(() => (hasPermission('TIMESHEET_MEETING_CREATE') ? listWorkPeople('MEETING') : Promise.resolve([])), []);
   const [modal, setModal] = useState<ModalKind>(null);
   const [completing, setCompleting] = useState<TaskDetail | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -132,6 +135,7 @@ export const TaskDetailPage: React.FC = () => {
       assign: hasPermission('TIMESHEET_TASK_ASSIGN'),
       reopen: hasPermission('TIMESHEET_TASK_REOPEN'),
       logTime: hasPermission('SELF_TIMESHEET_UPDATE'),
+      supervise: hasPermission('TEAM_SUPERVISE'),
     },
   });
   const isStale = detail.isLoading;
@@ -215,6 +219,11 @@ export const TaskDetailPage: React.FC = () => {
                 Registar tempo
               </Button>
             )}
+            {actions.canReview && (
+              <Button icon={BadgeCheck} disabled={isStale} onClick={() => setModal('review')}>
+                Validar conclusão
+              </Button>
+            )}
           </>
         }
       />
@@ -237,6 +246,18 @@ export const TaskDetailPage: React.FC = () => {
       {task.status === 'CANCELLED' && task.cancelReason && (
         <Alert variant="info" title="Tarefa cancelada">
           {task.cancelReason}
+        </Alert>
+      )}
+      {task.requiresManagerReview && task.status !== 'CANCELLED' && (
+        <Alert variant="info" title="Exige acompanhamento do Manager">
+          {task.reviewedAt
+            ? `Conclusão validada em ${formatDateTime(task.reviewedAt)}${task.reviewNote ? `: ${task.reviewNote}` : '.'}`
+            : 'Quando for concluída, quem supervisiona o gestor é notificado para validar a conclusão.'}
+        </Alert>
+      )}
+      {!task.requiresManagerReview && task.status === 'COMPLETED' && task.reviewedAt && (
+        <Alert variant="success" title="Conclusão validada">
+          {`Validada em ${formatDateTime(task.reviewedAt)}${task.reviewNote ? `: ${task.reviewNote}` : '.'}`}
         </Alert>
       )}
       {task.status === 'COMPLETED' && task.lateReason && (
@@ -417,6 +438,7 @@ export const TaskDetailPage: React.FC = () => {
         task={null}
         assignees={people.data ?? []}
         links={{ parentTaskId: task.id, opportunityId: task.opportunity?.id ?? null }}
+        canRequestManagerReview={hasPermission('TIMESHEET_TASK_ASSIGN') && !hasPermission('TEAM_SUPERVISE')}
         contextLabel={`Tarefa adicional de ${task.reference}. A tarefa original não é alterada.`}
         onClose={() => setModal(null)}
         onSaved={(taskId) => {
@@ -474,6 +496,18 @@ export const TaskDetailPage: React.FC = () => {
         onConfirm={async (reason) => {
           await reopenTask(task.id, reason ?? '', null);
           afterAction('Tarefa reaberta.');
+        }}
+      />
+      <TicketNoteModal
+        isOpen={modal === 'review'}
+        title={`Validar a conclusão de ${task.reference}`}
+        description="Confirma que o resultado foi verificado. O responsável é notificado e a validação fica no histórico."
+        note={{ label: 'Nota (opcional)', maxLength: 1000 }}
+        confirmLabel="Validar conclusão"
+        onClose={() => setModal(null)}
+        onConfirm={async (note) => {
+          await reviewTask(task.id, note);
+          afterAction('Conclusão validada.');
         }}
       />
       <CompleteTaskModal task={completing} onClose={() => setCompleting(null)} onCompleted={() => afterAction('Tarefa concluída.')} />

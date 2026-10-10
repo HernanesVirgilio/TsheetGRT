@@ -41,11 +41,21 @@ export const TasksPage: React.FC = () => {
   const viewerId = currentUser?.id ?? '';
   const canSeeTeam = hasPermission('TEAM_READ');
   const canCreate = hasPermission('TIMESHEET_TASK_CREATE');
+  const canFollowUp = canSeeTeam && hasPermission('TIMESHEET_TASK_ASSIGN');
 
   const initialScope = searchParams.get('scope');
-  const [scope, setScope] = useState<TaskScope>(initialScope === 'TEAM' && canSeeTeam ? 'TEAM' : initialScope === 'CREATED' && canCreate ? 'CREATED' : 'MINE');
+  const initialStatus = searchParams.get('status');
+  const [scope, setScope] = useState<TaskScope>(
+    initialScope === 'TEAM' && canSeeTeam
+      ? 'TEAM'
+      : initialScope === 'CREATED' && canCreate
+        ? 'CREATED'
+        : initialScope === 'FOLLOW_UP' && canFollowUp
+          ? 'FOLLOW_UP'
+          : 'MINE'
+  );
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState(OPEN);
+  const [status, setStatus] = useState(initialStatus && isTaskStatus(initialStatus) ? initialStatus : OPEN);
   const [priority, setPriority] = useState(ALL);
   const [assigneeId, setAssigneeId] = useState(ALL);
   const [overdueOnly, setOverdueOnly] = useState(searchParams.get('overdue') === '1');
@@ -60,7 +70,8 @@ export const TasksPage: React.FC = () => {
         scope,
         viewerId,
         search: debouncedSearch,
-        statuses: toStatuses(status),
+        // "Por acompanhar" são sempre tarefas concluídas por validar.
+        statuses: scope === 'FOLLOW_UP' ? [] : toStatuses(status),
         priority: isWorkPriority(priority) ? priority : null,
         assigneeId: scope !== 'MINE' && assigneeId !== ALL ? assigneeId : null,
         overdueOnly,
@@ -104,6 +115,7 @@ export const TasksPage: React.FC = () => {
     { value: 'MINE', label: 'As minhas', visible: true },
     { value: 'TEAM', label: 'Equipa', visible: canSeeTeam },
     { value: 'CREATED', label: 'Criadas por mim', visible: canCreate },
+    { value: 'FOLLOW_UP', label: 'Por acompanhar', visible: canFollowUp },
   ];
 
   return (
@@ -133,7 +145,7 @@ export const TasksPage: React.FC = () => {
       <Panel flush>
         <div className="grid grid-cols-1 gap-3 border-b border-border p-4 sm:grid-cols-2 lg:grid-cols-5">
           <SearchInput label="Pesquisar referência ou título" value={search} onChange={(event) => setSearch(event.target.value)} />
-          <FilterSelect label="Filtrar por estado" value={status} onChange={(event) => setStatus(event.target.value)}>
+          <FilterSelect label="Filtrar por estado" value={status} disabled={scope === 'FOLLOW_UP'} onChange={(event) => setStatus(event.target.value)}>
             <option value={OPEN}>Em aberto</option>
             <option value={ALL}>Todos os estados</option>
             {TASK_STATUSES.map((value) => (
@@ -193,6 +205,7 @@ export const TasksPage: React.FC = () => {
         isOpen={isCreateOpen}
         task={null}
         assignees={people.data ?? []}
+        canRequestManagerReview={hasPermission('TIMESHEET_TASK_ASSIGN') && !hasPermission('TEAM_SUPERVISE')}
         onClose={() => setIsCreateOpen(false)}
         onSaved={(taskId) => {
           setIsCreateOpen(false);

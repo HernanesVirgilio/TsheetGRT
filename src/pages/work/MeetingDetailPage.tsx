@@ -50,7 +50,7 @@ export const MeetingDetailPage: React.FC = () => {
   const { currentUser, hasPermission } = useAuth();
   const viewerId = currentUser?.id ?? '';
   const detail = useAsyncData(() => loadMeeting(id), [id]);
-  const participants = useAsyncData(() => (hasPermission('TIMESHEET_MEETING_CREATE') ? listWorkPeople('PARTICIPANT') : Promise.resolve([])), []);
+  const participants = useAsyncData(() => (hasPermission('TIMESHEET_MEETING_CREATE') ? listWorkPeople('MEETING') : Promise.resolve([])), []);
   const assignees = useAsyncData(() => (hasPermission('TIMESHEET_TASK_CREATE') ? listWorkPeople('ASSIGNEE') : Promise.resolve([])), []);
   const [modal, setModal] = useState<ModalKind>(null);
   const [outcomeFor, setOutcomeFor] = useState<MeetingDetail | null>(null);
@@ -330,7 +330,13 @@ export const MeetingDetailPage: React.FC = () => {
         isOpen={modal === 'edit'}
         meeting={meeting}
         participantIds={people.filter((person) => !person.isOrganizer).map((person) => person.profileId)}
-        people={participants.data ?? []}
+        people={[
+          ...(participants.data ?? []),
+          // Quem já participa continua na lista, mesmo que esteja fora do âmbito de quem edita.
+          ...people
+            .filter((person) => !person.isOrganizer && !(participants.data ?? []).some((candidate) => candidate.profileId === person.profileId))
+            .map((person) => ({ profileId: person.profileId, fullName: person.fullName, jobTitle: person.jobTitle, departmentName: null })),
+        ]}
         onClose={() => setModal(null)}
         onSaved={(_meetingId, text) => afterAction(text)}
       />

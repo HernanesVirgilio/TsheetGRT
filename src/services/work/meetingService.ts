@@ -7,7 +7,7 @@ import { toIlikePattern } from '../../utils/validation';
 import { mapWorkEvent, WORK_EVENT_COLUMNS } from './workEvents';
 
 const MEETING_SELECT =
-  'id, title, description, objective, starts_at, ends_at, location, meeting_url, organizer_id, status, outcome, decisions, next_steps, cancel_reason, updated_at, organizer:profiles!meetings_organizer_id_fkey(full_name), task:tasks(id, reference, title), opportunity:opportunities(id, reference, title)' as const;
+  'id, title, description, objective, starts_at, ends_at, location, meeting_url, organizer_id, status, outcome, decisions, next_steps, cancel_reason, updated_at, organizer:profiles!meetings_organizer_id_fkey(full_name), task:tasks!meetings_task_id_fkey(id, reference, title), opportunity:opportunities(id, reference, title)' as const;
 
 interface MeetingRow {
   id: string;

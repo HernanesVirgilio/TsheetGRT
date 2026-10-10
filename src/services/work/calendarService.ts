@@ -115,21 +115,38 @@ export async function getTeamWorkOverview(): Promise<TeamMemberWorkload[]> {
     profileId: row.profile_id,
     fullName: row.full_name,
     jobTitle: row.job_title,
+    jobDescription: row.job_description,
     departmentName: row.department_name,
+    roleCode: row.role_code,
+    leadNames: row.lead_names,
+    isDirect: row.is_direct,
     tasksOpen: row.tasks_open,
     tasksInProgress: row.tasks_in_progress,
     tasksBlocked: row.tasks_blocked,
     tasksOverdue: row.tasks_overdue,
     tasksDueNext7Days: row.tasks_due_next_7_days,
+    tasksCompleted30Days: row.tasks_completed_30_days,
+    opportunitiesActive: row.opportunities_active,
     minutesThisWeek: row.minutes_this_week,
+    lastActivityDate: row.last_activity_date,
     absenceToday: row.absence_today,
     pendingAbsenceRequests: row.pending_absence_requests,
   }));
 }
 
-/** ASSIGNEE: responsáveis possíveis (âmbito). PARTICIPANT: colaboradores ativos (reuniões/membros). */
-export async function listWorkPeople(purpose: 'ASSIGNEE' | 'PARTICIPANT'): Promise<WorkPerson[]> {
+/**
+ * ASSIGNEE: responsáveis possíveis (o próprio e a equipa do âmbito, com a descrição da função).
+ * MEETING: quem pode ser convidado para reuniões (equipa e chefias de quem organiza).
+ * PARTICIPANT: colaboradores ativos (membros de oportunidades).
+ */
+export async function listWorkPeople(purpose: 'ASSIGNEE' | 'MEETING' | 'PARTICIPANT'): Promise<WorkPerson[]> {
   const { data, error } = await supabase.rpc('list_work_people', { p_purpose: purpose });
   if (error) throw toServiceError(error, 'Não foi possível carregar os colaboradores.');
-  return data.map((row) => ({ profileId: row.profile_id, fullName: row.full_name, jobTitle: row.job_title, departmentName: row.department_name }));
+  return data.map((row) => ({
+    profileId: row.profile_id,
+    fullName: row.full_name,
+    jobTitle: row.job_title,
+    departmentName: row.department_name,
+    jobDescription: row.job_description,
+  }));
 }

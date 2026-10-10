@@ -7,8 +7,8 @@ import { PeoplePicker } from './PeoplePicker';
 import { getErrorMessage } from '../../lib/errors';
 import { createMeeting, updateMeeting } from '../../services/work/meetingService';
 import type { MeetingDetail, WorkPerson } from '../../types/work';
-import type { MeetingFormField, MeetingFormValues } from '../../utils/work';
-import { combineDateTime, toDateInput, toTimeInput, validateMeetingForm } from '../../utils/work';
+import type { MeetingFormField, MeetingFormValues, SlotSelection } from '../../utils/work';
+import { combineDateTime, initialMeetingValues, validateMeetingForm } from '../../utils/work';
 import type { FieldErrors } from '../../utils/validation';
 import { hasErrors } from '../../utils/validation';
 
@@ -21,23 +21,10 @@ interface MeetingFormModalProps {
   links?: { taskId?: string | null; opportunityId?: string | null };
   contextLabel?: string;
   defaultDate?: string;
+  /** Intervalo escolhido no calendário (data, início e fim já preenchidos). */
+  initialRange?: SlotSelection | null;
   onClose: () => void;
   onSaved: (meetingId: string, message: string) => void;
-}
-
-function initialValues(meeting: MeetingDetail | null, defaultDate?: string): MeetingFormValues {
-  const start = meeting ? new Date(meeting.startsAt) : null;
-  const end = meeting ? new Date(meeting.endsAt) : null;
-  return {
-    title: meeting?.title ?? '',
-    date: start ? toDateInput(start) : (defaultDate ?? toDateInput(new Date())),
-    startTime: start ? toTimeInput(start) : '10:00',
-    endTime: end ? toTimeInput(end) : '11:00',
-    location: meeting?.location ?? '',
-    meetingUrl: meeting?.meetingUrl ?? '',
-    objective: meeting?.objective ?? '',
-    description: meeting?.description ?? '',
-  };
 }
 
 export const MeetingFormModal: React.FC<MeetingFormModalProps> = ({
@@ -48,10 +35,11 @@ export const MeetingFormModal: React.FC<MeetingFormModalProps> = ({
   links,
   contextLabel,
   defaultDate,
+  initialRange,
   onClose,
   onSaved,
 }) => {
-  const [values, setValues] = useState<MeetingFormValues>(() => initialValues(meeting, defaultDate));
+  const [values, setValues] = useState<MeetingFormValues>(() => initialMeetingValues(meeting, defaultDate, initialRange));
   const [selected, setSelected] = useState<string[]>(participantIds);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors<MeetingFormField>>({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -59,11 +47,11 @@ export const MeetingFormModal: React.FC<MeetingFormModalProps> = ({
 
   useEffect(() => {
     if (!isOpen) return;
-    setValues(initialValues(meeting, defaultDate));
+    setValues(initialMeetingValues(meeting, defaultDate, initialRange));
     setSelected(participantIds);
     setFieldErrors({});
     setErrorMessage(null);
-  }, [isOpen, meeting, participantIds, defaultDate]);
+  }, [isOpen, meeting, participantIds, defaultDate, initialRange]);
 
   const updateValue = (field: MeetingFormField, value: string) => {
     setValues((current) => ({ ...current, [field]: value }));
@@ -146,7 +134,13 @@ export const MeetingFormModal: React.FC<MeetingFormModalProps> = ({
         </div>
         <TextAreaField label="Objetivo" rows={2} maxLength={2000} value={values.objective} onChange={(event) => updateValue('objective', event.target.value)} />
         <TextAreaField label="Descrição / agenda" rows={3} maxLength={5000} value={values.description} onChange={(event) => updateValue('description', event.target.value)} />
-        <PeoplePicker label="Participantes" people={people} selectedIds={selected} onChange={setSelected} hint="Recebem um convite por notificação." />
+        <PeoplePicker
+          label="Participantes"
+          people={people}
+          selectedIds={selected}
+          onChange={setSelected}
+          hint="Pode convidar a sua equipa e as suas chefias. Recebem um convite por notificação; alterações e cancelamentos também são notificados."
+        />
       </form>
     </Modal>
   );

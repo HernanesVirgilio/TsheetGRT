@@ -36,6 +36,8 @@ interface TaskFormModalProps {
   links?: TaskLinks;
   /** Contexto mostrado no topo (ex.: "Tarefa adicional de TAR-00012"). */
   contextLabel?: string;
+  /** Mostra a opção de escalar a conclusão ao Manager (para gestores; o Manager não escala para si). */
+  canRequestManagerReview?: boolean;
   onClose: () => void;
   onSaved: (taskId: string, message: string) => void;
 }
@@ -54,8 +56,18 @@ function initialValues(task: TaskDetail | null): TaskFormValues {
   };
 }
 
-export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, task, assignees, links, contextLabel, onClose, onSaved }) => {
+export const TaskFormModal: React.FC<TaskFormModalProps> = ({
+  isOpen,
+  task,
+  assignees,
+  links,
+  contextLabel,
+  canRequestManagerReview = false,
+  onClose,
+  onSaved,
+}) => {
   const [values, setValues] = useState<TaskFormValues>(() => initialValues(task));
+  const [requiresManagerReview, setRequiresManagerReview] = useState(false);
   const [reason, setReason] = useState('');
   const [fieldErrors, setFieldErrors] = useState<FieldErrors<TaskFormField | 'reason'>>({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -65,6 +77,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, task, assi
   useEffect(() => {
     if (!isOpen) return;
     setValues(initialValues(task));
+    setRequiresManagerReview(false);
     setReason('');
     setFieldErrors({});
     setErrorMessage(null);
@@ -114,6 +127,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, task, assi
           parentTaskId: links?.parentTaskId ?? null,
           opportunityId: links?.opportunityId ?? null,
           meetingId: links?.meetingId ?? null,
+          requiresManagerReview: canRequestManagerReview && requiresManagerReview,
         });
         onSaved(taskId, 'Tarefa criada.');
       }
@@ -178,16 +192,19 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, task, assi
           </SelectField>
           {!task && assignees.length > 0 && (
             <SelectField
-              label="Responsável"
+              label="Responsável pela execução"
               value={values.assigneeId}
-              hint="Sem responsável, a tarefa fica planeada."
+              hint={
+                assignees.find((person) => person.profileId === values.assigneeId)?.jobDescription ??
+                'Sem responsável, a tarefa fica planeada. Pode escolher-se a si próprio.'
+              }
               onChange={(event) => updateValue('assigneeId', event.target.value)}
             >
               <option value="">Sem responsável (planeada)</option>
               {assignees.map((person) => (
                 <option key={person.profileId} value={person.profileId}>
                   {person.fullName}
-                  {person.departmentName ? ` · ${person.departmentName}` : ''}
+                  {person.jobTitle ? ` · ${person.jobTitle}` : person.departmentName ? ` · ${person.departmentName}` : ''}
                 </option>
               ))}
             </SelectField>
@@ -204,6 +221,20 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, task, assi
             onChange={(event) => updateValue('estimatedHours', event.target.value)}
           />
         </div>
+        {!task && canRequestManagerReview && (
+          <label className="flex items-start gap-2 text-sm text-text">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 accent-primary-hover"
+              checked={requiresManagerReview}
+              onChange={(event) => setRequiresManagerReview(event.target.checked)}
+            />
+            <span>
+              Exige acompanhamento do Manager
+              <span className="block text-xs text-text-muted">A conclusão é enviada ao Manager para validação. Use apenas quando a decisão lhe compete.</span>
+            </span>
+          </label>
+        )}
         {isCompleted && (
           <TextAreaField
             label="Motivo da alteração"

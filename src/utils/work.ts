@@ -3,9 +3,12 @@
 // autorização efetiva é feita pelas funções e políticas RLS da base de dados.
 import type {
   AbsenceStatus,
+  MeetingDetail,
+  ApprovalRequestStatus,
   CalendarItemType,
   EntryKind,
   MeetingStatus,
+  OpportunityApprovalStatus,
   OpportunityStatus,
   TaskStatus,
   WorkEvent,
@@ -42,7 +45,8 @@ export const MEETING_STATUS_LABELS: Record<MeetingStatus, string> = {
 
 export const ABSENCE_STATUS_LABELS: Record<AbsenceStatus, string> = {
   DRAFT: 'Rascunho',
-  SUBMITTED: 'A aguardar aprovação',
+  SUBMITTED: 'A aguardar validação do gestor',
+  PENDING_APPROVAL: 'A aguardar decisão do Manager',
   APPROVED: 'Aprovada',
   REJECTED: 'Rejeitada',
   CANCELLED: 'Cancelada',
@@ -56,6 +60,21 @@ export const OPPORTUNITY_STATUS_LABELS: Record<OpportunityStatus, string> = {
   WON: 'Ganha',
   LOST: 'Perdida',
   CANCELLED: 'Cancelada',
+};
+
+export const OPPORTUNITY_APPROVAL_LABELS: Record<OpportunityApprovalStatus, string> = {
+  NOT_REQUIRED: 'Não exige aprovação',
+  NOT_SUBMITTED: 'Aprovação por pedir',
+  PENDING: 'Aprovação pendente',
+  APPROVED: 'Aprovada pelo Manager',
+  REJECTED: 'Aprovação recusada',
+};
+
+export const APPROVAL_REQUEST_STATUS_LABELS: Record<ApprovalRequestStatus, string> = {
+  PENDING: 'Pendente',
+  APPROVED: 'Aprovado',
+  REJECTED: 'Rejeitado',
+  CANCELLED: 'Anulado',
 };
 
 export const ENTRY_KIND_LABELS: Record<EntryKind, string> = {
@@ -116,6 +135,8 @@ const FIELD_LABELS: Record<string, string> = {
   notes: 'Observações',
   owner: 'Responsável',
   member: 'Membro',
+  approval: 'Aprovação',
+  review: 'Acompanhamento',
 };
 
 const EVENT_LABELS: Record<string, string> = {
@@ -136,6 +157,7 @@ const EVENT_LABELS: Record<string, string> = {
   TASK_CANCELLED: 'Tarefa cancelada',
   TASK_ATTACHMENT_ADDED: 'Anexo adicionado',
   TASK_ATTACHMENT_REMOVED: 'Anexo removido',
+  TASK_REVIEWED: 'Conclusão validada',
   MEETING_CREATED: 'Reunião criada',
   MEETING_UPDATED: 'Reunião alterada',
   MEETING_RESCHEDULED: 'Reunião reagendada',
@@ -150,6 +172,7 @@ const EVENT_LABELS: Record<string, string> = {
   ABSENCE_CREATED: 'Pedido criado',
   ABSENCE_UPDATED: 'Pedido alterado',
   ABSENCE_SUBMITTED: 'Pedido submetido',
+  ABSENCE_VALIDATED: 'Validado pelo gestor e encaminhado',
   ABSENCE_APPROVED: 'Pedido aprovado',
   ABSENCE_REJECTED: 'Pedido rejeitado',
   ABSENCE_CHANGES_REQUESTED: 'Devolvido para correção',
@@ -169,6 +192,10 @@ const EVENT_LABELS: Record<string, string> = {
   OPPORTUNITY_REOPENED: 'Oportunidade reaberta',
   OPPORTUNITY_ATTACHMENT_ADDED: 'Anexo adicionado',
   OPPORTUNITY_ATTACHMENT_REMOVED: 'Anexo removido',
+  OPPORTUNITY_APPROVAL_REQUESTED: 'Aprovação pedida ao Manager',
+  OPPORTUNITY_APPROVED: 'Aprovada pelo Manager',
+  OPPORTUNITY_APPROVAL_REJECTED: 'Aprovação recusada',
+  OPPORTUNITY_APPROVAL_CANCELLED: 'Pedido de aprovação anulado',
 };
 
 export function describeWorkEvent(event: Pick<WorkEvent, 'eventType' | 'field'>): string {
@@ -228,6 +255,7 @@ export function compareTasksForToday(
 // ---------------------------------------------------------------------------- ações visíveis
 
 export interface TaskActions {
+  canReview: boolean;
   canStart: boolean;
   canBlock: boolean;
   canUnblock: boolean;
@@ -245,15 +273,26 @@ export interface TaskViewer {
   profileId: string;
   /** O servidor considera "gestão": administração, criador ou gestor do responsável. */
   managesTask: boolean;
-  permissions: { update: boolean; create: boolean; assign: boolean; reopen: boolean; logTime: boolean };
+  permissions: { update: boolean; create: boolean; assign: boolean; reopen: boolean; logTime: boolean; supervise?: boolean };
 }
 
-export function taskActions(task: { status: TaskStatus; assigneeId: string | null }, viewer: TaskViewer): TaskActions {
+interface TaskForActions {
+  status: TaskStatus;
+  assigneeId: string | null;
+  requiresManagerReview?: boolean;
+  reviewedAt?: string | null;
+}
+
+export function taskActions(task: TaskForActions, viewer: TaskViewer): TaskActions {
   const isAssignee = task.assigneeId === viewer.profileId;
   const { update, create, assign, reopen, logTime } = viewer.permissions;
+  const supervise = viewer.permissions.supervise ?? false;
   const manages = viewer.managesTask;
   const live = task.status !== 'CANCELLED';
   return {
+    // Validar a conclusão: o gestor da tarefa ou, se exigir acompanhamento do Manager, quem supervisiona.
+    canReview:
+      task.status === 'COMPLETED' && !task.reviewedAt && !isAssignee && assign && (task.requiresManagerReview ? supervise : manages),
     canStart: update && isAssignee && task.status === 'ASSIGNED',
     canBlock: update && (isAssignee || manages) && task.status === 'IN_PROGRESS',
     canUnblock: update && (isAssignee || manages) && task.status === 'BLOCKED',
@@ -272,13 +311,31 @@ export function isOpportunityActive(status: OpportunityStatus): boolean {
   return ACTIVE_OPPORTUNITY_STATUSES.includes(status);
 }
 
+/** Etapas que só são alcançadas com a oportunidade aprovada (ou sem exigência de aprovação). */
+const STAGES_REQUIRING_APPROVAL: readonly OpportunityStatus[] = ['PROPOSAL', 'NEGOTIATION', 'WON'];
+
+export function isOpportunityCleared(approvalStatus: OpportunityApprovalStatus): boolean {
+  return approvalStatus === 'APPROVED' || approvalStatus === 'NOT_REQUIRED';
+}
+
 /** Próximas etapas possíveis a partir do estado atual (as fechadas só reabrem com gestão). */
-export function nextOpportunityStatuses(status: OpportunityStatus, canManage: boolean): OpportunityStatus[] {
+export function nextOpportunityStatuses(
+  status: OpportunityStatus,
+  canManage: boolean,
+  approvalStatus: OpportunityApprovalStatus = 'NOT_REQUIRED'
+): OpportunityStatus[] {
   if (isOpportunityActive(status)) {
+    const cleared = isOpportunityCleared(approvalStatus);
     const stages = ACTIVE_OPPORTUNITY_STATUSES.filter((stage) => stage !== status);
-    return [...stages, 'WON', 'LOST', ...(canManage ? (['CANCELLED'] as const) : [])];
+    const candidates: OpportunityStatus[] = [...stages, 'WON', 'LOST', ...(canManage ? (['CANCELLED'] as const) : [])];
+    return candidates.filter((stage) => cleared || !STAGES_REQUIRING_APPROVAL.includes(stage));
   }
   return canManage ? ['QUALIFICATION'] : [];
+}
+
+/** O pedido de aprovação só pode ser feito com a oportunidade em curso e sem pedido ou aprovação ativos. */
+export function canRequestOpportunityApproval(status: OpportunityStatus, approvalStatus: OpportunityApprovalStatus): boolean {
+  return isOpportunityActive(status) && (approvalStatus === 'NOT_SUBMITTED' || approvalStatus === 'REJECTED');
 }
 
 /** Estados de oportunidade que exigem motivo na transição. */
@@ -367,6 +424,22 @@ export function validateMeetingForm(values: MeetingFormValues): FieldErrors<Meet
   if (url && !/^https?:\/\//i.test(url)) errors.meetingUrl = 'A ligação tem de começar por http:// ou https://.';
   if (values.location.trim().length > 200) errors.location = 'Máximo de 200 carateres.';
   return errors;
+}
+
+/** Valores iniciais do formulário de reunião: a reunião existente, o intervalo escolhido no calendário ou o dia em vista. */
+export function initialMeetingValues(meeting: MeetingDetail | null, defaultDate?: string, initialRange?: SlotSelection | null): MeetingFormValues {
+  const start = meeting ? new Date(meeting.startsAt) : null;
+  const end = meeting ? new Date(meeting.endsAt) : null;
+  return {
+    title: meeting?.title ?? '',
+    date: start ? toDateInput(start) : (initialRange?.date ?? defaultDate ?? toDateInput(new Date())),
+    startTime: start ? toTimeInput(start) : (initialRange?.startTime ?? '10:00'),
+    endTime: end ? toTimeInput(end) : (initialRange?.endTime ?? '11:00'),
+    location: meeting?.location ?? '',
+    meetingUrl: meeting?.meetingUrl ?? '',
+    objective: meeting?.objective ?? '',
+    description: meeting?.description ?? '',
+  };
 }
 
 export interface AbsenceFormValues {
@@ -549,6 +622,90 @@ export function itemOccursOn(item: { startsAt: string; endsAt: string; allDay: b
   const end = new Date(item.endsAt).getTime();
   if (start === end) return start >= dayStart && start < dayEnd;
   return start < dayEnd && end > dayStart && !(item.allDay && end === dayStart);
+}
+
+// ---------------------------------------------------------------------------- grelha horária do calendário
+
+export const CALENDAR_DAY_START_HOUR = 7;
+export const CALENDAR_DAY_END_HOUR = 21;
+export const CALENDAR_SLOT_MINUTES = 30;
+export const CALENDAR_SLOT_COUNT = ((CALENDAR_DAY_END_HOUR - CALENDAR_DAY_START_HOUR) * 60) / CALENDAR_SLOT_MINUTES;
+
+/** Hora (HH:MM) do início de uma fatia da grelha. */
+export function slotStartTime(slot: number): string {
+  const minutes = CALENDAR_DAY_START_HOUR * 60 + slot * CALENDAR_SLOT_MINUTES;
+  return `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
+}
+
+export interface SlotSelection {
+  date: string;
+  startTime: string;
+  endTime: string;
+}
+
+/**
+ * Intervalo selecionado na grelha (clique, arrastamento ou teclado): do início da primeira fatia ao fim
+ * da última, independentemente da direção em que o utilizador arrastou.
+ */
+export function selectionToRange(day: Date, anchorSlot: number, focusSlot: number): SlotSelection {
+  const clamp = (slot: number) => Math.min(Math.max(Math.round(slot), 0), CALENDAR_SLOT_COUNT - 1);
+  const first = Math.min(clamp(anchorSlot), clamp(focusSlot));
+  const last = Math.max(clamp(anchorSlot), clamp(focusSlot));
+  return { date: toDateInput(day), startTime: slotStartTime(first), endTime: slotStartTime(last + 1) };
+}
+
+export interface TimedLayout<Item> {
+  item: Item;
+  /** Minutos desde o início da grelha. */
+  top: number;
+  height: number;
+  lane: number;
+  lanes: number;
+}
+
+/**
+ * Posição dos itens com hora num dia da grelha: recortados ao horário visível e distribuídos em colunas
+ * quando se sobrepõem (para não se esconderem uns aos outros).
+ */
+export function layoutTimedItems<Item extends { startsAt: string; endsAt: string }>(items: Item[], day: Date): TimedLayout<Item>[] {
+  const gridStart = new Date(day.getFullYear(), day.getMonth(), day.getDate(), CALENDAR_DAY_START_HOUR).getTime();
+  const gridMinutes = (CALENDAR_DAY_END_HOUR - CALENDAR_DAY_START_HOUR) * 60;
+  const positioned = items
+    .map((item) => {
+      const start = (new Date(item.startsAt).getTime() - gridStart) / 60000;
+      const end = (new Date(item.endsAt).getTime() - gridStart) / 60000;
+      const top = Math.max(0, Math.min(start, gridMinutes - 15));
+      const bottom = Math.min(gridMinutes, Math.max(end, top + 15));
+      return { item, top, height: bottom - top };
+    })
+    .filter((entry) => entry.top < gridMinutes)
+    .sort((first, second) => first.top - second.top || second.height - first.height);
+
+  const result: TimedLayout<Item>[] = [];
+  let cluster: TimedLayout<Item>[] = [];
+  let clusterEnd = -1;
+  const laneEnds: number[] = [];
+  const closeCluster = () => {
+    const lanes = Math.max(1, ...cluster.map((entry) => entry.lane + 1));
+    cluster.forEach((entry) => result.push({ ...entry, lanes }));
+    cluster = [];
+    laneEnds.length = 0;
+  };
+  for (const entry of positioned) {
+    if (cluster.length > 0 && entry.top >= clusterEnd) closeCluster();
+    let lane = laneEnds.findIndex((end) => end <= entry.top);
+    if (lane === -1) lane = laneEnds.length;
+    laneEnds[lane] = entry.top + entry.height;
+    cluster.push({ ...entry, lane, lanes: 1 });
+    clusterEnd = Math.max(clusterEnd, entry.top + entry.height);
+  }
+  if (cluster.length > 0) closeCluster();
+  return result;
+}
+
+/** Período por omissão dos painéis e relatórios: os últimos N dias até hoje. */
+export function recentPeriod(days: number, today: Date): { from: string; to: string } {
+  return { from: toDateInput(addDays(today, -(days - 1))), to: toDateInput(today) };
 }
 
 export function formatMoney(value: number | null, currency: string): string {

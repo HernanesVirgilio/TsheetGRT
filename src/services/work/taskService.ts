@@ -12,7 +12,7 @@ import { mapWorkEvent, WORK_EVENT_COLUMNS } from './workEvents';
  */
 
 const TASK_SELECT =
-  'id, reference, title, description, status, priority, assignee_id, created_by, department_id, start_date, due_at, estimated_minutes, started_at, completed_at, completion_note, late_reason, blocked_reason, cancel_reason, parent_task_id, opportunity_id, meeting_id, created_at, updated_at, assignee:profiles!tasks_assignee_id_fkey(full_name), creator:profiles!tasks_created_by_fkey(full_name), department:departments(name), opportunity:opportunities(id, reference, title), meeting:meetings(id, title)' as const;
+  'id, reference, title, description, status, priority, assignee_id, created_by, department_id, start_date, due_at, estimated_minutes, started_at, completed_at, completion_note, late_reason, blocked_reason, cancel_reason, parent_task_id, opportunity_id, meeting_id, requires_manager_review, reviewed_at, review_note, created_at, updated_at, assignee:profiles!tasks_assignee_id_fkey(full_name), creator:profiles!tasks_created_by_fkey(full_name), department:departments(name), opportunity:opportunities(id, reference, title), meeting:meetings!tasks_meeting_id_fkey(id, title)' as const;
 
 interface TaskRow {
   id: string;
@@ -33,6 +33,9 @@ interface TaskRow {
   late_reason: string | null;
   blocked_reason: string | null;
   cancel_reason: string | null;
+  requires_manager_review: boolean;
+  reviewed_at: string | null;
+  review_note: string | null;
   created_at: string;
   updated_at: string;
   assignee: { full_name: string } | null;
@@ -70,6 +73,9 @@ function mapTask(row: TaskRow): TaskDetail | null {
     parentTask: null,
     opportunity: row.opportunity,
     meeting: row.meeting,
+    requiresManagerReview: row.requires_manager_review,
+    reviewedAt: row.reviewed_at,
+    reviewNote: row.review_note,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -77,7 +83,7 @@ function mapTask(row: TaskRow): TaskDetail | null {
 
 const OPEN_STATUSES: TaskStatus[] = ['PLANNED', 'ASSIGNED', 'IN_PROGRESS', 'BLOCKED'];
 
-export type TaskScope = 'MINE' | 'TEAM' | 'CREATED';
+export type TaskScope = 'MINE' | 'TEAM' | 'CREATED' | 'FOLLOW_UP';
 
 export interface TaskQuery {
   scope: TaskScope;
@@ -108,6 +114,8 @@ export async function listTasks(query: TaskQuery): Promise<TaskPage> {
 
   if (query.scope === 'MINE') request = request.eq('assignee_id', query.viewerId);
   if (query.scope === 'CREATED') request = request.eq('created_by', query.viewerId);
+  // Por acompanhar: concluídas e ainda não validadas (a RLS limita à equipa do âmbito).
+  if (query.scope === 'FOLLOW_UP') request = request.eq('status', 'COMPLETED').is('reviewed_at', null).neq('assignee_id', query.viewerId);
   if (query.statuses.length > 0) request = request.in('status', query.statuses);
   if (query.priority) request = request.eq('priority', query.priority);
   if (query.assigneeId) request = request.eq('assignee_id', query.assigneeId);
@@ -178,6 +186,8 @@ export interface NewTaskInput {
   parentTaskId?: string | null;
   opportunityId?: string | null;
   meetingId?: string | null;
+  /** A conclusão é acompanhada por quem supervisiona o gestor (escalonamento ao Manager). */
+  requiresManagerReview?: boolean;
 }
 
 export async function createTask(input: NewTaskInput): Promise<string> {
@@ -192,6 +202,7 @@ export async function createTask(input: NewTaskInput): Promise<string> {
     p_parent_task_id: input.parentTaskId ?? null,
     p_opportunity_id: input.opportunityId ?? null,
     p_meeting_id: input.meetingId ?? null,
+    p_requires_manager_review: input.requiresManagerReview ?? false,
   });
   if (error) throw toServiceError(error, 'Não foi possível criar a tarefa.');
   return data;
@@ -257,3 +268,6 @@ export const cancelTask = (taskId: string, reason: string) =>
 
 export const addTaskComment = (taskId: string, body: string) =>
   runTaskAction(supabase.rpc('add_task_comment', { p_task_id: taskId, p_body: body }), 'Não foi possível enviar o comentário.');
+
+export const reviewTask = (taskId: string, note: string | null) =>
+  runTaskAction(supabase.rpc('review_task', { p_task_id: taskId, p_note: note }), 'Não foi possível validar a conclusão.');

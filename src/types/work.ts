@@ -17,12 +17,24 @@ export const MEETING_STATUSES = ['PLANNED', 'CONFIRMED', 'COMPLETED', 'CANCELLED
 export type MeetingStatus = (typeof MEETING_STATUSES)[number];
 export const isMeetingStatus = (value: string): value is MeetingStatus => isOneOf(MEETING_STATUSES, value);
 
-export const ABSENCE_STATUSES = ['DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED', 'CANCELLED'] as const;
+/** SUBMITTED: a aguardar a validação do gestor. PENDING_APPROVAL: a aguardar a decisão do Manager. */
+export const ABSENCE_STATUSES = ['DRAFT', 'SUBMITTED', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'CANCELLED'] as const;
 export type AbsenceStatus = (typeof ABSENCE_STATUSES)[number];
 export const isAbsenceStatus = (value: string): value is AbsenceStatus => isOneOf(ABSENCE_STATUSES, value);
 
 export const ABSENCE_DECISIONS = ['APPROVED', 'REJECTED', 'CHANGES_REQUESTED'] as const;
 export type AbsenceDecision = (typeof ABSENCE_DECISIONS)[number];
+
+/** Validação do gestor da equipa (1.º nível). */
+export type AbsenceValidation = 'VALIDATED' | 'CHANGES_REQUESTED';
+
+export const OPPORTUNITY_APPROVAL_STATUSES = ['NOT_REQUIRED', 'NOT_SUBMITTED', 'PENDING', 'APPROVED', 'REJECTED'] as const;
+export type OpportunityApprovalStatus = (typeof OPPORTUNITY_APPROVAL_STATUSES)[number];
+export const isOpportunityApprovalStatus = (value: string): value is OpportunityApprovalStatus => isOneOf(OPPORTUNITY_APPROVAL_STATUSES, value);
+
+export const APPROVAL_REQUEST_STATUSES = ['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'] as const;
+export type ApprovalRequestStatus = (typeof APPROVAL_REQUEST_STATUSES)[number];
+export const isApprovalRequestStatus = (value: string): value is ApprovalRequestStatus => isOneOf(APPROVAL_REQUEST_STATUSES, value);
 
 export const OPPORTUNITY_STATUSES = ['NEW', 'QUALIFICATION', 'PROPOSAL', 'NEGOTIATION', 'WON', 'LOST', 'CANCELLED'] as const;
 export type OpportunityStatus = (typeof OPPORTUNITY_STATUSES)[number];
@@ -76,6 +88,9 @@ export interface TaskSummary {
   dueAt: string | null;
   completedAt: string | null;
   updatedAt: string;
+  /** A conclusão é acompanhada por quem supervisiona o gestor. */
+  requiresManagerReview: boolean;
+  reviewedAt: string | null;
 }
 
 export interface TaskDetail extends TaskSummary {
@@ -89,6 +104,7 @@ export interface TaskDetail extends TaskSummary {
   parentTask: { id: string; reference: string; title: string } | null;
   opportunity: { id: string; reference: string; title: string } | null;
   meeting: { id: string; title: string } | null;
+  reviewNote: string | null;
   createdAt: string;
 }
 
@@ -128,6 +144,7 @@ export interface AbsenceType {
   code: string;
   name: string;
   requiresAttachment: boolean;
+  requiresManagerApproval: boolean;
 }
 
 export interface AbsenceRequest {
@@ -143,6 +160,8 @@ export interface AbsenceRequest {
   reason: string;
   status: AbsenceStatus;
   submittedAt: string | null;
+  validatedAt: string | null;
+  validationComment: string | null;
   decidedAt: string | null;
   decisionComment: string | null;
   createdAt: string;
@@ -176,6 +195,7 @@ export interface OpportunitySummary {
   expectedCloseDate: string | null;
   nextStep: string | null;
   nextStepDate: string | null;
+  approvalStatus: OpportunityApprovalStatus;
   updatedAt: string;
 }
 
@@ -282,13 +302,22 @@ export interface TeamMemberWorkload {
   profileId: string;
   fullName: string;
   jobTitle: string | null;
+  jobDescription: string | null;
   departmentName: string | null;
+  roleCode: string | null;
+  /** Gestor(es) direto(s) da equipa a que pertence. */
+  leadNames: string | null;
+  /** Abrangido diretamente pelo âmbito de quem consulta (não através de um gestor). */
+  isDirect: boolean;
   tasksOpen: number;
   tasksInProgress: number;
   tasksBlocked: number;
   tasksOverdue: number;
   tasksDueNext7Days: number;
+  tasksCompleted30Days: number;
+  opportunitiesActive: number;
   minutesThisWeek: number;
+  lastActivityDate: string | null;
   absenceToday: string | null;
   pendingAbsenceRequests: number;
 }
@@ -298,4 +327,104 @@ export interface WorkPerson {
   fullName: string;
   jobTitle: string | null;
   departmentName: string | null;
+  /** Só preenchida para responsáveis possíveis (equipa do âmbito). */
+  jobDescription?: string | null;
+}
+
+/** Pedido de aprovação explícito (oportunidades). */
+export interface ApprovalRequest {
+  id: string;
+  reference: string;
+  opportunityId: string | null;
+  opportunityReference: string | null;
+  opportunityTitle: string | null;
+  opportunityOwnerName: string | null;
+  requestedBy: string;
+  requesterName: string | null;
+  title: string;
+  amount: number | null;
+  currency: string | null;
+  justification: string;
+  status: ApprovalRequestStatus;
+  deciderName: string | null;
+  decidedAt: string | null;
+  decisionComment: string | null;
+  createdAt: string;
+}
+
+/** Indicadores do painel do gestor/Manager (calculados no servidor, limitados ao âmbito). */
+export interface TeamDashboard {
+  teamSize: number;
+  tasksInProgress: number;
+  tasksBlocked: number;
+  tasksOverdue: number;
+  tasksCompleted: number;
+  tasksCompletedLate: number;
+  tasksPendingFollowUp: number;
+  absencesToValidate: number;
+  absencesAwaitingDecision: number;
+  opportunitiesActive: number;
+  opportunityApprovalsPending: number;
+  meetingsNext7Days: number;
+  minutesLogged: number;
+}
+
+export interface OpportunityPipelineRow {
+  currency: string;
+  opportunitiesActive: number;
+  estimatedValueActive: number;
+  weightedValueActive: number;
+  approvalsPending: number;
+  wonLast90Days: number;
+  wonValueLast90Days: number;
+}
+
+export interface TeamReportRow {
+  profileId: string;
+  fullName: string;
+  jobTitle: string | null;
+  departmentName: string | null;
+  leadNames: string | null;
+  tasksCompleted: number;
+  tasksCompletedLate: number;
+  tasksOpen: number;
+  tasksOverdue: number;
+  tasksBlocked: number;
+  minutesLogged: number;
+  entryCount: number;
+}
+
+export interface TrendPoint {
+  weekStart: string;
+  tasksCompleted: number;
+  tasksCompletedLate: number;
+  minutesLogged: number;
+}
+
+/** Uma linha por gestor supervisionado (leadId null = equipa direta do Manager). */
+export interface SupervisionRow {
+  leadId: string | null;
+  leadName: string;
+  departments: string | null;
+  teamSize: number;
+  tasksCompleted: number;
+  tasksCompletedLate: number;
+  tasksOpen: number;
+  tasksOverdue: number;
+  tasksBlocked: number;
+  minutesLogged: number;
+  absencesPending: number;
+  approvalsPending: number;
+}
+
+/** Evento recente do histórico das tarefas da equipa. */
+export interface TeamActivityItem {
+  id: string;
+  taskId: string;
+  taskReference: string;
+  taskTitle: string;
+  eventType: string;
+  field: string | null;
+  actorName: string | null;
+  createdAt: string;
 }

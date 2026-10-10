@@ -45,7 +45,7 @@ export const MeetingsPage: React.FC = () => {
       listMeetings({ scope, viewerId, when, status: isMeetingStatus(status) ? status : null, search: debouncedSearch, page, pageSize: PAGE_SIZE }),
     [scope, viewerId, when, status, debouncedSearch, page]
   );
-  const people = useAsyncData(() => (canCreate ? listWorkPeople('PARTICIPANT') : Promise.resolve([])), [canCreate]);
+  const people = useAsyncData(() => (canCreate ? listWorkPeople('MEETING') : Promise.resolve([])), [canCreate]);
   useEffect(() => setPage(1), [scope, when, status, debouncedSearch]);
 
   const columns: DataTableColumn<MeetingSummary>[] = [

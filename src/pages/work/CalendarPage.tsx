@@ -18,6 +18,7 @@ import { ErrorState, LoadingState } from '../../components/ui/States';
 import { BADGE_TONE_CLASSES } from '../../components/ui/badgeTones';
 import type { BadgeTone } from '../../components/ui/badgeTones';
 import { MeetingFormModal } from '../../components/work/MeetingFormModal';
+import { CalendarTimeGrid } from '../../components/work/CalendarTimeGrid';
 import {
   addDays,
   ABSENCE_STATUS_LABELS,
@@ -34,6 +35,7 @@ import {
   toDateInput,
   validateReason,
 } from '../../utils/work';
+import type { SlotSelection } from '../../utils/work';
 import { formatDateTime } from '../../utils/format';
 
 type View = 'MONTH' | 'WEEK' | 'DAY';
@@ -104,6 +106,22 @@ function itemTime(item: CalendarItem): string {
   return item.startsAt === item.endsAt ? start : `${start}–${timeFormatter.format(new Date(item.endsAt))}`;
 }
 
+/** Bloco de um item com hora na grelha (ocupa a altura da sua duração). */
+const ItemBlock: React.FC<{ item: CalendarItem; onOpen: (item: CalendarItem) => void }> = ({ item, onOpen }) => (
+  <button
+    type="button"
+    onClick={() => onOpen(item)}
+    className={`flex h-full w-full flex-col overflow-hidden rounded border px-1.5 py-0.5 text-left text-[11px] leading-tight ${BADGE_TONE_CLASSES[itemTone(item)]} ${
+      item.status === 'CANCELLED' ? 'line-through opacity-70' : ''
+    }`}
+    title={`${CALENDAR_ITEM_LABELS[item.itemType]}: ${item.title} · ${itemTime(item)}`}
+  >
+    <span className="font-semibold tabular-nums">{itemTime(item)}</span>
+    <span className="sr-only">{CALENDAR_ITEM_LABELS[item.itemType]}: </span>
+    <span className="truncate">{item.title}</span>
+  </button>
+);
+
 const ItemChip: React.FC<{ item: CalendarItem; compact?: boolean; onOpen: (item: CalendarItem) => void }> = ({ item, compact = false, onOpen }) => (
   <button
     type="button"
@@ -134,6 +152,8 @@ export const CalendarPage: React.FC = () => {
   const [selected, setSelected] = useState<CalendarItem | null>(null);
   const [isEventFormOpen, setIsEventFormOpen] = useState(false);
   const [isMeetingFormOpen, setIsMeetingFormOpen] = useState(false);
+  // Intervalo escolhido na grelha (ou dia escolhido no mês): preenche data, início e fim da reunião.
+  const [meetingRange, setMeetingRange] = useState<SlotSelection | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
   const days = useMemo(() => {
@@ -145,11 +165,30 @@ export const CalendarPage: React.FC = () => {
   const to = toDateInput(days[days.length - 1] ?? anchor);
 
   const items = useAsyncData(() => getCalendarItems(from, to, scope), [from, to, scope]);
-  const people = useAsyncData(() => (canCreateMeeting ? listWorkPeople('PARTICIPANT') : Promise.resolve([])), [canCreateMeeting]);
+  // Convidáveis: equipa e chefias de quem organiza (o colaborador comum não agenda reuniões).
+  const people = useAsyncData(() => (canCreateMeeting ? listWorkPeople('MEETING') : Promise.resolve([])), [canCreateMeeting]);
+  const openMeetingForm = (range: SlotSelection | null) => {
+    setMeetingRange(range);
+    setIsMeetingFormOpen(true);
+  };
   const allowedTypes = new Set(FILTERS.filter((filter) => enabled.has(filter.key)).flatMap((filter) => filter.types));
   const visibleItems = (items.data ?? []).filter((item) => allowedTypes.has(item.itemType));
   const itemsOn = (day: Date) =>
     visibleItems.filter((item) => itemOccursOn(item, day)).sort((first, second) => Number(second.allDay) - Number(first.allDay) || first.startsAt.localeCompare(second.startsAt));
+  const timedItems = visibleItems.filter((item) => !item.allDay);
+  const allDayItemsFor = (day: Date) => visibleItems.filter((item) => item.allDay && itemOccursOn(item, day));
+  const renderGridItem = (item: CalendarItem, compact: boolean) =>
+    compact ? <ItemChip item={item} compact onOpen={setSelected} /> : <ItemBlock item={item} onOpen={setSelected} />;
+  const timeGrid = (gridDays: Date[]) => (
+    <CalendarTimeGrid
+      days={gridDays}
+      timedItems={timedItems}
+      allDayItemsFor={allDayItemsFor}
+      renderItem={renderGridItem}
+      canSelect={canCreateMeeting && Boolean(people.data)}
+      onSelect={openMeetingForm}
+    />
+  );
 
   const move = (direction: -1 | 1) => {
     const next = new Date(anchor);
@@ -204,7 +243,7 @@ export const CalendarPage: React.FC = () => {
         actions={
           <>
             {canCreateMeeting && (
-              <Button variant="secondary" icon={CalendarPlus} onClick={() => setIsMeetingFormOpen(true)} disabled={!people.data}>
+              <Button variant="secondary" icon={CalendarPlus} onClick={() => openMeetingForm(null)} disabled={!people.data}>
                 Nova reunião
               </Button>
             )}
@@ -286,20 +325,33 @@ export const CalendarPage: React.FC = () => {
                   const dayItems = itemsOn(day);
                   const outside = day.getMonth() !== anchor.getMonth();
                   return (
-                    <div key={day.toISOString()} className={`min-h-28 border-b border-r border-border p-1.5 ${outside ? 'bg-background' : ''}`}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAnchor(day);
-                          setView('DAY');
-                        }}
-                        className={`mb-1 inline-flex h-6 min-w-6 items-center justify-center rounded px-1 text-xs font-semibold ${
-                          isSameDay(day, today) ? 'bg-primary text-on-primary' : outside ? 'text-text-muted' : 'text-text'
-                        }`}
-                        aria-label={`Ver ${dayFormatter.format(day)}`}
-                      >
-                        {day.getDate()}
-                      </button>
+                    <div key={day.toISOString()} className={`group min-h-28 border-b border-r border-border p-1.5 ${outside ? 'bg-background' : ''}`}>
+                      <div className="mb-1 flex items-center justify-between">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAnchor(day);
+                            setView('DAY');
+                          }}
+                          className={`inline-flex h-6 min-w-6 items-center justify-center rounded px-1 text-xs font-semibold ${
+                            isSameDay(day, today) ? 'bg-primary text-on-primary' : outside ? 'text-text-muted' : 'text-text'
+                          }`}
+                          aria-label={`Ver ${dayFormatter.format(day)} e escolher a hora`}
+                        >
+                          {day.getDate()}
+                        </button>
+                        {canCreateMeeting && people.data && (
+                          <button
+                            type="button"
+                            onClick={() => openMeetingForm({ date: toDateInput(day), startTime: '09:00', endTime: '10:00' })}
+                            className="rounded p-0.5 text-text-muted opacity-0 hover:bg-surface-muted hover:text-text focus:opacity-100 group-hover:opacity-100"
+                            aria-label={`Nova reunião a ${dayFormatter.format(day)}`}
+                            title="Nova reunião neste dia"
+                          >
+                            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                          </button>
+                        )}
+                      </div>
                       <div className="space-y-1">
                         {dayItems.slice(0, 3).map((item) => (
                           <ItemChip key={`${item.itemType}-${item.itemId}`} item={item} onOpen={setSelected} />
@@ -330,7 +382,13 @@ export const CalendarPage: React.FC = () => {
             </ul>
           </>
         )}
-        {items.data && view !== 'MONTH' && <ul className="divide-y divide-border">{days.map(dayList)}</ul>}
+        {items.data && view === 'WEEK' && (
+          <>
+            <div className="hidden md:block">{timeGrid(days)}</div>
+            <ul className="divide-y divide-border md:hidden">{days.map(dayList)}</ul>
+          </>
+        )}
+        {items.data && view === 'DAY' && timeGrid(days)}
       </Panel>
 
       <CalendarItemDialog
@@ -365,6 +423,7 @@ export const CalendarPage: React.FC = () => {
         participantIds={[]}
         people={people.data ?? []}
         defaultDate={toDateInput(anchor)}
+        initialRange={meetingRange}
         onClose={() => setIsMeetingFormOpen(false)}
         onSaved={(meetingId) => {
           setIsMeetingFormOpen(false);
