@@ -52,6 +52,11 @@
   --color-danger-soft: #FDECEA;
   --color-info: #0F7A6B;
   --color-info-soft: #E6F4F2;
+
+  /* Gráficos: ordem categórica fixa, validada para daltonismo (ΔE CVD 24,7; ≥ 3:1 sobre branco) */
+  --color-chart-1: #2A78D6;
+  --color-chart-2: #EB6834;
+  --color-chart-grid: #E6EAEE;
 }
 
 @layer base {

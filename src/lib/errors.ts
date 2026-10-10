@@ -28,6 +28,7 @@ const UNIQUE_CONSTRAINT_MESSAGES: Record<string, string> = {
   companies_name_unique: 'Já existe uma empresa com este nome.',
   companies_nuit_key: 'Já existe uma empresa com este NUIT.',
   absence_types_code_key: 'Já existe um tipo de ausência com este código.',
+  approval_requests_one_pending: 'Já existe um pedido de aprovação pendente para esta oportunidade.',
 };
 
 const CHECK_CONSTRAINT_MESSAGES: Record<string, string> = {
@@ -64,6 +65,14 @@ const CHECK_CONSTRAINT_MESSAGES: Record<string, string> = {
   calendar_events_time_range: 'O evento tem de terminar depois de começar (máximo de 31 dias).',
   timesheet_entries_context: 'Selecione o registo a que o tempo se refere.',
   timesheet_entries_unplanned_description: 'Descreva a atividade extraordinária (mínimo 5 carateres).',
+  profiles_job_description_length: 'A descrição da função não pode exceder 2000 carateres.',
+  absence_requests_no_self_validation: 'Não pode validar o seu próprio pedido de ausência.',
+  absence_requests_validation_comment_length: 'O parecer não pode exceder 1000 carateres.',
+  approval_requests_justification_length: 'Explique o que deve ser aprovado (5 a 2000 carateres).',
+  approval_requests_no_self_decision: 'Quem pede a aprovação não a pode decidir.',
+  approval_requests_rejection_reason: 'A rejeição exige um motivo (mínimo 5 carateres).',
+  tasks_review_consistency: 'Só é possível validar tarefas concluídas.',
+  tasks_review_note_length: 'A nota não pode exceder 1000 carateres.',
 };
 
 function findConstraintMessage(error: ErrorLike, messages: Record<string, string>): string | null {

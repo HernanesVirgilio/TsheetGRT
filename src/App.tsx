@@ -41,6 +41,8 @@ import { OpportunitiesPage } from './pages/work/OpportunitiesPage';
 import { OpportunityDetailPage } from './pages/work/OpportunityDetailPage';
 import { CompaniesPage } from './pages/work/CompaniesPage';
 import { TeamWorkPage } from './pages/work/TeamWorkPage';
+import { TeamReportsPage } from './pages/work/TeamReportsPage';
+import { ApprovalRequestsPage } from './pages/work/ApprovalRequestsPage';
 
 // Suporte IT
 import { SupportTicketsPage } from './pages/it/SupportTicketsPage';
@@ -86,6 +88,8 @@ const PERMISSION_ROUTES: PermissionRoute[] = [
   { path: '/timesheet/opportunities/:id', permission: 'TIMESHEET_OPPORTUNITY_READ', element: <OpportunityDetailPage /> },
   { path: '/timesheet/companies', permission: 'TIMESHEET_OPPORTUNITY_READ', element: <CompaniesPage /> },
   { path: '/timesheet/team', permission: 'TEAM_READ', element: <TeamWorkPage /> },
+  { path: '/timesheet/reports', permission: 'TEAM_READ', element: <TeamReportsPage /> },
+  { path: '/timesheet/approvals', permission: 'TIMESHEET_OPPORTUNITY_READ', element: <ApprovalRequestsPage /> },
   { path: '/team', permission: 'TEAM_READ', element: <TeamPage /> },
   { path: '/team/:id', permission: 'TEAM_READ', element: <TeamMemberPage /> },
   { path: '/approvals', permission: 'TEAM_TIMESHEET_REVIEW', element: <ApprovalsPage /> },

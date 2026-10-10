@@ -35,6 +35,7 @@ const MEETING: Record<MeetingStatus, Presentation> = {
 const ABSENCE: Record<AbsenceStatus, Presentation> = {
   DRAFT: { tone: 'neutral', icon: Clock },
   SUBMITTED: { tone: 'warning', icon: Clock },
+  PENDING_APPROVAL: { tone: 'info', icon: UserCheck },
   APPROVED: { tone: 'success', icon: CheckCircle2 },
   REJECTED: { tone: 'danger', icon: XCircle },
   CANCELLED: { tone: 'neutral', icon: Ban },
