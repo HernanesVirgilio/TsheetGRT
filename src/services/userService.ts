@@ -19,6 +19,8 @@ export interface UpdateUserInput {
   phone: string | null;
   departmentId: string;
   jobTitle: string | null;
+  /** Descrição da função (o que a pessoa faz); distinta do cargo e do perfil de acesso. */
+  jobDescription?: string | null;
 }
 
 export interface UserTimesheetSummary {
@@ -93,6 +95,7 @@ export async function updateUser(userId: string, input: UpdateUserInput): Promis
       phone: input.phone,
       department_id: input.departmentId,
       job_title: input.jobTitle,
+      ...(input.jobDescription !== undefined ? { job_description: input.jobDescription } : {}),
     })
     .eq('id', userId);
   if (error) throw toServiceError(error, 'Não foi possível guardar os dados do utilizador.');

@@ -27,7 +27,11 @@ function describeScope(scope: ManagerScope): string {
   return `Colaborador: ${scope.employeeName ?? '—'}`;
 }
 
-/** Âmbito de gestão de um gestor: atribuído apenas pela administração (validado e auditado no servidor). */
+/**
+ * Âmbito de gestão: atribuído apenas pela administração (validado e auditado no servidor).
+ *   * GESTOR: a sua equipa (departamentos e/ou colaboradores; nunca outros gestores ou managers).
+ *   * MANAGER: os gestores que supervisiona (por colaborador) e, se for o caso, equipas sem gestor.
+ */
 export const ManagerScopePanel: React.FC<ManagerScopePanelProps> = ({ manager, departments, canManage }) => {
   const scopes = useAsyncData(() => listManagerScopes(manager.id), [manager.id]);
   const employees = useAsyncData(() => (canManage ? listUsers() : Promise.resolve([])), [canManage]);
@@ -43,8 +47,15 @@ export const ManagerScopePanel: React.FC<ManagerScopePanelProps> = ({ manager, d
   const assignedDepartmentIds = new Set((scopes.data ?? []).map((scope) => scope.departmentId));
   const assignedEmployeeIds = new Set((scopes.data ?? []).map((scope) => scope.employeeId));
   const departmentOptions = departments.filter((department) => department.active && !assignedDepartmentIds.has(department.id));
+  const isGestor = manager.role?.code === 'GESTOR';
+  // Espelho da regra do servidor: um gestor só tem colaboradores; ninguém tem administradores no âmbito.
   const employeeOptions = (employees.data ?? []).filter(
-    (employee) => employee.is_active && employee.id !== manager.id && !assignedEmployeeIds.has(employee.id)
+    (employee) =>
+      employee.is_active &&
+      employee.id !== manager.id &&
+      !assignedEmployeeIds.has(employee.id) &&
+      employee.role?.code !== 'ADMIN' &&
+      !(isGestor && (employee.role?.code === 'MANAGER' || employee.role?.code === 'GESTOR'))
   );
 
   const handleAdd = async (event: React.FormEvent) => {
@@ -91,7 +102,11 @@ export const ManagerScopePanel: React.FC<ManagerScopePanelProps> = ({ manager, d
   return (
     <Panel
       title="Âmbito de gestão"
-      description="Departamentos e colaboradores cujos timesheets este gestor pode consultar, aprovar e rejeitar."
+      description={
+        isGestor
+          ? 'Equipa direta deste gestor: departamentos (colaboradores com perfil COLABORADOR) e colaboradores individuais.'
+          : 'Gestores supervisionados (adicione-os como colaborador) e equipas sem gestor. O Manager vê também as equipas dos gestores que supervisiona.'
+      }
     >
       <div className="space-y-4">
         {successMessage && (

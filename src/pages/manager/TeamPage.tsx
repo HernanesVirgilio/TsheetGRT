@@ -91,7 +91,17 @@ export const TeamPage: React.FC = () => {
       ),
     },
     { id: 'department', header: 'Departamento', render: ({ member }) => member.department?.name ?? 'Sem departamento' },
-    { id: 'job', header: 'Função', render: ({ member }) => member.job_title ?? '—' },
+    {
+      id: 'job',
+      header: 'Cargo e função',
+      className: 'min-w-48',
+      render: ({ member }) => (
+        <span>
+          <span className="block">{member.job_title ?? '—'}</span>
+          <span className="line-clamp-2 block text-xs text-text-muted">{member.job_description ?? 'Descrição por preencher'}</span>
+        </span>
+      ),
+    },
     { id: 'contact', header: 'Contacto', render: ({ member }) => member.phone ?? member.email },
     {
       id: 'account',

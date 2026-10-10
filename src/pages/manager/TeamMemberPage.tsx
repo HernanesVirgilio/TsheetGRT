@@ -1,8 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Clock3 } from 'lucide-react';
+import { ArrowLeft, Clock3, Pencil } from 'lucide-react';
+import { useAuth } from '../../lib/auth/AuthContext';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import { getTeamMember, listTeamTimesheets } from '../../services/managerService';
+import { getTeamWorkOverview } from '../../services/work/calendarService';
+import { Alert } from '../../components/ui/Alert';
+import { Button } from '../../components/ui/Button';
+import { OverdueBadge } from '../../components/work/WorkStatusBadge';
+import { JobDescriptionModal } from '../../components/work/JobDescriptionModal';
 import type { TimesheetSummary } from '../../types';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Panel } from '../../components/ui/Panel';
@@ -13,7 +19,7 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState, LoadingState } from '../../components/ui/States';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { UserAvatar } from '../../components/ui/UserAvatar';
-import { formatDate, formatMinutesAsHours, formatPeriod } from '../../utils/format';
+import { formatCalendarDate, formatDate, formatMinutesAsHours, formatPeriod } from '../../utils/format';
 import { summarizeTimesheets } from '../../utils/timesheets';
 import { isUuid } from '../../utils/validation';
 
@@ -56,11 +62,20 @@ const DetailItem: React.FC<{ label: string; children: React.ReactNode }> = ({ la
   </div>
 );
 
-/** Detalhe de um colaborador da equipa (apenas leitura; dados administrativos são geridos pelo Admin). */
+/**
+ * Detalhe de um colaborador da equipa: cargo, descrição da função e trabalho em mãos. Os dados
+ * administrativos são geridos pelo Admin; a descrição da função pode ser atualizada por quem tem
+ * TEAM_JOB_DESCRIPTION_UPDATE (não altera perfis técnicos nem permissões).
+ */
 export const TeamMemberPage: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
+  const { hasPermission } = useAuth();
+  const canEditDescription = hasPermission('TEAM_JOB_DESCRIPTION_UPDATE') || hasPermission('USERS_UPDATE');
+  const [isEditing, setIsEditing] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
   const isValidId = isUuid(id);
   const member = useAsyncData(() => (isValidId ? getTeamMember(id) : Promise.resolve(null)), [id]);
+  const workload = useAsyncData(getTeamWorkOverview, []);
   const timesheets = useAsyncData(
     () =>
       isValidId
@@ -89,11 +104,17 @@ export const TeamMemberPage: React.FC = () => {
 
   const profile = member.data;
   const totals = summarizeTimesheets(timesheets.data ?? []);
+  const work = (workload.data ?? []).find((row) => row.profileId === profile.id) ?? null;
 
   return (
     <div className="space-y-6">
       <BackLink />
-      <PageHeader title={profile.full_name} subtitle={`${profile.employee_number ?? ''} · ${profile.job_title ?? 'Sem função definida'}`} />
+      <PageHeader title={profile.full_name} subtitle={`${profile.employee_number ?? ''} · ${profile.job_title ?? 'Sem cargo definido'}`} />
+      {message && (
+        <Alert variant="success" onDismiss={() => setMessage(null)}>
+          {message}
+        </Alert>
+      )}
 
       <Panel>
         <div className="mb-5 flex items-center gap-4">
@@ -108,11 +129,43 @@ export const TeamMemberPage: React.FC = () => {
         </div>
         <dl className="grid grid-cols-1 gap-4 border-t border-border pt-5 sm:grid-cols-2 lg:grid-cols-4">
           <DetailItem label="Departamento">{profile.department?.name ?? 'Sem departamento'}</DetailItem>
-          <DetailItem label="Função">{profile.job_title ?? '—'}</DetailItem>
+          <DetailItem label="Cargo">{profile.job_title ?? '—'}</DetailItem>
           <DetailItem label="Telefone">{profile.phone ?? '—'}</DetailItem>
           <DetailItem label="Nº de colaborador">{profile.employee_number ?? '—'}</DetailItem>
         </dl>
       </Panel>
+
+      <Panel
+        title="Descrição da função"
+        description="O que esta pessoa faz e que responsabilidades pode receber. Não altera o perfil de acesso."
+        actions={
+          canEditDescription && (
+            <Button size="sm" variant="secondary" icon={Pencil} onClick={() => setIsEditing(true)}>
+              {profile.job_description ? 'Atualizar' : 'Preencher'}
+            </Button>
+          )
+        }
+      >
+        <p className="whitespace-pre-line text-sm text-text-secondary">{profile.job_description ?? 'Descrição da função por preencher.'}</p>
+      </Panel>
+
+      {work && (
+        <Panel title="Trabalho em mãos">
+          <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+            <DetailItem label="Tarefas em aberto">{work.tasksOpen}</DetailItem>
+            <DetailItem label="Em curso">{work.tasksInProgress}</DetailItem>
+            <DetailItem label="Bloqueadas">{work.tasksBlocked}</DetailItem>
+            <DetailItem label="Atrasadas">{work.tasksOverdue > 0 ? <OverdueBadge label={String(work.tasksOverdue)} /> : 0}</DetailItem>
+            <DetailItem label="Oportunidades ativas">{work.opportunitiesActive}</DetailItem>
+            <DetailItem label="Concluídas (30 dias)">{work.tasksCompleted30Days}</DetailItem>
+          </dl>
+          <p className="mt-4 text-xs text-text-muted">
+            {work.leadNames ? `Gestor da equipa: ${work.leadNames} · ` : ''}
+            {work.absenceToday ? `Ausente hoje (${work.absenceToday}) · ` : 'Presente hoje · '}
+            Último registo de tempo: {work.lastActivityDate ? formatCalendarDate(work.lastActivityDate) : 'sem registos'} · {formatMinutesAsHours(work.minutesThisWeek)} esta semana
+          </p>
+        </Panel>
+      )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard label="Horas aprovadas" value={formatMinutesAsHours(totals.approvedMinutes)} />
@@ -134,6 +187,20 @@ export const TeamMemberPage: React.FC = () => {
           <DataTable caption={`Timesheets de ${profile.full_name}`} columns={COLUMNS} rows={timesheets.data} getRowKey={(row) => row.id} />
         )}
       </Panel>
+
+      <JobDescriptionModal
+        isOpen={isEditing}
+        profileId={profile.id}
+        fullName={profile.full_name}
+        currentDescription={profile.job_description ?? ''}
+        onClose={() => setIsEditing(false)}
+        onSaved={() => {
+          setIsEditing(false);
+          setMessage('Descrição da função atualizada. A alteração ficou registada na auditoria.');
+          member.reload();
+          workload.reload();
+        }}
+      />
     </div>
   );
 };

@@ -1,4 +1,4 @@
-export const ROLE_CODES = ['ADMIN', 'IT', 'MANAGER', 'EMPLOYEE'] as const;
+export const ROLE_CODES = ['ADMIN', 'IT', 'MANAGER', 'GESTOR', 'EMPLOYEE'] as const;
 
 export type RoleCode = (typeof ROLE_CODES)[number];
 
@@ -62,6 +62,10 @@ export const PERMISSION_CODES = [
   'TIMESHEET_OPPORTUNITY_MANAGE',
   'TIMESHEET_ATTACHMENT_CREATE',
   'TIMESHEET_ATTACHMENT_DELETE',
+  'TEAM_SUPERVISE',
+  'TEAM_JOB_DESCRIPTION_UPDATE',
+  'TIMESHEET_ABSENCE_VALIDATE',
+  'TIMESHEET_OPPORTUNITY_APPROVE',
 ] as const;
 
 export type PermissionCode = (typeof PERMISSION_CODES)[number];
@@ -105,6 +109,7 @@ export interface Profile {
   phone: string | null;
   department_id: string | null;
   job_title: string | null;
+  job_description?: string | null;
   avatar_url: string | null;
   is_active: boolean;
   must_change_password: boolean;
@@ -245,8 +250,10 @@ export interface NotificationItem {
   id: string;
   user_id: string;
   type: string;
+  category: string;
   title: string;
   message: string;
+  link: string | null;
   read_at: string | null;
   created_at: string;
 }

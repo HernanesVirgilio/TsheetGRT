@@ -151,14 +151,18 @@ export const UserDetailPage: React.FC = () => {
         <dl className="grid grid-cols-1 gap-4 border-t border-border pt-5 sm:grid-cols-2 lg:grid-cols-3">
           <DetailItem label="Perfil de acesso">{profile.role?.name ?? 'Sem perfil'}</DetailItem>
           <DetailItem label="Departamento">{profile.department?.name ?? 'Sem departamento'}</DetailItem>
-          <DetailItem label="Cargo / função">{profile.job_title ?? '—'}</DetailItem>
+          <DetailItem label="Cargo">{profile.job_title ?? '—'}</DetailItem>
           <DetailItem label="Telefone">{profile.phone ?? '—'}</DetailItem>
           <DetailItem label="Criado em">{formatDate(profile.created_at)}</DetailItem>
           <DetailItem label="Último acesso">{formatDateTime(profile.last_login_at, 'Nunca acedeu')}</DetailItem>
         </dl>
+        <div className="mt-4 border-t border-border pt-4">
+          <p className="text-sm text-text-muted">Descrição da função</p>
+          <p className="mt-0.5 whitespace-pre-line text-sm text-text">{profile.job_description ?? 'Por preencher.'}</p>
+        </div>
       </Panel>
 
-      {profile.role?.code === 'MANAGER' && (
+      {(profile.role?.code === 'MANAGER' || profile.role?.code === 'GESTOR') && (
         <ManagerScopePanel manager={profile} departments={departments} canManage={hasPermission('USERS_UPDATE')} />
       )}
 

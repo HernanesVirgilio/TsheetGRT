@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Alert } from '../ui/Alert';
-import { SelectField, TextField } from '../ui/FormField';
+import { SelectField, TextAreaField, TextField } from '../ui/FormField';
 import { getErrorMessage } from '../../lib/errors';
 import { createUser, updateUser } from '../../services/userService';
 import type { Department, Profile, Role, RoleCode } from '../../types';
@@ -44,6 +44,7 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
   const isEditing = Boolean(user);
   const [values, setValues] = useState<UserFormValues>(initialValues(user));
   const [roleCode, setRoleCode] = useState<RoleCode>(DEFAULT_ROLE);
+  const [jobDescription, setJobDescription] = useState(user?.job_description ?? '');
   const [fieldErrors, setFieldErrors] = useState<FieldErrors<UserFormField>>({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -51,6 +52,7 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
   useEffect(() => {
     if (!isOpen) return;
     setValues(initialValues(user));
+    setJobDescription(user?.job_description ?? '');
     setRoleCode(DEFAULT_ROLE);
     setFieldErrors({});
     setErrorMessage(null);
@@ -82,6 +84,7 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
           phone: optionalText(values.phone),
           departmentId: values.departmentId,
           jobTitle: optionalText(values.jobTitle),
+          jobDescription: optionalText(jobDescription),
         });
         onSaved('Dados do utilizador atualizados com sucesso.');
       } else {
@@ -168,7 +171,7 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
             ))}
           </SelectField>
           <TextField
-            label="Cargo / função"
+            label="Cargo"
             value={values.jobTitle}
             error={fieldErrors.jobTitle}
             onChange={(event) => updateValue('jobTitle', event.target.value)}
@@ -183,6 +186,17 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
           error={fieldErrors.phone}
           onChange={(event) => updateValue('phone', event.target.value)}
         />
+
+        {isEditing && (
+          <TextAreaField
+            label="Descrição da função"
+            rows={3}
+            maxLength={2000}
+            value={jobDescription}
+            hint="O que a pessoa faz e que responsabilidades pode receber. Não altera o perfil de acesso."
+            onChange={(event) => setJobDescription(event.target.value)}
+          />
+        )}
 
         {!isEditing && (
           <SelectField

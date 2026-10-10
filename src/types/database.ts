@@ -26,6 +26,8 @@ export type ProfileRow = Timestamps & {
   phone: string | null;
   department_id: string | null;
   job_title: string | null;
+  /** Descrição da função (diferente do cargo, do perfil técnico e das responsabilidades em tarefas). */
+  job_description: string | null;
   avatar_url: string | null;
   is_active: boolean;
   must_change_password: boolean;
@@ -134,8 +136,13 @@ export type NotificationRow = {
   id: string;
   user_id: string;
   type: string;
+  /** INFO | COMPLETION | APPROVAL_REQUEST | DEADLINE | DECISION (derivada do tipo no servidor). */
+  category: string;
   title: string;
   message: string;
+  /** Caminho interno da aplicação para abrir o registo. */
+  link: string | null;
+  dedup_key: string | null;
   read_at: string | null;
   created_at: string;
 };
@@ -267,6 +274,24 @@ export type OpportunityRow = Timestamps & {
   lost_reason: string | null;
   closed_at: string | null;
   created_by: string | null;
+  /** NOT_REQUIRED | NOT_SUBMITTED | PENDING | APPROVED | REJECTED */
+  approval_status: string;
+};
+
+export type ApprovalRequestRow = Timestamps & {
+  id: string;
+  reference: string;
+  request_type: string;
+  opportunity_id: string | null;
+  requested_by: string;
+  title: string;
+  amount: number | null;
+  currency: string | null;
+  justification: string;
+  status: string;
+  decided_by: string | null;
+  decided_at: string | null;
+  decision_comment: string | null;
 };
 
 export type OpportunityMemberRow = {
@@ -314,6 +339,10 @@ export type TaskRow = Timestamps & {
   parent_task_id: string | null;
   opportunity_id: string | null;
   meeting_id: string | null;
+  requires_manager_review: boolean;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  review_note: string | null;
 };
 
 export type TaskEventRow = WorkEventColumns & { task_id: string; after_closure: boolean };
@@ -354,6 +383,7 @@ export type AbsenceTypeRow = Timestamps & {
   name: string;
   description: string;
   requires_attachment: boolean;
+  requires_manager_approval: boolean;
   active: boolean;
   sort_order: number;
 };
@@ -371,6 +401,9 @@ export type AbsenceRequestRow = Timestamps & {
   decided_at: string | null;
   decided_by: string | null;
   decision_comment: string | null;
+  validated_at: string | null;
+  validated_by: string | null;
+  validation_comment: string | null;
   cancelled_at: string | null;
 };
 
@@ -619,6 +652,16 @@ export type Database = {
         Update: Partial<OpportunityEventRow>;
         Relationships: [Relationship<'opportunity_events_opportunity_id_fkey', 'opportunity_id', 'opportunities', false>];
       };
+      approval_requests: {
+        Row: ApprovalRequestRow;
+        Insert: Pick<ApprovalRequestRow, 'requested_by' | 'title' | 'justification'> & Partial<ApprovalRequestRow>;
+        Update: Partial<ApprovalRequestRow>;
+        Relationships: [
+          Relationship<'approval_requests_opportunity_id_fkey', 'opportunity_id', 'opportunities', false>,
+          ProfileReference<'approval_requests', 'requested_by'>,
+          ProfileReference<'approval_requests', 'decided_by'>,
+        ];
+      };
       tasks: {
         Row: TaskRow;
         Insert: Pick<TaskRow, 'title' | 'created_by'> & Partial<TaskRow>;
@@ -626,6 +669,7 @@ export type Database = {
         Relationships: [
           ProfileReference<'tasks', 'created_by'>,
           ProfileReference<'tasks', 'assignee_id'>,
+          ProfileReference<'tasks', 'reviewed_by'>,
           Relationship<'tasks_department_id_fkey', 'department_id', 'departments', false>,
           Relationship<'tasks_parent_task_id_fkey', 'parent_task_id', 'tasks', false>,
           Relationship<'tasks_opportunity_id_fkey', 'opportunity_id', 'opportunities', false>,
@@ -677,6 +721,7 @@ export type Database = {
         Relationships: [
           ProfileReference<'absence_requests', 'employee_id'>,
           ProfileReference<'absence_requests', 'decided_by'>,
+          ProfileReference<'absence_requests', 'validated_by'>,
           Relationship<'absence_requests_absence_type_id_fkey', 'absence_type_id', 'absence_types', false>,
         ];
       };
@@ -812,6 +857,7 @@ export type Database = {
           p_parent_task_id?: string | null;
           p_opportunity_id?: string | null;
           p_meeting_id?: string | null;
+          p_requires_manager_review?: boolean;
         };
         Returns: string;
       };
@@ -986,21 +1032,109 @@ export type Database = {
           profile_id: string;
           full_name: string;
           job_title: string | null;
+          job_description: string | null;
           department_name: string | null;
+          role_code: string | null;
+          lead_names: string | null;
+          is_direct: boolean;
           tasks_open: number;
           tasks_in_progress: number;
           tasks_blocked: number;
           tasks_overdue: number;
           tasks_due_next_7_days: number;
+          tasks_completed_30_days: number;
+          opportunities_active: number;
           minutes_this_week: number;
+          last_activity_date: string | null;
           absence_today: string | null;
           pending_absence_requests: number;
         }[];
       };
       list_work_people: {
         Args: { p_purpose?: string };
-        Returns: { profile_id: string; full_name: string; job_title: string | null; department_name: string | null }[];
+        Returns: {
+          profile_id: string;
+          full_name: string;
+          job_title: string | null;
+          department_name: string | null;
+          job_description: string | null;
+        }[];
       };
+      get_team_dashboard: {
+        Args: { p_from: string; p_to: string };
+        Returns: {
+          team_size: number;
+          tasks_in_progress: number;
+          tasks_blocked: number;
+          tasks_overdue: number;
+          tasks_completed: number;
+          tasks_completed_late: number;
+          tasks_pending_follow_up: number;
+          absences_to_validate: number;
+          absences_awaiting_decision: number;
+          opportunities_active: number;
+          opportunity_approvals_pending: number;
+          meetings_next_7_days: number;
+          minutes_logged: number;
+        }[];
+      };
+      get_opportunity_pipeline: {
+        Args: NoArgs;
+        Returns: {
+          currency: string;
+          opportunities_active: number;
+          estimated_value_active: number;
+          weighted_value_active: number;
+          approvals_pending: number;
+          won_last_90_days: number;
+          won_value_last_90_days: number;
+        }[];
+      };
+      get_team_report: {
+        Args: { p_from: string; p_to: string; p_department_id?: string | null; p_lead_id?: string | null };
+        Returns: {
+          profile_id: string;
+          full_name: string;
+          job_title: string | null;
+          department_name: string | null;
+          lead_names: string | null;
+          tasks_completed: number;
+          tasks_completed_late: number;
+          tasks_open: number;
+          tasks_overdue: number;
+          tasks_blocked: number;
+          minutes_logged: number;
+          entry_count: number;
+        }[];
+      };
+      get_team_completion_trend: {
+        Args: { p_from: string; p_to: string; p_department_id?: string | null; p_lead_id?: string | null };
+        Returns: { week_start: string; tasks_completed: number; tasks_completed_late: number; minutes_logged: number }[];
+      };
+      get_supervision_overview: {
+        Args: { p_from: string; p_to: string };
+        Returns: {
+          lead_id: string | null;
+          lead_name: string;
+          departments: string | null;
+          team_size: number;
+          tasks_completed: number;
+          tasks_completed_late: number;
+          tasks_open: number;
+          tasks_overdue: number;
+          tasks_blocked: number;
+          minutes_logged: number;
+          absences_pending: number;
+          approvals_pending: number;
+        }[];
+      };
+      update_team_member_job_description: { Args: { p_profile_id: string; p_description: string | null }; Returns: undefined };
+      review_task: { Args: { p_task_id: string; p_note?: string | null }; Returns: undefined };
+      validate_absence_request: { Args: { p_request_id: string; p_decision: string; p_comment?: string | null }; Returns: undefined };
+      request_opportunity_approval: { Args: { p_opportunity_id: string; p_justification: string }; Returns: string };
+      decide_opportunity_approval: { Args: { p_request_id: string; p_decision: string; p_comment?: string | null }; Returns: undefined };
+      cancel_opportunity_approval: { Args: { p_request_id: string; p_reason?: string | null }; Returns: undefined };
+      refresh_deadline_alerts: { Args: NoArgs; Returns: number };
       get_meeting_people: {
         Args: { p_meeting_id: string };
         Returns: { profile_id: string; full_name: string; job_title: string | null; is_organizer: boolean }[];
