@@ -2,7 +2,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronDown, KeyRound, LogOut, Menu, User } from 'lucide-react';
 import { useAuth } from '../../lib/auth/AuthContext';
+import { t } from '../../lib/i18n';
 import { NotificationDropdown } from './NotificationDropdown';
+import { LanguageSwitcher, ThemeToggle } from './PreferenceControls';
 import { UserAvatar } from '../ui/UserAvatar';
 
 interface HeaderProps {
@@ -45,17 +47,21 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
         <button
           type="button"
           onClick={onOpenMobileMenu}
-          aria-label="Abrir menu de navegação"
+          aria-label={t('Abrir menu de navegação')}
           className="rounded-md p-2 text-text-secondary hover:bg-surface-muted lg:hidden"
         >
           <Menu className="h-5 w-5" aria-hidden="true" />
         </button>
         <p className="hidden text-sm text-text-secondary sm:block">
-          <span className="font-semibold text-text">SI Holdings</span> · Operações e Timesheets
+          <span className="font-semibold text-text">SI Holdings</span> · {t('Operações e Timesheets')}
         </p>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1 sm:gap-2">
+        <div className="hidden sm:block">
+          <LanguageSwitcher />
+        </div>
+        <ThemeToggle />
         <NotificationDropdown />
 
         {currentUser && (
@@ -65,12 +71,12 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
               onClick={() => setIsUserMenuOpen((isOpen) => !isOpen)}
               aria-expanded={isUserMenuOpen}
               aria-haspopup="menu"
-              aria-label={`Menu de ${currentUser.full_name}`}
+              aria-label={t('Menu de {name}', { name: currentUser.full_name })}
               className="flex items-center gap-2 rounded-md p-1.5 hover:bg-surface-muted"
             >
               <UserAvatar name={currentUser.full_name} size="sm" />
               <span className="hidden max-w-40 truncate text-sm font-medium text-text md:block">
-                {currentUser.full_name}
+                {currentUser.display_name ?? currentUser.full_name}
               </span>
               <ChevronDown className="h-4 w-4 text-text-muted" aria-hidden="true" />
             </button>
@@ -81,9 +87,14 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
                   <p className="truncate text-sm font-semibold text-text">{currentUser.full_name}</p>
                   <p className="truncate text-xs text-text-secondary">{currentUser.email}</p>
                 </div>
+                {/* Em ecrãs pequenos o idioma fica aqui (no cabeçalho não há espaço). */}
+                <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-2 sm:hidden">
+                  <span className="text-xs text-text-muted">{t('Idioma')}</span>
+                  <LanguageSwitcher />
+                </div>
                 <button type="button" role="menuitem" className={MENU_ITEM_CLASS} onClick={() => goTo('/profile')}>
                   <User className="h-4 w-4" aria-hidden="true" />
-                  Meu perfil
+                  {t('Meu perfil')}
                 </button>
                 <button
                   type="button"
@@ -92,7 +103,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
                   onClick={() => goTo('/alterar-palavra-passe')}
                 >
                   <KeyRound className="h-4 w-4" aria-hidden="true" />
-                  Alterar palavra-passe
+                  {t('Alterar palavra-passe')}
                 </button>
                 <div className="mt-1 border-t border-border pt-1">
                   <button
@@ -105,7 +116,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
                     }}
                   >
                     <LogOut className="h-4 w-4" aria-hidden="true" />
-                    Terminar sessão
+                    {t('Terminar sessão')}
                   </button>
                 </div>
               </div>

@@ -18,6 +18,7 @@ import {
   MIN_DAILY_TARGET_HOURS,
   validateSettingsForm,
 } from '../../utils/validation';
+import { t, translated } from '../../lib/i18n';
 
 const SETTING_KEYS = {
   companyName: 'COMPANY_NAME',
@@ -28,11 +29,11 @@ const SETTING_KEYS = {
   allowWeekendEntries: 'ALLOW_WEEKEND_ENTRIES',
 } as const;
 
-const PERIOD_TYPE_LABELS: Record<string, string> = {
+const PERIOD_TYPE_LABELS: Record<string, string> = translated({
   MONTHLY: 'Mensal',
   BIWEEKLY: 'Quinzenal',
   WEEKLY: 'Semanal',
-};
+});
 
 function settingValue(settings: SystemSetting[], key: string): string {
   return settings.find((setting) => setting.key === key)?.value ?? '';
@@ -76,7 +77,7 @@ export const SettingsPage: React.FC = () => {
   }, [settings.data]);
 
   if (settings.error) return <ErrorState message={settings.error} onRetry={settings.reload} />;
-  if (!settings.data || !values) return <LoadingState label="A carregar configurações..." />;
+  if (!settings.data || !values) return <LoadingState label={t('A carregar configurações...')} />;
 
   const originalValues = toFormValues(settings.data);
   const changes = changedSettings(originalValues, values);
@@ -98,10 +99,10 @@ export const SettingsPage: React.FC = () => {
     setIsSaving(true);
     try {
       await updateSystemSettings(changes);
-      setSuccessMessage('Configurações guardadas com sucesso.');
+      setSuccessMessage(t('Configurações guardadas com sucesso.'));
       settings.reload();
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Não foi possível guardar as configurações.'));
+      setErrorMessage(getErrorMessage(error, t('Não foi possível guardar as configurações.')));
     } finally {
       setIsSaving(false);
     }
@@ -109,9 +110,9 @@ export const SettingsPage: React.FC = () => {
 
   return (
     <div className="max-w-4xl space-y-6">
-      <PageHeader title="Configurações" subtitle="Parâmetros institucionais e regras de registo de horas." />
+      <PageHeader title={t('Configurações')} subtitle={t('Parâmetros institucionais e regras de registo de horas.')} />
 
-      {!canManage && <Alert variant="info">Tem acesso apenas de leitura às configurações.</Alert>}
+      {!canManage && <Alert variant="info">{t('Tem acesso apenas de leitura às configurações.')}</Alert>}
       {successMessage && (
         <Alert variant="success" onDismiss={() => setSuccessMessage(null)}>
           {successMessage}
@@ -120,10 +121,10 @@ export const SettingsPage: React.FC = () => {
       {errorMessage && <Alert variant="error">{errorMessage}</Alert>}
 
       <form onSubmit={handleSubmit} className="space-y-6" noValidate>
-        <Panel title="Identidade institucional">
+        <Panel title={t('Identidade institucional')}>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <TextField
-              label="Nome da empresa"
+              label={t('Nome da empresa')}
               required
               disabled={!canManage}
               value={values.companyName}
@@ -131,24 +132,24 @@ export const SettingsPage: React.FC = () => {
               onChange={(event) => updateValue('companyName', event.target.value)}
             />
             <TextField
-              label="Idioma"
+              label={t('Idioma predefinido')}
               disabled
               value={settingValue(settings.data, SETTING_KEYS.language)}
-              hint="A plataforma está disponível apenas em português (pt-PT)."
+              hint={t('Idioma inicial da plataforma. Cada utilizador pode escolher português ou inglês no seu perfil.')}
             />
           </div>
         </Panel>
 
-        <Panel title="Regras de timesheet">
+        <Panel title={t('Regras de timesheet')}>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <TextField
-              label="Fuso horário"
+              label={t('Fuso horário')}
               disabled
               value={settingValue(settings.data, SETTING_KEYS.timezone)}
-              hint="Fuso horário oficial de operação (CAT, UTC+2)."
+              hint={t('Fuso horário oficial de operação (CAT, UTC+2).')}
             />
             <SelectField
-              label="Ciclo de apuração"
+              label={t('Ciclo de apuração')}
               required
               disabled={!canManage}
               value={values.periodType}
@@ -162,7 +163,7 @@ export const SettingsPage: React.FC = () => {
               ))}
             </SelectField>
             <TextField
-              label="Meta diária de horas"
+              label={t('Meta diária de horas')}
               type="number"
               inputMode="numeric"
               min={MIN_DAILY_TARGET_HOURS}
@@ -171,7 +172,7 @@ export const SettingsPage: React.FC = () => {
               disabled={!canManage}
               value={values.dailyTargetHours}
               error={fieldErrors.dailyTargetHours}
-              hint={`Entre ${MIN_DAILY_TARGET_HOURS} e ${MAX_DAILY_TARGET_HOURS} horas.`}
+              hint={t('Entre {MIN_DAILY_TARGET_HOURS} e {MAX_DAILY_TARGET_HOURS} horas.', { MIN_DAILY_TARGET_HOURS, MAX_DAILY_TARGET_HOURS })}
               onChange={(event) => updateValue('dailyTargetHours', event.target.value)}
             />
             <div className="flex items-start gap-3 pt-7">
@@ -184,7 +185,7 @@ export const SettingsPage: React.FC = () => {
                 className="mt-0.5 h-4 w-4 accent-primary-hover"
               />
               <label htmlFor="allow-weekend-entries" className="text-sm text-text">
-                Permitir registo de horas ao fim de semana
+                {t('Permitir registo de horas ao fim de semana')}
               </label>
             </div>
           </div>
@@ -200,10 +201,10 @@ export const SettingsPage: React.FC = () => {
                 setFieldErrors({});
               }}
             >
-              Cancelar alterações
+              {t('Cancelar alterações')}
             </Button>
             <Button type="submit" icon={Save} isLoading={isSaving} disabled={!hasChanges}>
-              Guardar configurações
+              {t('Guardar configurações')}
             </Button>
           </div>
         )}

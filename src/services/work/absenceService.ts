@@ -4,6 +4,7 @@ import type { AbsenceDecision, AbsenceRequest, AbsenceStatus, AbsenceType, Absen
 import { isAbsenceStatus } from '../../types/work';
 import { isPresent } from '../mappers';
 import { mapWorkEvent, WORK_EVENT_COLUMNS } from './workEvents';
+import { t } from '../../lib/i18n';
 
 const ABSENCE_SELECT =
   'id, reference, employee_id, absence_type_id, start_date, end_date, reason, status, submitted_at, validated_at, validation_comment, decided_at, decision_comment, created_at, employee:profiles!absence_requests_employee_id_fkey(full_name), type:absence_types(name, requires_attachment)' as const;
@@ -56,7 +57,7 @@ export async function listAbsenceTypes(): Promise<AbsenceType[]> {
     .select('id, code, name, requires_attachment, requires_manager_approval')
     .eq('active', true)
     .order('sort_order');
-  if (error) throw toServiceError(error, 'Não foi possível carregar os tipos de ausência.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar os tipos de ausência.'));
   return data.map((row) => ({
     id: row.id,
     code: row.code,
@@ -73,7 +74,7 @@ export async function listMyAbsences(employeeId: string): Promise<AbsenceRequest
     .eq('employee_id', employeeId)
     .order('start_date', { ascending: false })
     .limit(200);
-  if (error) throw toServiceError(error, 'Não foi possível carregar os seus pedidos de ausência.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar os seus pedidos de ausência.'));
   return data.map(mapAbsence).filter(isPresent);
 }
 
@@ -87,7 +88,7 @@ export async function listTeamAbsences(viewerId: string, statuses: AbsenceStatus
     .limit(200);
   if (statuses.length > 0) request = request.in('status', statuses);
   const { data, error } = await request;
-  if (error) throw toServiceError(error, 'Não foi possível carregar os pedidos da equipa.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar os pedidos da equipa.'));
   return data.map(mapAbsence).filter(isPresent);
 }
 
@@ -101,7 +102,7 @@ export async function listApprovedAbsences(employeeId: string, from: string, to:
     .lte('start_date', to)
     .gte('end_date', from)
     .order('start_date');
-  if (error) throw toServiceError(error, 'Não foi possível carregar as ausências do período.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar as ausências do período.'));
   return data.map(mapAbsence).filter(isPresent);
 }
 
@@ -111,7 +112,7 @@ export async function listAbsenceEvents(requestId: string): Promise<WorkEvent[]>
     .select(WORK_EVENT_COLUMNS)
     .eq('absence_request_id', requestId)
     .order('created_at');
-  if (error) throw toServiceError(error, 'Não foi possível carregar o histórico do pedido.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar o histórico do pedido.'));
   return data.map(mapWorkEvent);
 }
 
@@ -131,27 +132,27 @@ export async function saveAbsence(requestId: string | null, input: AbsenceInput)
     p_end_date: input.endDate,
     p_reason: input.reason,
   });
-  if (error) throw toServiceError(error, 'Não foi possível guardar o pedido.');
+  if (error) throw toServiceError(error, t('Não foi possível guardar o pedido.'));
   return data;
 }
 
 export async function submitAbsence(requestId: string): Promise<void> {
   const { error } = await supabase.rpc('submit_absence_request', { p_request_id: requestId });
-  if (error) throw toServiceError(error, 'Não foi possível submeter o pedido.');
+  if (error) throw toServiceError(error, t('Não foi possível submeter o pedido.'));
 }
 
 export async function cancelAbsence(requestId: string, reason: string | null): Promise<void> {
   const { error } = await supabase.rpc('cancel_absence_request', { p_request_id: requestId, p_reason: reason });
-  if (error) throw toServiceError(error, 'Não foi possível cancelar o pedido.');
+  if (error) throw toServiceError(error, t('Não foi possível cancelar o pedido.'));
 }
 
 export async function decideAbsence(requestId: string, decision: AbsenceDecision, comment: string | null): Promise<void> {
   const { error } = await supabase.rpc('decide_absence_request', { p_request_id: requestId, p_decision: decision, p_comment: comment });
-  if (error) throw toServiceError(error, 'Não foi possível registar a decisão.');
+  if (error) throw toServiceError(error, t('Não foi possível registar a decisão.'));
 }
 
 /** 1.º nível: o gestor da equipa valida e encaminha ao Manager, ou devolve para correção. */
 export async function validateAbsence(requestId: string, decision: AbsenceValidation, comment: string | null): Promise<void> {
   const { error } = await supabase.rpc('validate_absence_request', { p_request_id: requestId, p_decision: decision, p_comment: comment });
-  if (error) throw toServiceError(error, 'Não foi possível registar a validação.');
+  if (error) throw toServiceError(error, t('Não foi possível registar a validação.'));
 }

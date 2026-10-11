@@ -4,6 +4,7 @@ import type { Asset, AssetStatus, AssetType, Intervention, InterventionOutcome }
 import { isAssetStatus, isAssetType, isInterventionOutcome } from '../types/it';
 import { isPresent } from './mappers';
 import { toIlikePattern } from '../utils/validation';
+import { t } from '../lib/i18n';
 
 /**
  * Equipamentos e intervenções técnicas. O inventário é lido e gerido sob RLS
@@ -71,20 +72,20 @@ export async function listAssets(query: AssetQuery): Promise<Asset[]> {
     request = request.or(`asset_tag.ilike.${pattern},serial_number.ilike.${pattern},brand.ilike.${pattern},model.ilike.${pattern}`);
   }
   const { data, error } = await request;
-  if (error) throw toServiceError(error, 'Não foi possível carregar os equipamentos.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar os equipamentos.'));
   return data.map(mapAsset).filter(isPresent);
 }
 
 /** Equipamentos atribuídos ao utilizador (para associar a um pedido de suporte). */
 export async function listMyAssets(profileId: string): Promise<Asset[]> {
   const { data, error } = await supabase.from('it_assets').select(ASSET_SELECT).eq('assigned_to', profileId).order('asset_tag');
-  if (error) throw toServiceError(error, 'Não foi possível carregar os seus equipamentos.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar os seus equipamentos.'));
   return data.map(mapAsset).filter(isPresent);
 }
 
 export async function getAsset(assetId: string): Promise<Asset | null> {
   const { data, error } = await supabase.from('it_assets').select(ASSET_SELECT).eq('id', assetId).maybeSingle();
-  if (error) throw toServiceError(error, 'Não foi possível carregar o equipamento.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar o equipamento.'));
   return data ? mapAsset(data) : null;
 }
 
@@ -121,14 +122,14 @@ function toAssetPayload(input: AssetInput) {
 export async function createAsset(input: AssetInput): Promise<string> {
   const payload = input.assetTag ? { ...toAssetPayload(input), asset_tag: input.assetTag } : toAssetPayload(input);
   const { data, error } = await supabase.from('it_assets').insert(payload).select('id').single();
-  if (error) throw toServiceError(error, 'Não foi possível registar o equipamento.');
+  if (error) throw toServiceError(error, t('Não foi possível registar o equipamento.'));
   return data.id;
 }
 
 export async function updateAsset(assetId: string, input: AssetInput): Promise<void> {
   const payload = input.assetTag ? { ...toAssetPayload(input), asset_tag: input.assetTag } : toAssetPayload(input);
   const { error } = await supabase.from('it_assets').update(payload).eq('id', assetId);
-  if (error) throw toServiceError(error, 'Não foi possível guardar o equipamento.');
+  if (error) throw toServiceError(error, t('Não foi possível guardar o equipamento.'));
 }
 
 // ---------------------------------------------------------------------------- intervenções
@@ -190,7 +191,7 @@ export async function listInterventions(query: InterventionQuery): Promise<Inter
   if (query.assetId) request = request.eq('asset_id', query.assetId);
   if (query.outcome) request = request.eq('outcome', query.outcome);
   const { data, error, count } = await request;
-  if (error) throw toServiceError(error, 'Não foi possível carregar as intervenções.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar as intervenções.'));
   return { items: data.map(mapIntervention).filter(isPresent), total: count ?? data.length };
 }
 
@@ -214,6 +215,6 @@ export async function addIntervention(input: InterventionInput): Promise<string>
     p_outcome: input.outcome,
     p_notes: input.notes,
   });
-  if (error) throw toServiceError(error, 'Não foi possível registar a intervenção.');
+  if (error) throw toServiceError(error, t('Não foi possível registar a intervenção.'));
   return data;
 }

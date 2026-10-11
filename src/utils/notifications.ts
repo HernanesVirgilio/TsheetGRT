@@ -1,6 +1,7 @@
 // Categorias das notificações (definidas no servidor a partir do tipo, ver private.notification_category).
 import type { BadgeTone } from '../components/ui/badgeTones';
 import type { NotificationItem } from '../types';
+import { translated } from '../lib/i18n';
 
 export const NOTIFICATION_CATEGORIES = ['INFO', 'COMPLETION', 'APPROVAL_REQUEST', 'DEADLINE', 'DECISION'] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
@@ -9,13 +10,13 @@ export function isNotificationCategory(value: string): value is NotificationCate
   return (NOTIFICATION_CATEGORIES as readonly string[]).includes(value);
 }
 
-export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> = {
+export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> = translated({
   INFO: 'Informação',
   COMPLETION: 'Conclusão',
   APPROVAL_REQUEST: 'Pedido de aprovação',
   DEADLINE: 'Alerta de prazo',
   DECISION: 'Decisão tomada',
-};
+});
 
 export const NOTIFICATION_CATEGORY_TONES: Record<NotificationCategory, BadgeTone> = {
   INFO: 'neutral',

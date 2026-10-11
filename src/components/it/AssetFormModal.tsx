@@ -12,6 +12,7 @@ import type { AssetFormField, AssetFormValues } from '../../utils/it';
 import { ASSET_STATUS_LABELS, ASSET_TYPE_LABELS, toLocalDateInput, validateAssetForm } from '../../utils/it';
 import type { FieldErrors } from '../../utils/validation';
 import { hasErrors, optionalText } from '../../utils/validation';
+import { t } from '../../lib/i18n';
 
 const EMPTY_FORM: AssetFormValues = {
   assetTag: '',
@@ -103,13 +104,13 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({ isOpen, asset, u
     try {
       if (asset) {
         await updateAsset(asset.id, input);
-        onSaved(`Equipamento ${input.assetTag ?? asset.assetTag} atualizado.`, asset.id);
+        onSaved(t('Equipamento {assetTag} atualizado.', { assetTag: input.assetTag ?? asset.assetTag }), asset.id);
       } else {
         const assetId = await createAsset(input);
-        onSaved('Equipamento registado.', assetId);
+        onSaved(t('Equipamento registado.'), assetId);
       }
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Não foi possível guardar o equipamento.'));
+      setErrorMessage(getErrorMessage(error, t('Não foi possível guardar o equipamento.')));
     } finally {
       setIsSubmitting(false);
     }
@@ -120,17 +121,17 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({ isOpen, asset, u
   return (
     <Modal
       isOpen={isOpen}
-      title={asset ? `Editar ${asset.assetTag}` : 'Novo equipamento'}
+      title={asset ? t('Editar {assetTag}', { assetTag: asset.assetTag }) : t('Novo equipamento')}
       size="lg"
       isBusy={isSubmitting}
       onClose={onClose}
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
-            Cancelar
+            {t('Cancelar')}
           </Button>
           <Button type="submit" form={formId} isLoading={isSubmitting}>
-            {asset ? 'Guardar alterações' : 'Registar equipamento'}
+            {asset ? t('Guardar alterações') : t('Registar equipamento')}
           </Button>
         </>
       }
@@ -139,21 +140,21 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({ isOpen, asset, u
         {errorMessage && <Alert variant="error">{errorMessage}</Alert>}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <TextField
-            label="Código patrimonial"
+            label={t('Código patrimonial')}
             maxLength={30}
             value={values.assetTag}
             error={fieldErrors.assetTag}
-            hint={asset ? undefined : 'Vazio = gerado automaticamente (SI-IT-0001).'}
+            hint={asset ? undefined : t('Vazio = gerado automaticamente (SI-IT-0001).')}
             onChange={(event) => updateValue('assetTag', event.target.value.toUpperCase())}
           />
           <SelectField
-            label="Tipo"
+            label={t('Tipo')}
             required
             value={values.assetType}
             error={fieldErrors.assetType}
             onChange={(event) => updateValue('assetType', event.target.value)}
           >
-            <option value="">Selecione…</option>
+            <option value="">{t('Selecione…')}</option>
             {ASSET_TYPES.map((type) => (
               <option key={type} value={type}>
                 {ASSET_TYPE_LABELS[type]}
@@ -161,35 +162,35 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({ isOpen, asset, u
             ))}
           </SelectField>
           <TextField
-            label="Marca"
+            label={t('Marca')}
             maxLength={100}
             value={values.brand}
             error={fieldErrors.brand}
             onChange={(event) => updateValue('brand', event.target.value)}
           />
           <TextField
-            label="Modelo"
+            label={t('Modelo')}
             maxLength={150}
             value={values.model}
             error={fieldErrors.model}
             onChange={(event) => updateValue('model', event.target.value)}
           />
           <TextField
-            label="Número de série"
+            label={t('Número de série')}
             maxLength={100}
             value={values.serialNumber}
             error={fieldErrors.serialNumber}
             onChange={(event) => updateValue('serialNumber', event.target.value)}
           />
           <TextField
-            label="Data de aquisição"
+            label={t('Data de aquisição')}
             type="date"
             value={values.acquiredOn}
             error={fieldErrors.acquiredOn}
             onChange={(event) => updateValue('acquiredOn', event.target.value)}
           />
           <SelectField
-            label="Estado"
+            label={t('Estado')}
             required
             value={values.status}
             error={fieldErrors.status}
@@ -202,14 +203,14 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({ isOpen, asset, u
             ))}
           </SelectField>
           <SelectField
-            label="Utilizador responsável"
+            label={t('Utilizador responsável')}
             value={canHaveAssignee ? values.assignedTo : ''}
             disabled={!canHaveAssignee}
             error={fieldErrors.assignedTo}
-            hint={canHaveAssignee ? undefined : 'Equipamentos em stock ou abatidos não têm utilizador.'}
+            hint={canHaveAssignee ? undefined : t('Equipamentos em stock ou abatidos não têm utilizador.')}
             onChange={(event) => updateValue('assignedTo', event.target.value)}
           >
-            <option value="">Sem utilizador</option>
+            <option value="">{t('Sem utilizador')}</option>
             {assignableUsers.map((user) => (
               <option key={user.id} value={user.id}>
                 {user.full_name}
@@ -218,11 +219,11 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({ isOpen, asset, u
             ))}
           </SelectField>
           <SelectField
-            label="Departamento"
+            label={t('Departamento')}
             value={values.departmentId}
             onChange={(event) => updateValue('departmentId', event.target.value)}
           >
-            <option value="">Sem departamento</option>
+            <option value="">{t('Sem departamento')}</option>
             {selectableDepartments.map((department) => (
               <option key={department.id} value={department.id}>
                 {department.name}
@@ -230,16 +231,16 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({ isOpen, asset, u
             ))}
           </SelectField>
           <TextField
-            label="Localização"
+            label={t('Localização')}
             maxLength={150}
             value={values.location}
             error={fieldErrors.location}
-            hint="Ex.: Sede · Piso 2 · Sala 204"
+            hint={t('Ex.: Sede · Piso 2 · Sala 204')}
             onChange={(event) => updateValue('location', event.target.value)}
           />
         </div>
         <TextAreaField
-          label="Observações"
+          label={t('Observações')}
           rows={3}
           maxLength={2000}
           value={values.notes}

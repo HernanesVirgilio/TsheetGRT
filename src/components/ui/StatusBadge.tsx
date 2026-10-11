@@ -3,9 +3,10 @@ import { AlertCircle, CheckCircle2, Clock, CircleDot, Lock, PauseCircle, Wrench,
 import type { LucideIcon } from 'lucide-react';
 import { BADGE_TONE_CLASSES } from './badgeTones';
 import type { BadgeTone } from './badgeTones';
+import { translatedFields } from '../../lib/i18n';
 
 // O estado é sempre comunicado por texto e ícone, nunca só pela cor.
-const STATUS_PRESENTATION: Record<string, { label: string; tone: BadgeTone; icon: LucideIcon }> = {
+const STATUS_PRESENTATION: Record<string, { label: string; tone: BadgeTone; icon: LucideIcon }> = translatedFields({
   APPROVED: { label: 'Aprovado', tone: 'success', icon: CheckCircle2 },
   SUBMITTED: { label: 'Submetido', tone: 'warning', icon: Clock },
   PENDING: { label: 'Pendente', tone: 'warning', icon: Clock },
@@ -26,7 +27,7 @@ const STATUS_PRESENTATION: Record<string, { label: string; tone: BadgeTone; icon
   IN_STOCK: { label: 'Em stock', tone: 'neutral', icon: CircleDot },
   RETIRED: { label: 'Abatido', tone: 'neutral', icon: XCircle },
   LOST: { label: 'Perdido', tone: 'danger', icon: AlertCircle },
-};
+}, ['label']);
 
 interface StatusBadgeProps {
   status: string;

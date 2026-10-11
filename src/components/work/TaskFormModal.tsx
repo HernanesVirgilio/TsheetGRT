@@ -3,7 +3,9 @@ import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Alert } from '../ui/Alert';
 import { SelectField, TextAreaField, TextField } from '../ui/FormField';
+import { MoreOptions } from '../ui/MoreOptions';
 import { getErrorMessage } from '../../lib/errors';
+import { t } from '../../lib/i18n';
 import { createTask, updateTask } from '../../services/work/taskService';
 import type { TaskDetail, WorkPerson } from '../../types/work';
 import { isWorkPriority, WORK_PRIORITIES } from '../../types/work';
@@ -50,7 +52,8 @@ function initialValues(task: TaskDetail | null): TaskFormValues {
     priority: task?.priority ?? 'MEDIUM',
     assigneeId: task?.assigneeId ?? '',
     dueDate: due ? toDateInput(due) : '',
-    dueTime: due ? toTimeInput(due) : '17:00',
+    // Vazio por omissão: sem data não há prazo; com data e sem hora, o prazo é às 17:00.
+    dueTime: due ? toTimeInput(due) : '',
     startDate: task?.startDate ?? '',
     estimatedHours: task?.estimatedMinutes ? String(Math.round((task.estimatedMinutes / 60) * 100) / 100).replace('.', ',') : '',
   };
@@ -73,6 +76,17 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isCompleted = task?.status === 'COMPLETED';
+  // Campos opcionais: na edição, a secção abre se já tiverem conteúdo diferente do habitual.
+  const hasAdditionalValues = Boolean(task && (task.description || task.priority !== 'MEDIUM' || task.startDate || task.estimatedMinutes));
+  const hasAdditionalErrors = Boolean(fieldErrors.description || fieldErrors.priority || fieldErrors.startDate || fieldErrors.estimatedHours);
+  const additionalSummary = [
+    t('Prioridade: {priority}', { priority: WORK_PRIORITY_LABELS[isWorkPriority(values.priority) ? values.priority : 'MEDIUM'].toLowerCase() }),
+    values.description.trim() ? t('com descrição') : t('sem descrição'),
+    values.estimatedHours ? t('estimativa {hours} h', { hours: values.estimatedHours }) : null,
+    requiresManagerReview ? t('acompanhamento do Manager') : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   useEffect(() => {
     if (!isOpen) return;
@@ -94,7 +108,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
     const original = initialValues(task);
     const dueChanged = values.dueDate !== original.dueDate || values.dueTime !== original.dueTime;
     const errors: FieldErrors<TaskFormField | 'reason'> = validateTaskForm(values, new Date(), { isCompleted, dueChanged: task ? dueChanged : true });
-    const reasonError = isCompleted ? validateReason(reason, 'Indique o motivo da alteração de uma tarefa concluída') : null;
+    const reasonError = isCompleted ? validateReason(reason, t('Indique o motivo da alteração de uma tarefa concluída')) : null;
     if (reasonError) errors.reason = reasonError;
     setFieldErrors(errors);
     if (hasErrors(errors) || !isWorkPriority(values.priority)) return;
@@ -114,7 +128,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
           reason: reason.trim() || null,
           expectedUpdatedAt: task.updatedAt,
         });
-        onSaved(task.id, 'Tarefa atualizada.');
+        onSaved(task.id, t('Tarefa atualizada.'));
       } else {
         const taskId = await createTask({
           title: values.title.trim(),
@@ -129,10 +143,10 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
           meetingId: links?.meetingId ?? null,
           requiresManagerReview: canRequestManagerReview && requiresManagerReview,
         });
-        onSaved(taskId, 'Tarefa criada.');
+        onSaved(taskId, t('Tarefa criada.'));
       }
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Não foi possível guardar a tarefa.'));
+      setErrorMessage(getErrorMessage(error, t('Não foi possível guardar a tarefa.')));
     } finally {
       setIsSubmitting(false);
     }
@@ -142,7 +156,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
   return (
     <Modal
       isOpen={isOpen}
-      title={task ? `Editar ${task.reference}` : 'Nova tarefa'}
+      title={task ? t('Editar {reference}', { reference: task.reference }) : t('Nova tarefa')}
       description={contextLabel}
       size="lg"
       isBusy={isSubmitting}
@@ -150,10 +164,10 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
-            Cancelar
+            {t('Cancelar')}
           </Button>
           <Button type="submit" form={formId} isLoading={isSubmitting}>
-            {task ? 'Guardar alterações' : 'Criar tarefa'}
+            {task ? t('Guardar alterações') : t('Criar tarefa')}
           </Button>
         </>
       }
@@ -162,82 +176,108 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
         {errorMessage && <Alert variant="error">{errorMessage}</Alert>}
         {isCompleted && (
           <Alert variant="warning">
-            A tarefa está concluída. Cada alteração fica no histórico com o seu nome e o motivo indicado.
+            {t('A tarefa está concluída. Cada alteração fica no histórico com o seu nome e o motivo indicado.')}
           </Alert>
         )}
         <TextField
-          label="Título"
+          label={t('Título')}
           required
           maxLength={200}
           value={values.title}
           error={fieldErrors.title}
           onChange={(event) => updateValue('title', event.target.value)}
         />
-        <TextAreaField
-          label="Descrição"
-          rows={4}
-          maxLength={5000}
-          value={values.description}
-          error={fieldErrors.description}
-          hint="O resultado esperado e a informação necessária para executar a tarefa."
-          onChange={(event) => updateValue('description', event.target.value)}
-        />
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <SelectField label="Prioridade" required value={values.priority} error={fieldErrors.priority} onChange={(event) => updateValue('priority', event.target.value)}>
-            {WORK_PRIORITIES.map((priority) => (
-              <option key={priority} value={priority}>
-                {WORK_PRIORITY_LABELS[priority]}
+        {!task && assignees.length > 0 && (
+          <SelectField
+            label={t('Responsável pela execução')}
+            value={values.assigneeId}
+            hint={
+              assignees.find((person) => person.profileId === values.assigneeId)?.jobDescription ??
+              t('Sem responsável, a tarefa fica planeada. Pode escolher-se a si próprio.')
+            }
+            onChange={(event) => updateValue('assigneeId', event.target.value)}
+          >
+            <option value="">{t('Sem responsável (planeada)')}</option>
+            {assignees.map((person) => (
+              <option key={person.profileId} value={person.profileId}>
+                {person.fullName}
+                {person.jobTitle ? ` · ${person.jobTitle}` : person.departmentName ? ` · ${person.departmentName}` : ''}
               </option>
             ))}
           </SelectField>
-          {!task && assignees.length > 0 && (
+        )}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <TextField
+            label={t('Prazo (data)')}
+            type="date"
+            value={values.dueDate}
+            error={fieldErrors.dueDate}
+            hint={t('Opcional. Sem data, a tarefa não tem prazo.')}
+            onChange={(event) => updateValue('dueDate', event.target.value)}
+          />
+          <TextField
+            label={t('Prazo (hora)')}
+            type="time"
+            value={values.dueTime}
+            hint={t('Sem hora, o prazo termina às 17:00.')}
+            onChange={(event) => updateValue('dueTime', event.target.value)}
+          />
+        </div>
+
+        <MoreOptions summary={additionalSummary} defaultOpen={hasAdditionalValues} forceOpen={hasAdditionalErrors}>
+          <TextAreaField
+            label={t('Descrição')}
+            rows={4}
+            maxLength={5000}
+            value={values.description}
+            error={fieldErrors.description}
+            hint={t('O resultado esperado e a informação necessária para executar a tarefa.')}
+            onChange={(event) => updateValue('description', event.target.value)}
+          />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <SelectField
-              label="Responsável pela execução"
-              value={values.assigneeId}
-              hint={
-                assignees.find((person) => person.profileId === values.assigneeId)?.jobDescription ??
-                'Sem responsável, a tarefa fica planeada. Pode escolher-se a si próprio.'
-              }
-              onChange={(event) => updateValue('assigneeId', event.target.value)}
+              label={t('Prioridade')}
+              required
+              value={values.priority}
+              error={fieldErrors.priority}
+              hint={t('Ordena o trabalho do dia.')}
+              onChange={(event) => updateValue('priority', event.target.value)}
             >
-              <option value="">Sem responsável (planeada)</option>
-              {assignees.map((person) => (
-                <option key={person.profileId} value={person.profileId}>
-                  {person.fullName}
-                  {person.jobTitle ? ` · ${person.jobTitle}` : person.departmentName ? ` · ${person.departmentName}` : ''}
+              {WORK_PRIORITIES.map((priority) => (
+                <option key={priority} value={priority}>
+                  {WORK_PRIORITY_LABELS[priority]}
                 </option>
               ))}
             </SelectField>
-          )}
-          <TextField label="Prazo (data)" type="date" value={values.dueDate} error={fieldErrors.dueDate} onChange={(event) => updateValue('dueDate', event.target.value)} />
-          <TextField label="Prazo (hora)" type="time" value={values.dueTime} onChange={(event) => updateValue('dueTime', event.target.value)} />
-          <TextField label="Data de início" type="date" value={values.startDate} error={fieldErrors.startDate} onChange={(event) => updateValue('startDate', event.target.value)} />
-          <TextField
-            label="Estimativa (horas)"
-            inputMode="decimal"
-            value={values.estimatedHours}
-            error={fieldErrors.estimatedHours}
-            hint="Ex.: 1,5"
-            onChange={(event) => updateValue('estimatedHours', event.target.value)}
-          />
-        </div>
-        {!task && canRequestManagerReview && (
-          <label className="flex items-start gap-2 text-sm text-text">
-            <input
-              type="checkbox"
-              className="mt-0.5 h-4 w-4 accent-primary-hover"
-              checked={requiresManagerReview}
-              onChange={(event) => setRequiresManagerReview(event.target.checked)}
+            <TextField label={t('Data de início')} type="date" value={values.startDate} error={fieldErrors.startDate} onChange={(event) => updateValue('startDate', event.target.value)} />
+            <TextField
+              label={t('Estimativa (horas)')}
+              inputMode="decimal"
+              value={values.estimatedHours}
+              error={fieldErrors.estimatedHours}
+              hint={t('Ex.: 1,5')}
+              onChange={(event) => updateValue('estimatedHours', event.target.value)}
             />
-            <span>
-              Exige acompanhamento do Manager
-              <span className="block text-xs text-text-muted">A conclusão é enviada ao Manager para validação. Use apenas quando a decisão lhe compete.</span>
-            </span>
-          </label>
-        )}
+          </div>
+          {!task && canRequestManagerReview && (
+            <label className="flex items-start gap-2 text-sm text-text">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 accent-primary-hover"
+                checked={requiresManagerReview}
+                onChange={(event) => setRequiresManagerReview(event.target.checked)}
+              />
+              <span>
+                {t('Exige acompanhamento do Manager')}
+                <span className="block text-xs text-text-muted">{t('A conclusão é enviada ao Manager para validação. Use apenas quando a decisão lhe compete.')}</span>
+              </span>
+            </label>
+          )}
+        </MoreOptions>
+
         {isCompleted && (
           <TextAreaField
-            label="Motivo da alteração"
+            label={t('Motivo da alteração')}
             required
             rows={3}
             maxLength={1000}
@@ -251,10 +291,10 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
         )}
         {task && !isCompleted && (
           <TextField
-            label="Motivo (opcional)"
+            label={t('Motivo (opcional)')}
             maxLength={1000}
             value={reason}
-            hint="Fica no histórico junto das alterações (ex.: porque o prazo mudou)."
+            hint={t('Fica no histórico junto das alterações (ex.: porque o prazo mudou).')}
             onChange={(event) => setReason(event.target.value)}
           />
         )}

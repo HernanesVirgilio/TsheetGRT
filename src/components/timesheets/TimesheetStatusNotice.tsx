@@ -4,6 +4,7 @@ import type { TimesheetSummary } from '../../types';
 import type { TimesheetDecision } from '../../services/timesheetService';
 import { formatDateTime } from '../../utils/format';
 import { describeReviewer } from '../../utils/timesheets';
+import { t } from '../../lib/i18n';
 
 interface TimesheetStatusNoticeProps {
   summary: TimesheetSummary;
@@ -19,22 +20,22 @@ export const TimesheetStatusNotice: React.FC<TimesheetStatusNoticeProps> = ({ su
   switch (summary.status) {
     case 'REJECTED':
       return (
-        <Alert variant="error" title={`Rejeitado por: ${describeReviewer(latestDecision?.reviewer ?? null)}`}>
-          Motivo: {summary.rejectionReason ?? '—'} ({formatDateTime(summary.rejectedAt)}).
+        <Alert variant="error" title={t('Rejeitado por: {reviewer}', { reviewer: describeReviewer(latestDecision?.reviewer ?? null) })}>
+          {t('Motivo: {reason} ({date}).', { reason: summary.rejectionReason ?? '—', date: formatDateTime(summary.rejectedAt) })}
           {audience === 'owner' && ' Corrija os registos e submeta novamente.'}
         </Alert>
       );
     case 'SUBMITTED':
       return (
-        <Alert variant="warning" title={audience === 'owner' ? 'A aguardar aprovação' : 'Por aprovar'}>
-          Submetido em {formatDateTime(summary.submittedAt)}.
-          {audience === 'owner' && ' A edição está bloqueada até à decisão do gestor.'}
+        <Alert variant="warning" title={audience === 'owner' ? t('A aguardar aprovação') : t('Por aprovar')}>
+          {t('Submetido em {date}.', { date: formatDateTime(summary.submittedAt) })}
+          {audience === 'owner' && ` ${t('A edição está bloqueada até à decisão do gestor.')}`}
         </Alert>
       );
     case 'APPROVED':
       return (
-        <Alert variant="success" title={`Aprovado por: ${describeReviewer(latestDecision?.reviewer ?? null)}`}>
-          Aprovado em {formatDateTime(summary.approvedAt)}.
+        <Alert variant="success" title={t('Aprovado por: {reviewer}', { reviewer: describeReviewer(latestDecision?.reviewer ?? null) })}>
+          {t('Aprovado em {date}.', { date: formatDateTime(summary.approvedAt) })}
         </Alert>
       );
     default:

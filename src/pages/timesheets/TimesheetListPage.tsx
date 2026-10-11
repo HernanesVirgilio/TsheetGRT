@@ -23,6 +23,7 @@ import type { PeriodField } from '../../utils/timesheets';
 import { validatePeriod } from '../../utils/timesheets';
 import type { FieldErrors } from '../../utils/validation';
 import { hasErrors } from '../../utils/validation';
+import { t, translatedFields } from '../../lib/i18n';
 
 const ALL = '';
 
@@ -43,7 +44,7 @@ function currentMonthPeriod(): { start: string; end: string } {
   return { start: `${year}-${pad(month)}-01`, end: `${year}-${pad(month)}-${pad(lastDay)}` };
 }
 
-const COLUMNS: DataTableColumn<TimesheetSummary>[] = [
+const COLUMNS: DataTableColumn<TimesheetSummary>[] = translatedFields([
   {
     id: 'period',
     header: 'Período',
@@ -57,7 +58,7 @@ const COLUMNS: DataTableColumn<TimesheetSummary>[] = [
   { id: 'entries', header: 'Registos', render: (timesheet) => timesheet.entryCount },
   { id: 'hours', header: 'Horas', render: (timesheet) => formatMinutesAsHours(timesheet.totalMinutes) },
   { id: 'submitted', header: 'Submetido em', render: (timesheet) => formatDate(timesheet.submittedAt) },
-];
+], ['header']);
 
 interface NewPeriodModalProps {
   isOpen: boolean;
@@ -95,7 +96,7 @@ const NewPeriodModal: React.FC<NewPeriodModalProps> = ({ isOpen, onClose }) => {
       const timesheetId = await createTimesheet(currentUser.id, periodStart, periodEnd);
       navigate(`/timesheets/${timesheetId}`);
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Não foi possível criar o período.'));
+      setErrorMessage(getErrorMessage(error, t('Não foi possível criar o período.')));
       setIsSubmitting(false);
     }
   };
@@ -105,18 +106,18 @@ const NewPeriodModal: React.FC<NewPeriodModalProps> = ({ isOpen, onClose }) => {
   return (
     <Modal
       isOpen={isOpen}
-      title="Novo período"
-      description="Indique o intervalo de datas do timesheet."
+      title={t('Novo período')}
+      description={t('Indique o intervalo de datas do timesheet.')}
       size="sm"
       isBusy={isSubmitting}
       onClose={onClose}
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
-            Cancelar
+            {t('Cancelar')}
           </Button>
           <Button type="submit" form={formId} isLoading={isSubmitting}>
-            Criar período
+            {t('Criar período')}
           </Button>
         </>
       }
@@ -124,7 +125,7 @@ const NewPeriodModal: React.FC<NewPeriodModalProps> = ({ isOpen, onClose }) => {
       <form id={formId} onSubmit={handleSubmit} className="space-y-4" noValidate>
         {errorMessage && <Alert variant="error">{errorMessage}</Alert>}
         <TextField
-          label="Data de início"
+          label={t('Data de início')}
           type="date"
           required
           value={periodStart}
@@ -132,7 +133,7 @@ const NewPeriodModal: React.FC<NewPeriodModalProps> = ({ isOpen, onClose }) => {
           onChange={(event) => setPeriodStart(event.target.value)}
         />
         <TextField
-          label="Data de fim"
+          label={t('Data de fim')}
           type="date"
           required
           value={periodEnd}
@@ -159,12 +160,12 @@ export const TimesheetListPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Meu Timesheet"
-        subtitle="Os seus períodos de registo de horas e o respetivo estado de aprovação."
+        title={t('Meu Timesheet')}
+        subtitle={t('Os seus períodos de registo de horas e o respetivo estado de aprovação.')}
         actions={
           canCreate && (
             <Button icon={Plus} onClick={() => setIsNewPeriodOpen(true)}>
-              Novo período
+              {t('Novo período')}
             </Button>
           )
         }
@@ -173,12 +174,12 @@ export const TimesheetListPage: React.FC = () => {
       <Panel flush>
         <div className="border-b border-border p-4">
           <FilterSelect
-            label="Filtrar por estado"
+            label={t('Filtrar por estado')}
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value)}
             className="sm:max-w-xs"
           >
-            <option value={ALL}>Todos os estados</option>
+            <option value={ALL}>{t('Todos os estados')}</option>
             {STATUS_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
@@ -192,25 +193,25 @@ export const TimesheetListPage: React.FC = () => {
             <ErrorState message={timesheets.error} onRetry={timesheets.reload} />
           </div>
         )}
-        {timesheets.isLoading && !timesheets.data && <LoadingState label="A carregar timesheets..." />}
+        {timesheets.isLoading && !timesheets.data && <LoadingState label={t('A carregar timesheets...')} />}
         {timesheets.data && visible.length === 0 && (
           <EmptyState
             bordered={false}
             icon={Clock3}
-            title={statusFilter ? 'Nenhum timesheet neste estado.' : 'Ainda não tem timesheets.'}
-            message={canCreate && !statusFilter ? 'Crie um período para começar a registar horas.' : undefined}
+            title={statusFilter ? t('Nenhum timesheet neste estado.') : t('Ainda não tem timesheets.')}
+            message={canCreate && !statusFilter ? t('Crie um período para começar a registar horas.') : undefined}
             action={
               canCreate &&
               !statusFilter && (
                 <Button size="sm" icon={Plus} onClick={() => setIsNewPeriodOpen(true)}>
-                  Novo período
+                  {t('Novo período')}
                 </Button>
               )
             }
           />
         )}
         {visible.length > 0 && (
-          <DataTable caption="Os meus timesheets" columns={COLUMNS} rows={visible} getRowKey={(timesheet) => timesheet.id} />
+          <DataTable caption={t('Os meus timesheets')} columns={COLUMNS} rows={visible} getRowKey={(timesheet) => timesheet.id} />
         )}
       </Panel>
 

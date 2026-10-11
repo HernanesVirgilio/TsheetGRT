@@ -5,6 +5,7 @@ import { isTaskStatus, isWorkPriority } from '../../types/work';
 import { isPresent } from '../mappers';
 import { toIlikePattern } from '../../utils/validation';
 import { mapWorkEvent, WORK_EVENT_COLUMNS } from './workEvents';
+import { t } from '../../lib/i18n';
 
 /**
  * Tarefas. A leitura é feita sob RLS (próprias, criadas, equipa do âmbito, administração);
@@ -127,7 +128,7 @@ export async function listTasks(query: TaskQuery): Promise<TaskPage> {
   }
 
   const { data, error, count } = await request;
-  if (error) throw toServiceError(error, 'Não foi possível carregar as tarefas.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar as tarefas.'));
   return { items: data.map(mapTask).filter(isPresent), total: count ?? data.length };
 }
 
@@ -140,26 +141,26 @@ export async function listMyOpenTasks(viewerId: string): Promise<TaskSummary[]> 
     .in('status', ['ASSIGNED', 'IN_PROGRESS', 'BLOCKED'])
     .order('due_at', { ascending: true, nullsFirst: false })
     .limit(100);
-  if (error) throw toServiceError(error, 'Não foi possível carregar as suas tarefas.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar as suas tarefas.'));
   return data.map(mapTask).filter(isPresent);
 }
 
 /** Tarefas relacionadas: tarefas adicionais, de uma oportunidade ou geradas por uma reunião. */
 export async function listRelatedTasks(relation: 'parent_task_id' | 'opportunity_id' | 'meeting_id', id: string): Promise<TaskSummary[]> {
   const { data, error } = await supabase.from('tasks').select(TASK_SELECT).eq(relation, id).order('created_at');
-  if (error) throw toServiceError(error, 'Não foi possível carregar as tarefas relacionadas.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar as tarefas relacionadas.'));
   return data.map(mapTask).filter(isPresent);
 }
 
 /** Devolve null se a tarefa não existir ou não for visível para quem consulta. */
 export async function getTask(taskId: string): Promise<TaskDetail | null> {
   const { data, error } = await supabase.from('tasks').select(TASK_SELECT).eq('id', taskId).maybeSingle();
-  if (error) throw toServiceError(error, 'Não foi possível carregar a tarefa.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar a tarefa.'));
   const task = data ? mapTask(data) : null;
   if (!task || !data?.parent_task_id) return task;
   // Tarefa de origem (tarefa adicional): só é visível se a RLS o permitir.
   const parent = await supabase.from('tasks').select('id, reference, title').eq('id', data.parent_task_id).maybeSingle();
-  if (parent.error) throw toServiceError(parent.error, 'Não foi possível carregar a tarefa de origem.');
+  if (parent.error) throw toServiceError(parent.error, t('Não foi possível carregar a tarefa de origem.'));
   return { ...task, parentTask: parent.data };
 }
 
@@ -169,7 +170,7 @@ export async function listTaskEvents(taskId: string): Promise<WorkEvent[]> {
     .select(`${WORK_EVENT_COLUMNS}, after_closure`)
     .eq('task_id', taskId)
     .order('created_at');
-  if (error) throw toServiceError(error, 'Não foi possível carregar o histórico da tarefa.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar o histórico da tarefa.'));
   return data.map(mapWorkEvent);
 }
 
@@ -204,7 +205,7 @@ export async function createTask(input: NewTaskInput): Promise<string> {
     p_meeting_id: input.meetingId ?? null,
     p_requires_manager_review: input.requiresManagerReview ?? false,
   });
-  if (error) throw toServiceError(error, 'Não foi possível criar a tarefa.');
+  if (error) throw toServiceError(error, t('Não foi possível criar a tarefa.'));
   return data;
 }
 
@@ -234,7 +235,7 @@ export async function updateTask(taskId: string, input: TaskPlanningInput): Prom
     p_reason: input.reason,
     p_expected_updated_at: input.expectedUpdatedAt,
   });
-  if (error) throw toServiceError(error, 'Não foi possível guardar a tarefa.');
+  if (error) throw toServiceError(error, t('Não foi possível guardar a tarefa.'));
 }
 
 async function runTaskAction(action: PromiseLike<{ error: { message: string; code?: string } | null }>, fallback: string): Promise<void> {
@@ -243,31 +244,31 @@ async function runTaskAction(action: PromiseLike<{ error: { message: string; cod
 }
 
 export const assignTask = (taskId: string, assigneeId: string | null, note: string | null) =>
-  runTaskAction(supabase.rpc('assign_task', { p_task_id: taskId, p_assignee_id: assigneeId, p_note: note }), 'Não foi possível atribuir a tarefa.');
+  runTaskAction(supabase.rpc('assign_task', { p_task_id: taskId, p_assignee_id: assigneeId, p_note: note }), t('Não foi possível atribuir a tarefa.'));
 
 export const startTask = (taskId: string) =>
-  runTaskAction(supabase.rpc('start_task', { p_task_id: taskId }), 'Não foi possível iniciar a tarefa.');
+  runTaskAction(supabase.rpc('start_task', { p_task_id: taskId }), t('Não foi possível iniciar a tarefa.'));
 
 export const blockTask = (taskId: string, reason: string) =>
-  runTaskAction(supabase.rpc('block_task', { p_task_id: taskId, p_reason: reason }), 'Não foi possível registar o bloqueio.');
+  runTaskAction(supabase.rpc('block_task', { p_task_id: taskId, p_reason: reason }), t('Não foi possível registar o bloqueio.'));
 
 export const unblockTask = (taskId: string, note: string | null) =>
-  runTaskAction(supabase.rpc('unblock_task', { p_task_id: taskId, p_note: note }), 'Não foi possível desbloquear a tarefa.');
+  runTaskAction(supabase.rpc('unblock_task', { p_task_id: taskId, p_note: note }), t('Não foi possível desbloquear a tarefa.'));
 
 export const completeTask = (taskId: string, completionNote: string | null, lateReason: string | null) =>
   runTaskAction(
     supabase.rpc('complete_task', { p_task_id: taskId, p_completion_note: completionNote, p_late_reason: lateReason }),
-    'Não foi possível concluir a tarefa.'
+    t('Não foi possível concluir a tarefa.')
   );
 
 export const reopenTask = (taskId: string, reason: string, newDueAt: string | null) =>
-  runTaskAction(supabase.rpc('reopen_task', { p_task_id: taskId, p_reason: reason, p_new_due_at: newDueAt }), 'Não foi possível reabrir a tarefa.');
+  runTaskAction(supabase.rpc('reopen_task', { p_task_id: taskId, p_reason: reason, p_new_due_at: newDueAt }), t('Não foi possível reabrir a tarefa.'));
 
 export const cancelTask = (taskId: string, reason: string) =>
-  runTaskAction(supabase.rpc('cancel_task', { p_task_id: taskId, p_reason: reason }), 'Não foi possível cancelar a tarefa.');
+  runTaskAction(supabase.rpc('cancel_task', { p_task_id: taskId, p_reason: reason }), t('Não foi possível cancelar a tarefa.'));
 
 export const addTaskComment = (taskId: string, body: string) =>
-  runTaskAction(supabase.rpc('add_task_comment', { p_task_id: taskId, p_body: body }), 'Não foi possível enviar o comentário.');
+  runTaskAction(supabase.rpc('add_task_comment', { p_task_id: taskId, p_body: body }), t('Não foi possível enviar o comentário.'));
 
 export const reviewTask = (taskId: string, note: string | null) =>
-  runTaskAction(supabase.rpc('review_task', { p_task_id: taskId, p_note: note }), 'Não foi possível validar a conclusão.');
+  runTaskAction(supabase.rpc('review_task', { p_task_id: taskId, p_note: note }), t('Não foi possível validar a conclusão.'));

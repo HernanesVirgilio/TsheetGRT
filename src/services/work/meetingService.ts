@@ -5,6 +5,7 @@ import { isMeetingStatus } from '../../types/work';
 import { isPresent } from '../mappers';
 import { toIlikePattern } from '../../utils/validation';
 import { mapWorkEvent, WORK_EVENT_COLUMNS } from './workEvents';
+import { t } from '../../lib/i18n';
 
 const MEETING_SELECT =
   'id, title, description, objective, starts_at, ends_at, location, meeting_url, organizer_id, status, outcome, decisions, next_steps, cancel_reason, updated_at, organizer:profiles!meetings_organizer_id_fkey(full_name), task:tasks!meetings_task_id_fkey(id, reference, title), opportunity:opportunities(id, reference, title)' as const;
@@ -79,24 +80,24 @@ export async function listMeetings(query: MeetingQuery): Promise<{ items: Meetin
   if (search) request = request.ilike('title', toIlikePattern(search));
   if (query.scope === 'MINE') {
     const participation = await supabase.from('meeting_participants').select('meeting_id').eq('profile_id', query.viewerId);
-    if (participation.error) throw toServiceError(participation.error, 'Não foi possível carregar as reuniões.');
+    if (participation.error) throw toServiceError(participation.error, t('Não foi possível carregar as reuniões.'));
     const ids = participation.data.map((row) => row.meeting_id);
     request = request.or(ids.length > 0 ? `organizer_id.eq.${query.viewerId},id.in.(${ids.join(',')})` : `organizer_id.eq.${query.viewerId}`);
   }
   const { data, error, count } = await request;
-  if (error) throw toServiceError(error, 'Não foi possível carregar as reuniões.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar as reuniões.'));
   return { items: data.map(mapMeeting).filter(isPresent), total: count ?? data.length };
 }
 
 export async function listRelatedMeetings(column: 'task_id' | 'opportunity_id', id: string): Promise<MeetingSummary[]> {
   const { data, error } = await supabase.from('meetings').select(MEETING_SELECT).eq(column, id).order('starts_at', { ascending: false });
-  if (error) throw toServiceError(error, 'Não foi possível carregar as reuniões relacionadas.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar as reuniões relacionadas.'));
   return data.map(mapMeeting).filter(isPresent);
 }
 
 export async function getMeeting(meetingId: string): Promise<MeetingDetail | null> {
   const { data, error } = await supabase.from('meetings').select(MEETING_SELECT).eq('id', meetingId).maybeSingle();
-  if (error) throw toServiceError(error, 'Não foi possível carregar a reunião.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar a reunião.'));
   return data ? mapMeeting(data) : null;
 }
 
@@ -106,13 +107,13 @@ export async function listMeetingEvents(meetingId: string): Promise<WorkEvent[]>
     .select(`${WORK_EVENT_COLUMNS}, after_closure`)
     .eq('meeting_id', meetingId)
     .order('created_at');
-  if (error) throw toServiceError(error, 'Não foi possível carregar o histórico da reunião.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar o histórico da reunião.'));
   return data.map(mapWorkEvent);
 }
 
 export async function getMeetingPeople(meetingId: string): Promise<MeetingPerson[]> {
   const { data, error } = await supabase.rpc('get_meeting_people', { p_meeting_id: meetingId });
-  if (error) throw toServiceError(error, 'Não foi possível carregar os participantes.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar os participantes.'));
   return data.map((row) => ({ profileId: row.profile_id, fullName: row.full_name, jobTitle: row.job_title, isOrganizer: row.is_organizer }));
 }
 
@@ -140,7 +141,7 @@ export async function createMeeting(input: MeetingInput, links: { taskId?: strin
     p_task_id: links.taskId ?? null,
     p_opportunity_id: links.opportunityId ?? null,
   });
-  if (error) throw toServiceError(error, 'Não foi possível criar a reunião.');
+  if (error) throw toServiceError(error, t('Não foi possível criar a reunião.'));
   return data;
 }
 
@@ -157,7 +158,7 @@ export async function updateMeeting(meetingId: string, input: MeetingInput, expe
     p_participant_ids: input.participantIds,
     p_expected_updated_at: expectedUpdatedAt,
   });
-  if (error) throw toServiceError(error, 'Não foi possível guardar a reunião.');
+  if (error) throw toServiceError(error, t('Não foi possível guardar a reunião.'));
 }
 
 export interface ConflictQuery {
@@ -182,7 +183,7 @@ export async function getScheduleConflicts(query: ConflictQuery): Promise<Schedu
     p_task_id: query.links?.taskId ?? null,
     p_opportunity_id: query.links?.opportunityId ?? null,
   });
-  if (error) throw toServiceError(error, 'Não foi possível verificar a disponibilidade dos participantes.');
+  if (error) throw toServiceError(error, t('Não foi possível verificar a disponibilidade dos participantes.'));
   return data.map((row) => ({
     profileId: row.profile_id,
     fullName: row.full_name,
@@ -196,7 +197,7 @@ export async function getScheduleConflicts(query: ConflictQuery): Promise<Schedu
 
 export async function confirmMeeting(meetingId: string): Promise<void> {
   const { error } = await supabase.rpc('confirm_meeting', { p_meeting_id: meetingId });
-  if (error) throw toServiceError(error, 'Não foi possível confirmar a reunião.');
+  if (error) throw toServiceError(error, t('Não foi possível confirmar a reunião.'));
 }
 
 export interface MeetingOutcomeInput {
@@ -212,7 +213,7 @@ export async function completeMeeting(meetingId: string, input: MeetingOutcomeIn
     p_decisions: input.decisions,
     p_next_steps: input.nextSteps,
   });
-  if (error) throw toServiceError(error, 'Não foi possível registar o resultado.');
+  if (error) throw toServiceError(error, t('Não foi possível registar o resultado.'));
 }
 
 export async function updateMeetingOutcome(meetingId: string, input: MeetingOutcomeInput, reason: string): Promise<void> {
@@ -223,10 +224,10 @@ export async function updateMeetingOutcome(meetingId: string, input: MeetingOutc
     p_next_steps: input.nextSteps,
     p_reason: reason,
   });
-  if (error) throw toServiceError(error, 'Não foi possível corrigir o resultado.');
+  if (error) throw toServiceError(error, t('Não foi possível corrigir o resultado.'));
 }
 
 export async function cancelMeeting(meetingId: string, reason: string): Promise<void> {
   const { error } = await supabase.rpc('cancel_meeting', { p_meeting_id: meetingId, p_reason: reason });
-  if (error) throw toServiceError(error, 'Não foi possível cancelar a reunião.');
+  if (error) throw toServiceError(error, t('Não foi possível cancelar a reunião.'));
 }

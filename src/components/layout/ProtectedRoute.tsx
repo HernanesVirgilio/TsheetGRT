@@ -4,6 +4,7 @@ import { useAuth } from '../../lib/auth/AuthContext';
 import type { PermissionCode } from '../../types';
 import { LoadingState } from '../ui/States';
 import { UnauthorizedPage } from '../../pages/UnauthorizedPage';
+import { t } from '../../lib/i18n';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -21,7 +22,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requir
   const location = useLocation();
 
   if (status === 'loading') {
-    return <LoadingState label="A verificar permissões..." />;
+    return <LoadingState label={t('A verificar permissões...')} />;
   }
 
   if (status !== 'ready') {

@@ -32,6 +32,10 @@ export type ProfileRow = Timestamps & {
   is_active: boolean;
   must_change_password: boolean;
   last_login_at: string | null;
+  /** Perfil pessoal (20261014000000): opcional, nunca usado em autorização. */
+  display_name: string | null;
+  preferred_language: string | null;
+  theme_preference: string | null;
 };
 
 export type RoleRow = Timestamps & {

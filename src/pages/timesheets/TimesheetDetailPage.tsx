@@ -27,11 +27,12 @@ import { DecisionHistory } from '../../components/timesheets/DecisionHistory';
 import { EntryFormModal } from '../../components/timesheets/EntryFormModal';
 import { formatMinutesAsHours, formatPeriod, pluralize } from '../../utils/format';
 import { isUuid } from '../../utils/validation';
+import { t } from '../../lib/i18n';
 
 const BackLink: React.FC = () => (
   <Link to="/timesheets" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary-hover hover:underline">
     <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-    Voltar a Meu Timesheet
+    {t('Voltar a Meu Timesheet')}
   </Link>
 );
 
@@ -50,7 +51,7 @@ export const TimesheetDetailPage: React.FC = () => {
   const [isSubmitConfirmOpen, setIsSubmitConfirmOpen] = useState(false);
   const [isWorking, setIsWorking] = useState(false);
 
-  if (detail.isLoading && !detail.data) return <LoadingState label="A carregar timesheet..." />;
+  if (detail.isLoading && !detail.data) return <LoadingState label={t('A carregar timesheet...')} />;
   if (detail.error) {
     return (
       <div className="space-y-4">
@@ -64,7 +65,7 @@ export const TimesheetDetailPage: React.FC = () => {
     return (
       <div className="space-y-4">
         <BackLink />
-        <EmptyState title="Timesheet não encontrado." message="O timesheet não existe ou não lhe pertence." />
+        <EmptyState title={t('Timesheet não encontrado.')} message={t('O timesheet não existe ou não lhe pertence.')} />
       </div>
     );
   }
@@ -118,12 +119,12 @@ export const TimesheetDetailPage: React.FC = () => {
                 }}
                 disabled={!activities.data}
               >
-                Adicionar registo
+                {t('Adicionar registo')}
               </Button>
             )}
             {canSubmit && (
               <Button icon={Send} onClick={() => setIsSubmitConfirmOpen(true)} disabled={entries.length === 0}>
-                Submeter
+                {t('Submeter')}
               </Button>
             )}
           </>
@@ -141,22 +142,22 @@ export const TimesheetDetailPage: React.FC = () => {
       <PeriodAbsencesNotice employeeId={summary.employeeId} from={summary.periodStart} to={summary.periodEnd} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatCard label="Horas registadas" value={formatMinutesAsHours(summary.totalMinutes)} />
-        <StatCard label="Dias com registos" value={workedDays} />
-        <StatCard label="Registos" value={entries.length} />
+        <StatCard label={t('Horas registadas')} value={formatMinutesAsHours(summary.totalMinutes)} />
+        <StatCard label={t('Dias com registos')} value={workedDays} />
+        <StatCard label={t('Registos')} value={entries.length} />
       </div>
 
-      <Panel title="Registos de horas" flush>
+      <Panel title={t('Registos de horas')} flush>
         <TimesheetEntriesTable
           entries={entries}
-          emptyMessage={isEditable ? 'Adicione os registos diários antes de submeter.' : 'Este timesheet não tem registos.'}
+          emptyMessage={isEditable ? t('Adicione os registos diários antes de submeter.') : t('Este timesheet não tem registos.')}
           renderActions={
             isEditable
               ? (entry) => (
                   <div className="flex justify-end gap-1">
                     <IconButton
                       icon={Pencil}
-                      label={`Editar registo de ${entry.workDate}`}
+                      label={t('Editar registo de {workDate}', { workDate: entry.workDate })}
                       onClick={() => {
                         setEntryToEdit(entry);
                         setIsEntryFormOpen(true);
@@ -165,7 +166,7 @@ export const TimesheetDetailPage: React.FC = () => {
                     <IconButton
                       icon={Trash2}
                       tone="danger"
-                      label={`Eliminar registo de ${entry.workDate}`}
+                      label={t('Eliminar registo de {workDate}', { workDate: entry.workDate })}
                       onClick={() => setEntryToDelete(entry)}
                     />
                   </div>
@@ -193,29 +194,32 @@ export const TimesheetDetailPage: React.FC = () => {
 
       <ConfirmDialog
         isOpen={Boolean(entryToDelete)}
-        title="Eliminar registo?"
-        message="O registo de horas será removido deste timesheet."
-        confirmLabel="Eliminar"
+        title={t('Eliminar registo?')}
+        message={t('O registo de horas será removido deste timesheet.')}
+        confirmLabel={t('Eliminar')}
         isLoading={isWorking}
         onConfirm={() =>
           entryToDelete &&
-          runAction(() => deleteTimesheetEntry(entryToDelete.id), 'Registo eliminado.', 'Não foi possível eliminar o registo.')
+          runAction(() => deleteTimesheetEntry(entryToDelete.id), t('Registo eliminado.'), t('Não foi possível eliminar o registo.'))
         }
         onCancel={() => setEntryToDelete(null)}
       />
 
       <ConfirmDialog
         isOpen={isSubmitConfirmOpen}
-        title="Submeter timesheet?"
-        message={`Vai submeter ${formatMinutesAsHours(summary.totalMinutes)} em ${pluralize(entries.length, 'registo', 'registos')}. Depois de submetido, o timesheet fica bloqueado até à decisão do gestor.`}
-        confirmLabel="Submeter"
+        title={t('Submeter timesheet?')}
+        message={t('Vai submeter {hours} em {entries}. Depois de submetido, o timesheet fica bloqueado até à decisão do gestor.', {
+          hours: formatMinutesAsHours(summary.totalMinutes),
+          entries: pluralize(entries.length, 'registo', 'registos'),
+        })}
+        confirmLabel={t('Submeter')}
         variant="primary"
         isLoading={isWorking}
         onConfirm={() =>
           runAction(
             () => submitTimesheet(summary.id),
-            'Timesheet submetido para aprovação.',
-            'Não foi possível submeter o timesheet.'
+            t('Timesheet submetido para aprovação.'),
+            t('Não foi possível submeter o timesheet.')
           )
         }
         onCancel={() => setIsSubmitConfirmOpen(false)}

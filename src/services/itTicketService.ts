@@ -14,6 +14,7 @@ import type {
 import { isTicketEventType, isTicketPriority, isTicketStatus } from '../types/it';
 import { isPresent } from './mappers';
 import { toIlikePattern } from '../utils/validation';
+import { t } from '../lib/i18n';
 
 /**
  * Pedidos de suporte IT. Leitura sob RLS (o colaborador vê os próprios; o IT vê a fila);
@@ -96,7 +97,7 @@ export interface TicketPage {
 async function findRequesterIds(search: string): Promise<string[]> {
   const pattern = toIlikePattern(search);
   const { data, error } = await supabase.from('profiles').select('id').or(`full_name.ilike.${pattern},email.ilike.${pattern}`);
-  if (error) throw toServiceError(error, 'Não foi possível pesquisar solicitantes.');
+  if (error) throw toServiceError(error, t('Não foi possível pesquisar solicitantes.'));
   return data.map((profile) => profile.id);
 }
 
@@ -124,7 +125,7 @@ export async function listTickets(query: TicketQuery): Promise<TicketPage> {
   }
 
   const { data, error, count } = await request;
-  if (error) throw toServiceError(error, 'Não foi possível carregar os pedidos de suporte.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar os pedidos de suporte.'));
   return { items: data.map(mapTicket).filter(isPresent), total: count ?? data.length };
 }
 
@@ -135,7 +136,7 @@ export async function listMyTickets(requesterId: string): Promise<TicketSummary[
     .select(TICKET_SELECT)
     .eq('requester_id', requesterId)
     .order('updated_at', { ascending: false });
-  if (error) throw toServiceError(error, 'Não foi possível carregar os seus pedidos de suporte.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar os seus pedidos de suporte.'));
   return data.map(mapTicket).filter(isPresent);
 }
 
@@ -146,7 +147,7 @@ export async function listActiveTickets(): Promise<TicketSummary[]> {
     .select(TICKET_SELECT)
     .in('status', ['OPEN', 'IN_PROGRESS', 'WAITING_USER'])
     .order('created_at');
-  if (error) throw toServiceError(error, 'Não foi possível carregar os pedidos ativos.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar os pedidos ativos.'));
   return data.map(mapTicket).filter(isPresent);
 }
 
@@ -156,14 +157,14 @@ export async function listAssetTickets(assetId: string): Promise<TicketSummary[]
     .select(TICKET_SELECT)
     .eq('asset_id', assetId)
     .order('created_at', { ascending: false });
-  if (error) throw toServiceError(error, 'Não foi possível carregar os pedidos do equipamento.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar os pedidos do equipamento.'));
   return data.map(mapTicket).filter(isPresent);
 }
 
 /** Devolve null se o pedido não existir ou não for visível para quem consulta. */
 export async function getTicket(ticketId: string): Promise<TicketDetail | null> {
   const { data, error } = await supabase.from('it_tickets').select(TICKET_SELECT).eq('id', ticketId).maybeSingle();
-  if (error) throw toServiceError(error, 'Não foi possível carregar o pedido de suporte.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar o pedido de suporte.'));
   return data ? mapTicket(data) : null;
 }
 
@@ -178,8 +179,8 @@ export async function getTicketTimeline(ticketId: string): Promise<TicketTimelin
     supabase.from('it_ticket_comments').select('*').eq('ticket_id', ticketId).order('created_at'),
     supabase.from('it_ticket_events').select('*').eq('ticket_id', ticketId).order('created_at'),
   ]);
-  if (commentsResult.error) throw toServiceError(commentsResult.error, 'Não foi possível carregar os comentários.');
-  if (eventsResult.error) throw toServiceError(eventsResult.error, 'Não foi possível carregar o histórico.');
+  if (commentsResult.error) throw toServiceError(commentsResult.error, t('Não foi possível carregar os comentários.'));
+  if (eventsResult.error) throw toServiceError(eventsResult.error, t('Não foi possível carregar o histórico.'));
 
   return {
     comments: commentsResult.data.map((comment) => ({
@@ -222,7 +223,7 @@ export async function listRecentTicketEvents(limit: number): Promise<RecentTicke
     .neq('event_type', 'COMMENTED')
     .order('created_at', { ascending: false })
     .limit(limit);
-  if (error) throw toServiceError(error, 'Não foi possível carregar a atividade recente.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar a atividade recente.'));
   return data.flatMap((event) => {
     const eventType = event.event_type;
     if (!isTicketEventType(eventType)) return [];
@@ -250,14 +251,14 @@ export async function listTicketCategories(): Promise<TicketCategory[]> {
     .select('id, code, name')
     .eq('active', true)
     .order('sort_order');
-  if (error) throw toServiceError(error, 'Não foi possível carregar as categorias.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar as categorias.'));
   return data;
 }
 
 /** Técnicos ativos (apenas nome, cargo e e-mail). */
 export async function listTechnicians(): Promise<ItTechnician[]> {
   const { data, error } = await supabase.rpc('list_it_technicians');
-  if (error) throw toServiceError(error, 'Não foi possível carregar os técnicos de IT.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar os técnicos de IT.'));
   return data.map((technician) => ({
     profileId: technician.profile_id,
     fullName: technician.full_name,
@@ -268,7 +269,7 @@ export async function listTechnicians(): Promise<ItTechnician[]> {
 
 export async function getDashboardSummary(): Promise<ItDashboardSummary> {
   const { data, error } = await supabase.rpc('get_it_dashboard_summary');
-  if (error) throw toServiceError(error, 'Não foi possível carregar os indicadores do IT.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar os indicadores do IT.'));
   const row = data[0];
   return {
     openCount: row?.open_count ?? 0,
@@ -301,7 +302,7 @@ export async function createTicket(input: NewTicketInput): Promise<string> {
     p_priority: input.priority,
     p_asset_id: input.assetId,
   });
-  if (error) throw toServiceError(error, 'Não foi possível abrir o pedido de suporte.');
+  if (error) throw toServiceError(error, t('Não foi possível abrir o pedido de suporte.'));
   return data;
 }
 
@@ -311,52 +312,52 @@ async function runTicketAction(action: PromiseLike<{ error: { message: string; c
 }
 
 export const takeTicket = (ticketId: string) =>
-  runTicketAction(supabase.rpc('take_it_ticket', { p_ticket_id: ticketId }), 'Não foi possível assumir o pedido.');
+  runTicketAction(supabase.rpc('take_it_ticket', { p_ticket_id: ticketId }), t('Não foi possível assumir o pedido.'));
 
 export const assignTicket = (ticketId: string, technicianId: string) =>
   runTicketAction(
     supabase.rpc('assign_it_ticket', { p_ticket_id: ticketId, p_technician_id: technicianId }),
-    'Não foi possível atribuir o pedido.'
+    t('Não foi possível atribuir o pedido.')
   );
 
 export const changeTicketStatus = (ticketId: string, status: 'IN_PROGRESS' | 'WAITING_USER', note: string | null) =>
   runTicketAction(
     supabase.rpc('change_it_ticket_status', { p_ticket_id: ticketId, p_status: status, p_note: note }),
-    'Não foi possível alterar o estado do pedido.'
+    t('Não foi possível alterar o estado do pedido.')
   );
 
 export const updateTicketPriority = (ticketId: string, priority: TicketPriority, reason: string | null) =>
   runTicketAction(
     supabase.rpc('update_it_ticket_priority', { p_ticket_id: ticketId, p_priority: priority, p_reason: reason }),
-    'Não foi possível alterar a prioridade.'
+    t('Não foi possível alterar a prioridade.')
   );
 
 export const updateTicketCategory = (ticketId: string, categoryId: string) =>
   runTicketAction(
     supabase.rpc('update_it_ticket_category', { p_ticket_id: ticketId, p_category_id: categoryId }),
-    'Não foi possível alterar a categoria.'
+    t('Não foi possível alterar a categoria.')
   );
 
 export const setTicketAsset = (ticketId: string, assetId: string | null) =>
   runTicketAction(
     supabase.rpc('set_it_ticket_asset', { p_ticket_id: ticketId, p_asset_id: assetId }),
-    'Não foi possível associar o equipamento.'
+    t('Não foi possível associar o equipamento.')
   );
 
 export const resolveTicket = (ticketId: string, resolution: string) =>
   runTicketAction(
     supabase.rpc('resolve_it_ticket', { p_ticket_id: ticketId, p_resolution: resolution }),
-    'Não foi possível resolver o pedido.'
+    t('Não foi possível resolver o pedido.')
   );
 
 export const closeTicket = (ticketId: string, note: string | null) =>
-  runTicketAction(supabase.rpc('close_it_ticket', { p_ticket_id: ticketId, p_note: note }), 'Não foi possível fechar o pedido.');
+  runTicketAction(supabase.rpc('close_it_ticket', { p_ticket_id: ticketId, p_note: note }), t('Não foi possível fechar o pedido.'));
 
 export const reopenTicket = (ticketId: string, reason: string) =>
-  runTicketAction(supabase.rpc('reopen_it_ticket', { p_ticket_id: ticketId, p_reason: reason }), 'Não foi possível reabrir o pedido.');
+  runTicketAction(supabase.rpc('reopen_it_ticket', { p_ticket_id: ticketId, p_reason: reason }), t('Não foi possível reabrir o pedido.'));
 
 export const addTicketComment = (ticketId: string, body: string, isInternal: boolean) =>
   runTicketAction(
     supabase.rpc('add_it_ticket_comment', { p_ticket_id: ticketId, p_body: body, p_is_internal: isInternal }),
-    'Não foi possível enviar o comentário.'
+    t('Não foi possível enviar o comentário.')
   );

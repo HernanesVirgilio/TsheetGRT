@@ -3,6 +3,7 @@ import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { getErrorMessage } from '../../lib/errors';
 import { setUserActive } from '../../services/userService';
 import type { Profile } from '../../types';
+import { t } from '../../lib/i18n';
 
 interface UserStatusDialogProps {
   user: Profile | null;
@@ -25,9 +26,9 @@ export const UserStatusDialog: React.FC<UserStatusDialogProps> = ({ user, onClos
     setErrorMessage(null);
     try {
       await setUserActive(user.id, !user.is_active);
-      onSaved(`Utilizador ${user.full_name} ${willDeactivate ? 'desativado' : 'ativado'} com sucesso.`);
+      onSaved(willDeactivate ? t('Utilizador {name} desativado com sucesso.', { name: user.full_name }) : t('Utilizador {name} ativado com sucesso.', { name: user.full_name }));
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Não foi possível alterar o estado do utilizador.'));
+      setErrorMessage(getErrorMessage(error, t('Não foi possível alterar o estado do utilizador.')));
     } finally {
       setIsSubmitting(false);
     }
@@ -36,11 +37,11 @@ export const UserStatusDialog: React.FC<UserStatusDialogProps> = ({ user, onClos
   return (
     <ConfirmDialog
       isOpen={Boolean(user)}
-      title={willDeactivate ? 'Desativar utilizador?' : 'Ativar utilizador?'}
+      title={willDeactivate ? t('Desativar utilizador?') : t('Ativar utilizador?')}
       message={
         willDeactivate
-          ? `${user?.full_name} deixará de conseguir aceder ao sistema. O histórico (timesheets e auditoria) é mantido e a conta pode ser reativada.`
-          : `${user?.full_name} voltará a ter acesso com o perfil de acesso atualmente atribuído.`
+          ? t('{full_name} deixará de conseguir aceder ao sistema. O histórico (timesheets e auditoria) é mantido e a conta pode ser reativada.', { full_name: user?.full_name })
+          : t('{full_name} voltará a ter acesso com o perfil de acesso atualmente atribuído.', { full_name: user?.full_name })
       }
       confirmLabel={willDeactivate ? 'Desativar' : 'Ativar'}
       variant={willDeactivate ? 'danger' : 'primary'}

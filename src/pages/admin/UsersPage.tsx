@@ -22,7 +22,8 @@ import { UserAvatar } from '../../components/ui/UserAvatar';
 import { UserFormModal } from '../../components/admin/UserFormModal';
 import { RoleAssignModal } from '../../components/admin/RoleAssignModal';
 import { UserStatusDialog } from '../../components/admin/UserStatusDialog';
-import { formatDateTime } from '../../utils/format';
+import { compareText, formatDateTime } from '../../utils/format';
+import { t } from '../../lib/i18n';
 
 const PAGE_SIZE = 20;
 const ALL = 'ALL';
@@ -57,7 +58,7 @@ function matchesFilters(user: Profile, filters: UserFilters): boolean {
 
 function compareUsers(first: Profile, second: Profile, sort: SortState<UserSortKey>): number {
   const direction = sort.direction === 'asc' ? 1 : -1;
-  if (sort.key === 'name') return first.full_name.localeCompare(second.full_name, 'pt-PT') * direction;
+  if (sort.key === 'name') return compareText(first.full_name, second.full_name) * direction;
   // Quem nunca acedeu fica sempre no fim.
   const firstValue = first.last_login_at ?? '';
   const secondValue = second.last_login_at ?? '';
@@ -122,7 +123,7 @@ export const UsersPage: React.FC = () => {
   const columns: DataTableColumn<Profile, UserSortKey>[] = [
     {
       id: 'name',
-      header: 'Utilizador',
+      header: t('Utilizador'),
       sortKey: 'name',
       render: (user) => (
         <Link to={`/users/${user.id}`} className="flex items-center gap-3 hover:underline">
@@ -134,23 +135,23 @@ export const UsersPage: React.FC = () => {
         </Link>
       ),
     },
-    { id: 'email', header: 'E-mail', render: (user) => user.email },
-    { id: 'department', header: 'Departamento', render: (user) => user.department?.name ?? 'Sem departamento' },
-    { id: 'role', header: 'Perfil', render: (user) => user.role?.name ?? 'Sem perfil' },
+    { id: 'email', header: t('E-mail'), render: (user) => user.email },
+    { id: 'department', header: t('Departamento'), render: (user) => user.department?.name ?? t('Sem departamento') },
+    { id: 'role', header: t('Perfil'), render: (user) => user.role?.name ?? t('Sem perfil') },
     {
       id: 'status',
-      header: 'Estado',
+      header: t('Estado'),
       render: (user) => <StatusBadge status={user.is_active ? 'ACTIVE' : 'INACTIVE'} size="sm" />,
     },
     {
       id: 'lastLogin',
-      header: 'Último acesso',
+      header: t('Último acesso'),
       sortKey: 'lastLogin',
-      render: (user) => formatDateTime(user.last_login_at, 'Nunca acedeu'),
+      render: (user) => formatDateTime(user.last_login_at, t('Nunca acedeu')),
     },
     {
       id: 'actions',
-      header: 'Ações',
+      header: t('Ações'),
       align: 'right',
       hideLabelOnMobile: true,
       render: (user) => {
@@ -159,19 +160,19 @@ export const UsersPage: React.FC = () => {
           <div className="flex justify-end gap-1">
             <Link
               to={`/users/${user.id}`}
-              aria-label={`Ver ficha de ${user.full_name}`}
-              title="Ver ficha"
+              aria-label={t('Ver ficha de {full_name}', { full_name: user.full_name })}
+              title={t('Ver ficha')}
               className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-surface-muted hover:text-text"
             >
               <Eye className="h-4 w-4" aria-hidden="true" />
             </Link>
             {canUpdate && (
-              <IconButton icon={Pencil} label={`Editar ${user.full_name}`} onClick={() => setUserToEdit(user)} />
+              <IconButton icon={Pencil} label={t('Editar {full_name}', { full_name: user.full_name })} onClick={() => setUserToEdit(user)} />
             )}
             {canAssignRole && (
               <IconButton
                 icon={Shield}
-                label={`Alterar perfil de acesso de ${user.full_name}`}
+                label={t('Alterar perfil de acesso de {full_name}', { full_name: user.full_name })}
                 onClick={() => setUserForRole(user)}
               />
             )}
@@ -192,12 +193,12 @@ export const UsersPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Utilizadores"
-        subtitle="Contas, perfis de acesso e departamentos dos colaboradores."
+        title={t('Utilizadores')}
+        subtitle={t('Contas, perfis de acesso e departamentos dos colaboradores.')}
         actions={
           canCreate && (
             <Button icon={Plus} onClick={() => setIsCreateOpen(true)} disabled={!referenceData.data}>
-              Novo utilizador
+              {t('Novo utilizador')}
             </Button>
           )
         }
@@ -213,12 +214,12 @@ export const UsersPage: React.FC = () => {
       <Panel flush>
         <div className="grid grid-cols-1 gap-3 border-b border-border p-4 sm:grid-cols-2 lg:grid-cols-4">
           <SearchInput
-            label="Pesquisar nome, e-mail ou nº"
+            label={t('Pesquisar nome, e-mail ou nº')}
             value={filters.search}
             onChange={(event) => updateFilter('search', event.target.value)}
           />
-          <FilterSelect label="Filtrar por perfil" value={filters.roleId} onChange={(event) => updateFilter('roleId', event.target.value)}>
-            <option value={ALL}>Todos os perfis</option>
+          <FilterSelect label={t('Filtrar por perfil')} value={filters.roleId} onChange={(event) => updateFilter('roleId', event.target.value)}>
+            <option value={ALL}>{t('Todos os perfis')}</option>
             {roles.map((role) => (
               <option key={role.id} value={role.id}>
                 {role.name}
@@ -226,11 +227,11 @@ export const UsersPage: React.FC = () => {
             ))}
           </FilterSelect>
           <FilterSelect
-            label="Filtrar por departamento"
+            label={t('Filtrar por departamento')}
             value={filters.departmentId}
             onChange={(event) => updateFilter('departmentId', event.target.value)}
           >
-            <option value={ALL}>Todos os departamentos</option>
+            <option value={ALL}>{t('Todos os departamentos')}</option>
             {departments.map((department) => (
               <option key={department.id} value={department.id}>
                 {department.name}
@@ -238,13 +239,13 @@ export const UsersPage: React.FC = () => {
             ))}
           </FilterSelect>
           <FilterSelect
-            label="Filtrar por estado"
+            label={t('Filtrar por estado')}
             value={filters.status}
             onChange={(event) => isStatusFilter(event.target.value) && updateFilter('status', event.target.value)}
           >
-            <option value={ALL}>Todos os estados</option>
-            <option value="ACTIVE">Ativos</option>
-            <option value="INACTIVE">Inativos</option>
+            <option value={ALL}>{t('Todos os estados')}</option>
+            <option value="ACTIVE">{t('Ativos')}</option>
+            <option value="INACTIVE">{t('Inativos')}</option>
           </FilterSelect>
         </div>
 
@@ -253,17 +254,17 @@ export const UsersPage: React.FC = () => {
             <ErrorState message={users.error} onRetry={users.reload} />
           </div>
         )}
-        {users.isLoading && !users.data && <LoadingState label="A carregar utilizadores..." />}
+        {users.isLoading && !users.data && <LoadingState label={t('A carregar utilizadores...')} />}
 
         {users.data && filteredUsers.length === 0 && (
           <EmptyState
             bordered={false}
             icon={Users}
-            title={hasActiveFilters ? 'Nenhum utilizador corresponde aos filtros.' : 'Nenhum utilizador encontrado.'}
+            title={hasActiveFilters ? t('Nenhum utilizador corresponde aos filtros.') : t('Nenhum utilizador encontrado.')}
             action={
               hasActiveFilters && (
                 <Button variant="secondary" size="sm" onClick={() => setFilters(EMPTY_FILTERS)}>
-                  Limpar filtros
+                  {t('Limpar filtros')}
                 </Button>
               )
             }
@@ -273,7 +274,7 @@ export const UsersPage: React.FC = () => {
         {filteredUsers.length > 0 && (
           <>
             <DataTable
-              caption="Lista de utilizadores"
+              caption={t('Lista de utilizadores')}
               columns={columns}
               rows={pageUsers}
               getRowKey={(user) => user.id}

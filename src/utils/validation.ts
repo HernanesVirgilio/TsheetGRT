@@ -1,5 +1,6 @@
 // Validação de formulários no frontend. As mesmas regras são reforçadas no servidor
 // (constraints, triggers e Edge Function); estas servem para dar feedback imediato.
+import { t } from '../lib/i18n';
 
 export const MIN_PASSWORD_LENGTH = 12;
 export const DEPARTMENT_CODE_PATTERN = /^[A-Z0-9][A-Z0-9_-]{1,19}$/;
@@ -48,17 +49,17 @@ export function validateUserForm(values: UserFormValues, options: { requireEmail
   const errors: FieldErrors<UserFormField> = {};
   const fullName = values.fullName.trim();
 
-  if (fullName.length < 2) errors.fullName = 'Indique o nome completo (mínimo 2 carateres).';
-  else if (fullName.length > 255) errors.fullName = 'O nome não pode exceder 255 carateres.';
+  if (fullName.length < 2) errors.fullName = t('Indique o nome completo (mínimo 2 carateres).');
+  else if (fullName.length > 255) errors.fullName = t('O nome não pode exceder 255 carateres.');
 
   if (options.requireEmail) {
-    if (!values.email.trim()) errors.email = 'O e-mail é obrigatório.';
-    else if (!isValidEmail(values.email)) errors.email = 'Indique um endereço de e-mail válido.';
+    if (!values.email.trim()) errors.email = t('O e-mail é obrigatório.');
+    else if (!isValidEmail(values.email)) errors.email = t('Indique um endereço de e-mail válido.');
   }
 
-  if (!values.departmentId) errors.departmentId = 'Selecione o departamento.';
-  if (values.jobTitle.trim().length > 150) errors.jobTitle = 'O cargo não pode exceder 150 carateres.';
-  if (values.phone.trim().length > 50) errors.phone = 'O telefone não pode exceder 50 carateres.';
+  if (!values.departmentId) errors.departmentId = t('Selecione o departamento.');
+  if (values.jobTitle.trim().length > 150) errors.jobTitle = t('O cargo não pode exceder 150 carateres.');
+  if (values.phone.trim().length > 50) errors.phone = t('O telefone não pode exceder 50 carateres.');
 
   return errors;
 }
@@ -78,11 +79,11 @@ export function normalizeDepartmentCode(value: string): string {
 export function validateDepartmentForm(values: DepartmentFormValues): FieldErrors<DepartmentFormField> {
   const errors: FieldErrors<DepartmentFormField> = {};
   if (!DEPARTMENT_CODE_PATTERN.test(normalizeDepartmentCode(values.code))) {
-    errors.code = 'Use 2 a 20 carateres: letras maiúsculas, números, "-" ou "_".';
+    errors.code = t('Use 2 a 20 carateres: letras maiúsculas, números, "-" ou "_".');
   }
   const name = values.name.trim();
-  if (!name) errors.name = 'O nome do departamento é obrigatório.';
-  else if (name.length > 150) errors.name = 'O nome não pode exceder 150 carateres.';
+  if (!name) errors.name = t('O nome do departamento é obrigatório.');
+  else if (name.length > 150) errors.name = t('O nome não pode exceder 150 carateres.');
   return errors;
 }
 
@@ -101,14 +102,14 @@ export function validateSettingsForm(values: SettingsFormValues): FieldErrors<Se
   const errors: FieldErrors<SettingsFormField> = {};
   const companyName = values.companyName.trim();
   if (companyName.length < 2 || companyName.length > 150) {
-    errors.companyName = 'O nome da empresa deve ter entre 2 e 150 carateres.';
+    errors.companyName = t('O nome da empresa deve ter entre 2 e 150 carateres.');
   }
   if (!(PERIOD_TYPES as readonly string[]).includes(values.periodType)) {
-    errors.periodType = 'Selecione um ciclo de apuração válido.';
+    errors.periodType = t('Selecione um ciclo de apuração válido.');
   }
   const hours = Number(values.dailyTargetHours);
   if (!/^\d{1,2}$/.test(values.dailyTargetHours) || hours < MIN_DAILY_TARGET_HOURS || hours > MAX_DAILY_TARGET_HOURS) {
-    errors.dailyTargetHours = `Indique um número inteiro entre ${MIN_DAILY_TARGET_HOURS} e ${MAX_DAILY_TARGET_HOURS}.`;
+    errors.dailyTargetHours = t('Indique um número inteiro entre {MIN_DAILY_TARGET_HOURS} e {MAX_DAILY_TARGET_HOURS}.', { MIN_DAILY_TARGET_HOURS, MAX_DAILY_TARGET_HOURS });
   }
   return errors;
 }
@@ -123,10 +124,10 @@ export type NewPasswordField = keyof NewPasswordValues;
 export function validateNewPassword(values: NewPasswordValues): FieldErrors<NewPasswordField> {
   const errors: FieldErrors<NewPasswordField> = {};
   if (values.newPassword.length < MIN_PASSWORD_LENGTH) {
-    errors.newPassword = `A palavra-passe deve ter pelo menos ${MIN_PASSWORD_LENGTH} carateres.`;
+    errors.newPassword = t('A palavra-passe deve ter pelo menos {MIN_PASSWORD_LENGTH} carateres.', { MIN_PASSWORD_LENGTH });
   }
   if (values.confirmPassword !== values.newPassword) {
-    errors.confirmPassword = 'A confirmação não coincide com a nova palavra-passe.';
+    errors.confirmPassword = t('A confirmação não coincide com a nova palavra-passe.');
   }
   return errors;
 }

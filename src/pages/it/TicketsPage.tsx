@@ -21,6 +21,7 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import { PriorityBadge } from '../../components/it/PriorityBadge';
 import { isTicketOverdue, TICKET_PRIORITY_LABELS, TICKET_STATUS_LABELS } from '../../utils/it';
 import { formatDateTime } from '../../utils/format';
+import { t } from '../../lib/i18n';
 
 const PAGE_SIZE = 20;
 const ALL = 'ALL';
@@ -104,7 +105,7 @@ export const TicketsPage: React.FC = () => {
   const columns: DataTableColumn<TicketSummary>[] = [
     {
       id: 'reference',
-      header: 'Pedido',
+      header: t('Pedido'),
       render: (ticket) => (
         <Link to={`/it/tickets/${ticket.id}`} className="block hover:underline">
           <span className="block font-semibold text-text">{ticket.reference}</span>
@@ -114,26 +115,26 @@ export const TicketsPage: React.FC = () => {
     },
     {
       id: 'requester',
-      header: 'Solicitante',
+      header: t('Solicitante'),
       render: (ticket) => (
         <span>
           <span className="block text-text">{ticket.requesterName ?? '—'}</span>
-          <span className="block text-xs text-text-muted">{ticket.departmentName ?? 'Sem departamento'}</span>
+          <span className="block text-xs text-text-muted">{ticket.departmentName ?? t('Sem departamento')}</span>
         </span>
       ),
     },
-    { id: 'category', header: 'Categoria', render: (ticket) => ticket.categoryName ?? '—' },
-    { id: 'priority', header: 'Prioridade', render: (ticket) => <PriorityBadge priority={ticket.priority} /> },
-    { id: 'status', header: 'Estado', render: (ticket) => <StatusBadge status={ticket.status} size="sm" /> },
+    { id: 'category', header: t('Categoria'), render: (ticket) => ticket.categoryName ?? '—' },
+    { id: 'priority', header: t('Prioridade'), render: (ticket) => <PriorityBadge priority={ticket.priority} /> },
+    { id: 'status', header: t('Estado'), render: (ticket) => <StatusBadge status={ticket.status} size="sm" /> },
     {
       id: 'assignee',
-      header: 'Técnico',
+      header: t('Técnico'),
       render: (ticket) =>
-        ticket.assignedTo ? (ticket.assigneeName ?? 'Responsável atribuído') : <span className="text-text-muted">Sem técnico</span>,
+        ticket.assignedTo ? (ticket.assigneeName ?? t('Responsável atribuído')) : <span className="text-text-muted">{t('Sem técnico')}</span>,
     },
     {
       id: 'due',
-      header: 'Prazo',
+      header: t('Prazo'),
       render: (ticket) =>
         isTicketOverdue(ticket, now) ? (
           <span className="font-medium text-danger">Em atraso · {formatDateTime(ticket.dueAt)}</span>
@@ -141,51 +142,51 @@ export const TicketsPage: React.FC = () => {
           <span className="whitespace-nowrap">{formatDateTime(ticket.dueAt)}</span>
         ),
     },
-    { id: 'updated', header: 'Atualizado', render: (ticket) => <span className="whitespace-nowrap">{formatDateTime(ticket.updatedAt)}</span> },
+    { id: 'updated', header: t('Atualizado'), render: (ticket) => <span className="whitespace-nowrap">{formatDateTime(ticket.updatedAt)}</span> },
   ];
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Solicitações" subtitle="Fila de pedidos de suporte da equipa de IT." />
+      <PageHeader title={t('Solicitações')} subtitle={t('Fila de pedidos de suporte da equipa de IT.')} />
 
       {referenceData.error && <ErrorState message={referenceData.error} onRetry={referenceData.reload} />}
 
       <Panel flush>
         <div className="grid grid-cols-1 gap-3 border-b border-border p-4 sm:grid-cols-2 lg:grid-cols-5">
           <SearchInput
-            label="Pesquisar referência, título ou solicitante"
+            label={t('Pesquisar referência, título ou solicitante')}
             value={filters.search}
             onChange={(event) => updateFilter('search', event.target.value)}
           />
-          <FilterSelect label="Filtrar por estado" value={filters.status} onChange={(event) => updateFilter('status', event.target.value)}>
-            <option value={ACTIVE}>Em curso</option>
-            <option value={ALL}>Todos os estados</option>
+          <FilterSelect label={t('Filtrar por estado')} value={filters.status} onChange={(event) => updateFilter('status', event.target.value)}>
+            <option value={ACTIVE}>{t('Em curso')}</option>
+            <option value={ALL}>{t('Todos os estados')}</option>
             {TICKET_STATUSES.map((status) => (
               <option key={status} value={status}>
                 {TICKET_STATUS_LABELS[status]}
               </option>
             ))}
           </FilterSelect>
-          <FilterSelect label="Filtrar por prioridade" value={filters.priority} onChange={(event) => updateFilter('priority', event.target.value)}>
-            <option value={ALL}>Todas as prioridades</option>
+          <FilterSelect label={t('Filtrar por prioridade')} value={filters.priority} onChange={(event) => updateFilter('priority', event.target.value)}>
+            <option value={ALL}>{t('Todas as prioridades')}</option>
             {TICKET_PRIORITIES.map((priority) => (
               <option key={priority} value={priority}>
                 {TICKET_PRIORITY_LABELS[priority]}
               </option>
             ))}
           </FilterSelect>
-          <FilterSelect label="Filtrar por categoria" value={filters.categoryId} onChange={(event) => updateFilter('categoryId', event.target.value)}>
-            <option value={ALL}>Todas as categorias</option>
+          <FilterSelect label={t('Filtrar por categoria')} value={filters.categoryId} onChange={(event) => updateFilter('categoryId', event.target.value)}>
+            <option value={ALL}>{t('Todas as categorias')}</option>
             {categories.map((category) => (
               <option key={category.id} value={category.id}>
                 {category.name}
               </option>
             ))}
           </FilterSelect>
-          <FilterSelect label="Filtrar por técnico" value={filters.assignee} onChange={(event) => updateFilter('assignee', event.target.value)}>
-            <option value={ALL}>Todos os técnicos</option>
-            <option value={MINE}>Atribuídos a mim</option>
-            <option value={UNASSIGNED}>Sem técnico</option>
+          <FilterSelect label={t('Filtrar por técnico')} value={filters.assignee} onChange={(event) => updateFilter('assignee', event.target.value)}>
+            <option value={ALL}>{t('Todos os técnicos')}</option>
+            <option value={MINE}>{t('Atribuídos a mim')}</option>
+            <option value={UNASSIGNED}>{t('Sem técnico')}</option>
             {technicians.map((technician) => (
               <option key={technician.profileId} value={technician.profileId}>
                 {technician.fullName}
@@ -199,17 +200,17 @@ export const TicketsPage: React.FC = () => {
             <ErrorState message={tickets.error} onRetry={tickets.reload} />
           </div>
         )}
-        {tickets.isLoading && !tickets.data && <LoadingState label="A carregar pedidos..." />}
+        {tickets.isLoading && !tickets.data && <LoadingState label={t('A carregar pedidos...')} />}
 
         {tickets.data && tickets.data.items.length === 0 && (
           <EmptyState
             bordered={false}
             icon={LifeBuoy}
-            title={hasCustomFilters ? 'Nenhum pedido corresponde aos filtros.' : 'Não há pedidos em curso.'}
+            title={hasCustomFilters ? t('Nenhum pedido corresponde aos filtros.') : t('Não há pedidos em curso.')}
             action={
               hasCustomFilters && (
                 <Button variant="secondary" size="sm" onClick={() => setFilters(DEFAULT_FILTERS)}>
-                  Limpar filtros
+                  {t('Limpar filtros')}
                 </Button>
               )
             }
@@ -219,7 +220,7 @@ export const TicketsPage: React.FC = () => {
         {tickets.data && tickets.data.items.length > 0 && (
           <>
             <DataTable
-              caption="Pedidos de suporte"
+              caption={t('Pedidos de suporte')}
               columns={columns}
               rows={tickets.data.items}
               getRowKey={(ticket) => ticket.id}

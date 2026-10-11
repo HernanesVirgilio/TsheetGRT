@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { AuthProvider } from './lib/auth/AuthContext';
+import { PreferencesProvider } from './lib/preferences/PreferencesContext';
 import { consumeAuthRedirect } from './lib/supabase/client';
 import { ROUTE_PERMISSIONS } from './lib/auth/routeAccess';
 import type { PermissionRoutePath } from './lib/auth/routeAccess';
@@ -130,32 +131,34 @@ const AuthRedirectHandler: React.FC = () => {
 export const App: React.FC = () => (
   <BrowserRouter>
     <AuthProvider>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <PreferencesProvider>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-        <Route element={<AppShell />}>
-          <Route path="/alterar-palavra-passe" element={<ChangePasswordPage />} />
-          <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-          <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-          <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
+          <Route element={<AppShell />}>
+            <Route path="/alterar-palavra-passe" element={<ChangePasswordPage />} />
+            <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+            <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
 
-          {PERMISSION_ROUTES.map((route) => (
-            <Route
-              key={route.path}
-              path={route.path}
-              element={<ProtectedRoute requiredPermission={ROUTE_PERMISSIONS[route.path]}>{route.element}</ProtectedRoute>}
-            />
-          ))}
+            {PERMISSION_ROUTES.map((route) => (
+              <Route
+                key={route.path}
+                path={route.path}
+                element={<ProtectedRoute requiredPermission={ROUTE_PERMISSIONS[route.path]}>{route.element}</ProtectedRoute>}
+              />
+            ))}
 
-          <Route path="/403" element={<UnauthorizedPage />} />
-        </Route>
+            <Route path="/403" element={<UnauthorizedPage />} />
+          </Route>
 
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="*" element={<NotFoundPage />} />
-      </Routes>
-      <AuthRedirectHandler />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<NotFoundPage />} />
+        </Routes>
+        <AuthRedirectHandler />
+      </PreferencesProvider>
     </AuthProvider>
   </BrowserRouter>
 );

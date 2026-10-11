@@ -9,21 +9,22 @@ import { TextField } from '../../components/ui/FormField';
 import { LoadingState } from '../../components/ui/States';
 import type { FieldErrors, NewPasswordField } from '../../utils/validation';
 import { hasErrors, MIN_PASSWORD_LENGTH, validateNewPassword } from '../../utils/validation';
+import { t } from '../../lib/i18n';
 
 const InvalidLinkScreen: React.FC<{ isExpired: boolean }> = ({ isExpired }) => (
-  <AuthLayout title={isExpired ? 'Link expirado' : 'Link inválido'}>
+  <AuthLayout title={isExpired ? t('Link expirado') : t('Link inválido')}>
     <Alert variant="error">
       {isExpired
-        ? 'Este link já expirou ou já foi utilizado. Os links de convite e de recuperação só podem ser usados uma vez.'
-        : 'Não foi possível validar este link.'}{' '}
-      Peça um novo link de recuperação ou contacte o administrador para reenviar o convite.
+        ? t('Este link já expirou ou já foi utilizado. Os links de convite e de recuperação só podem ser usados uma vez.')
+        : t('Não foi possível validar este link.')}{' '}
+      {t('Peça um novo link de recuperação ou contacte o administrador para reenviar o convite.')}
     </Alert>
     <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-between">
       <Link to="/forgot-password" className="text-sm font-medium text-primary-hover hover:underline">
-        Pedir novo link
+        {t('Pedir novo link')}
       </Link>
       <Link to="/login" className="text-sm font-medium text-primary-hover hover:underline">
-        Voltar ao início de sessão
+        {t('Voltar ao início de sessão')}
       </Link>
     </div>
   </AuthLayout>
@@ -53,8 +54,8 @@ export const ResetPasswordPage: React.FC = () => {
 
   if (status === 'loading') {
     return (
-      <AuthLayout title={isInvite ? 'Ativar conta' : 'Definir palavra-passe'}>
-        <LoadingState label="A validar o link..." />
+      <AuthLayout title={isInvite ? t('Ativar conta') : t('Definir palavra-passe')}>
+        <LoadingState label={t('A validar o link...')} />
       </AuthLayout>
     );
   }
@@ -79,7 +80,7 @@ export const ResetPasswordPage: React.FC = () => {
     if (result.outcome === 'signed_out') {
       navigate('/login', {
         replace: true,
-        state: { notice: 'A palavra-passe foi guardada, mas a sessão do link terminou. Inicie sessão com a nova palavra-passe.' },
+        state: { notice: t('A palavra-passe foi guardada, mas a sessão do link terminou. Inicie sessão com a nova palavra-passe.') },
       });
       return;
     }
@@ -89,13 +90,18 @@ export const ResetPasswordPage: React.FC = () => {
 
   return (
     <AuthLayout
-      title={isInvite ? 'Ativar conta' : 'Definir nova palavra-passe'}
-      subtitle={`${isInvite ? 'Bem-vindo ao TsheetGRT. ' : ''}Escolha uma palavra-passe pessoal com pelo menos ${MIN_PASSWORD_LENGTH} carateres.`}
+      title={isInvite ? t('Ativar conta') : t('Definir nova palavra-passe')}
+      subtitle={[
+        isInvite ? t('Bem-vindo ao TimesheetGRT.') : '',
+        t('Escolha uma palavra-passe pessoal com pelo menos {min} carateres.', { min: MIN_PASSWORD_LENGTH }),
+      ]
+        .filter(Boolean)
+        .join(' ')}
     >
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
         {errorMessage && <Alert variant="error">{errorMessage}</Alert>}
         <TextField
-          label="Nova palavra-passe"
+          label={t('Nova palavra-passe')}
           type="password"
           autoComplete="new-password"
           required
@@ -104,7 +110,7 @@ export const ResetPasswordPage: React.FC = () => {
           onChange={(event) => setNewPassword(event.target.value)}
         />
         <TextField
-          label="Confirmar palavra-passe"
+          label={t('Confirmar palavra-passe')}
           type="password"
           autoComplete="new-password"
           required
@@ -113,7 +119,7 @@ export const ResetPasswordPage: React.FC = () => {
           onChange={(event) => setConfirmPassword(event.target.value)}
         />
         <Button type="submit" className="w-full" isLoading={isSubmitting}>
-          {isSubmitting ? 'A guardar e a preparar o acesso...' : isInvite ? 'Ativar conta' : 'Guardar palavra-passe'}
+          {isSubmitting ? t('A guardar e a preparar o acesso...') : isInvite ? t('Ativar conta') : t('Guardar palavra-passe')}
         </Button>
       </form>
     </AuthLayout>

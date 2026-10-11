@@ -8,6 +8,7 @@ import { TextField } from '../../components/ui/FormField';
 import { getErrorMessage } from '../../lib/errors';
 import { requestPasswordReset } from '../../services/authService';
 import { isValidEmail } from '../../utils/validation';
+import { t } from '../../lib/i18n';
 
 export const ForgotPasswordPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -19,7 +20,7 @@ export const ForgotPasswordPage: React.FC = () => {
     event.preventDefault();
     setErrorMessage(null);
     if (!isValidEmail(email)) {
-      setErrorMessage('Indique um endereço de e-mail válido.');
+      setErrorMessage(t('Indique um endereço de e-mail válido.'));
       return;
     }
 
@@ -28,7 +29,7 @@ export const ForgotPasswordPage: React.FC = () => {
       await requestPasswordReset(email);
       setIsSubmitted(true);
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Não foi possível enviar o pedido de recuperação.'));
+      setErrorMessage(getErrorMessage(error, t('Não foi possível enviar o pedido de recuperação.')));
     } finally {
       setIsSubmitting(false);
     }
@@ -36,19 +37,19 @@ export const ForgotPasswordPage: React.FC = () => {
 
   return (
     <AuthLayout
-      title="Recuperar palavra-passe"
-      subtitle="Indique o seu e-mail institucional para receber um link de redefinição."
+      title={t('Recuperar palavra-passe')}
+      subtitle={t('Indique o seu e-mail institucional para receber um link de redefinição.')}
     >
       {isSubmitted ? (
         // Mensagem neutra: não revela se o e-mail existe no sistema.
-        <Alert variant="success" title="Pedido enviado">
-          Se o endereço estiver registado, receberá em breve um e-mail com instruções para definir uma nova palavra-passe.
+        <Alert variant="success" title={t('Pedido enviado')}>
+          {t('Se o endereço estiver registado, receberá em breve um e-mail com instruções para definir uma nova palavra-passe.')}
         </Alert>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           {errorMessage && <Alert variant="error">{errorMessage}</Alert>}
           <TextField
-            label="E-mail institucional"
+            label={t('E-mail institucional')}
             type="email"
             autoComplete="email"
             required
@@ -56,14 +57,14 @@ export const ForgotPasswordPage: React.FC = () => {
             onChange={(event) => setEmail(event.target.value)}
           />
           <Button type="submit" className="w-full" isLoading={isSubmitting}>
-            Enviar instruções
+            {t('Enviar instruções')}
           </Button>
         </form>
       )}
       <div className="mt-6 text-center">
         <Link to="/login" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary-hover hover:underline">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Voltar ao início de sessão
+          {t('Voltar ao início de sessão')}
         </Link>
       </div>
     </AuthLayout>

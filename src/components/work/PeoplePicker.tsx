@@ -1,5 +1,6 @@
 import React, { useId, useState } from 'react';
 import type { WorkPerson } from '../../types/work';
+import { t } from '../../lib/i18n';
 
 interface PeoplePickerProps {
   label: string;
@@ -31,13 +32,13 @@ export const PeoplePicker: React.FC<PeoplePickerProps> = ({ label, people, selec
         type="search"
         value={search}
         onChange={(event) => setSearch(event.target.value)}
-        placeholder="Pesquisar por nome ou departamento"
-        aria-label={`Pesquisar ${label.toLowerCase()}`}
+        placeholder={t('Pesquisar por nome ou departamento')}
+        aria-label={t('Pesquisar {label}', { label: label.toLowerCase() })}
         aria-controls={groupId}
         className="h-9 w-full rounded-md border border-border-input bg-surface px-3 text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary-hover"
       />
       <ul id={groupId} className="max-h-48 divide-y divide-border overflow-y-auto rounded-md border border-border custom-scrollbar">
-        {visible.length === 0 && <li className="px-3 py-2 text-sm text-text-muted">Nenhum colaborador encontrado.</li>}
+        {visible.length === 0 && <li className="px-3 py-2 text-sm text-text-muted">{t('Nenhum colaborador encontrado.')}</li>}
         {visible.map((person) => (
           <li key={person.profileId}>
             <label className="flex cursor-pointer items-center gap-3 px-3 py-2 text-sm hover:bg-background">

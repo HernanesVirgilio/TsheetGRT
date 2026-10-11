@@ -3,6 +3,7 @@ import { RefreshCw } from 'lucide-react';
 import { Alert } from './Alert';
 import { Button } from './Button';
 import { Spinner } from './Spinner';
+import { t } from '../../lib/i18n';
 
 interface LoadingStateProps {
   label?: string;
@@ -24,7 +25,7 @@ interface ErrorStateProps {
 }
 
 export const ErrorState: React.FC<ErrorStateProps> = ({
-  title = 'Não foi possível carregar os dados',
+  title = t('Não foi possível carregar os dados'),
   message,
   onRetry,
 }) => (
@@ -34,7 +35,7 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
     action={
       onRetry && (
         <Button variant="secondary" size="sm" icon={RefreshCw} onClick={onRetry}>
-          Tentar novamente
+          {t('Tentar novamente')}
         </Button>
       )
     }

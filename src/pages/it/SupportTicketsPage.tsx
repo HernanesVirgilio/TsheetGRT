@@ -18,6 +18,7 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import { PriorityBadge } from '../../components/it/PriorityBadge';
 import { NewTicketModal } from '../../components/it/NewTicketModal';
 import { formatDateTime } from '../../utils/format';
+import { t } from '../../lib/i18n';
 
 /** Pedidos de suporte do próprio colaborador. A RLS garante que só os seus são devolvidos. */
 export const SupportTicketsPage: React.FC = () => {
@@ -39,7 +40,7 @@ export const SupportTicketsPage: React.FC = () => {
   const columns: DataTableColumn<TicketSummary>[] = [
     {
       id: 'reference',
-      header: 'Pedido',
+      header: t('Pedido'),
       render: (ticket) => (
         <Link to={`/support/${ticket.id}`} className="block hover:underline">
           <span className="block font-semibold text-text">{ticket.reference}</span>
@@ -47,34 +48,34 @@ export const SupportTicketsPage: React.FC = () => {
         </Link>
       ),
     },
-    { id: 'category', header: 'Categoria', render: (ticket) => ticket.categoryName ?? '—' },
-    { id: 'priority', header: 'Prioridade', render: (ticket) => <PriorityBadge priority={ticket.priority} /> },
-    { id: 'status', header: 'Estado', render: (ticket) => <StatusBadge status={ticket.status} size="sm" /> },
-    { id: 'created', header: 'Aberto em', render: (ticket) => <span className="whitespace-nowrap">{formatDateTime(ticket.createdAt)}</span> },
-    { id: 'updated', header: 'Última atualização', render: (ticket) => <span className="whitespace-nowrap">{formatDateTime(ticket.updatedAt)}</span> },
+    { id: 'category', header: t('Categoria'), render: (ticket) => ticket.categoryName ?? '—' },
+    { id: 'priority', header: t('Prioridade'), render: (ticket) => <PriorityBadge priority={ticket.priority} /> },
+    { id: 'status', header: t('Estado'), render: (ticket) => <StatusBadge status={ticket.status} size="sm" /> },
+    { id: 'created', header: t('Aberto em'), render: (ticket) => <span className="whitespace-nowrap">{formatDateTime(ticket.createdAt)}</span> },
+    { id: 'updated', header: t('Última atualização'), render: (ticket) => <span className="whitespace-nowrap">{formatDateTime(ticket.updatedAt)}</span> },
   ];
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Pedidos de suporte"
-        subtitle="Peça ajuda à equipa de IT e acompanhe o estado dos seus pedidos."
+        title={t('Pedidos de suporte')}
+        subtitle={t('Peça ajuda à equipa de IT e acompanhe o estado dos seus pedidos.')}
         actions={
           <Button icon={Plus} onClick={() => setIsCreateOpen(true)} disabled={!referenceData.data}>
-            Novo pedido
+            {t('Novo pedido')}
           </Button>
         }
       />
 
       {referenceData.error && <ErrorState message={referenceData.error} onRetry={referenceData.reload} />}
       {waitingCount > 0 && (
-        <Alert variant="warning" title="A equipa de IT aguarda a sua resposta">
+        <Alert variant="warning" title={t('A equipa de IT aguarda a sua resposta')}>
           {waitingCount === 1 ? '1 pedido precisa' : `${waitingCount} pedidos precisam`} de informação sua para continuar.
         </Alert>
       )}
       {resolvedCount > 0 && (
         <Alert variant="info">
-          {resolvedCount === 1 ? '1 pedido foi resolvido' : `${resolvedCount} pedidos foram resolvidos`}. Confirme a resolução ou reabra se o problema persistir.
+          {resolvedCount === 1 ? '1 pedido foi resolvido' : t('{resolvedCount} pedidos foram resolvidos', { resolvedCount })}. Confirme a resolução ou reabra se o problema persistir.
         </Alert>
       )}
 
@@ -84,17 +85,17 @@ export const SupportTicketsPage: React.FC = () => {
             <ErrorState message={tickets.error} onRetry={tickets.reload} />
           </div>
         )}
-        {tickets.isLoading && !tickets.data && <LoadingState label="A carregar os seus pedidos..." />}
+        {tickets.isLoading && !tickets.data && <LoadingState label={t('A carregar os seus pedidos...')} />}
         {tickets.data && tickets.data.length === 0 && (
           <EmptyState
             bordered={false}
             icon={LifeBuoy}
-            title="Ainda não abriu pedidos de suporte."
-            message="Se tiver um problema com o computador, acessos, impressoras ou sistemas, abra um pedido."
+            title={t('Ainda não abriu pedidos de suporte.')}
+            message={t('Se tiver um problema com o computador, acessos, impressoras ou sistemas, abra um pedido.')}
           />
         )}
         {tickets.data && tickets.data.length > 0 && (
-          <DataTable caption="Os meus pedidos de suporte" columns={columns} rows={tickets.data} getRowKey={(ticket) => ticket.id} />
+          <DataTable caption={t('Os meus pedidos de suporte')} columns={columns} rows={tickets.data} getRowKey={(ticket) => ticket.id} />
         )}
       </Panel>
 

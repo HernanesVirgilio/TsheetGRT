@@ -5,6 +5,7 @@ import { getErrorMessage } from '../errors';
 import * as notificationService from '../../services/notificationService';
 import type { NotificationItem } from '../../types';
 import { resolveNotificationTarget } from '../../utils/notifications';
+import { t } from '../i18n';
 
 const PREVIEW_LIMIT = 10;
 const REFRESH_INTERVAL_MS = 60_000;
@@ -92,7 +93,7 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
       }
     } catch (loadError) {
       if (userIdRef.current === requestUserId) {
-        setError(getErrorMessage(loadError, 'Não foi possível carregar as notificações.'));
+        setError(getErrorMessage(loadError, t('Não foi possível carregar as notificações.')));
       }
     } finally {
       if (userIdRef.current === requestUserId) setIsLoading(false);

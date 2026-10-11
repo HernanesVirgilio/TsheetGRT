@@ -11,6 +11,7 @@ import { Alert } from '../ui/Alert';
 import { Button } from '../ui/Button';
 import { SelectField } from '../ui/FormField';
 import { ErrorState, LoadingState } from '../ui/States';
+import { t } from '../../lib/i18n';
 
 interface ProfileLeadsPanelProps {
   profile: Profile;
@@ -47,19 +48,19 @@ export const ProfileLeadsPanel: React.FC<ProfileLeadsPanelProps> = ({ profile, c
     setErrorMessage(null);
     setSuccessMessage(null);
     if (!managerId) {
-      setFieldError(isGestor ? 'Selecione o Manager.' : 'Selecione o gestor.');
+      setFieldError(isGestor ? t('Selecione o Manager.') : t('Selecione o gestor.'));
       return;
     }
     setFieldError(null);
     setIsSaving(true);
     try {
       await addManagerScope(managerId, { kind: 'employee', employeeId: profile.id });
-      const managerName = managerOptions.find((user) => user.id === managerId)?.full_name ?? 'O gestor';
+      const managerName = managerOptions.find((user) => user.id === managerId)?.full_name ?? t('O gestor');
       setManagerId('');
-      setSuccessMessage(`${managerName} passa a ser responsável por ${profile.full_name}.`);
+      setSuccessMessage(t('{managerName} passa a ser responsável por {full_name}.', { managerName, full_name: profile.full_name }));
       leads.reload();
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Não foi possível atribuir o responsável.'));
+      setErrorMessage(getErrorMessage(error, t('Não foi possível atribuir o responsável.')));
     } finally {
       setIsSaving(false);
     }
@@ -67,11 +68,11 @@ export const ProfileLeadsPanel: React.FC<ProfileLeadsPanelProps> = ({ profile, c
 
   return (
     <Panel
-      title="Responsáveis"
+      title={t('Responsáveis')}
       description={
         isGestor
-          ? 'Manager que supervisiona este gestor (e, através dele, a sua equipa).'
-          : 'Gestor direto (por departamento ou atribuição individual) e o Manager que o supervisiona.'
+          ? t('Manager que supervisiona este gestor (e, através dele, a sua equipa).')
+          : t('Gestor direto (por departamento ou atribuição individual) e o Manager que o supervisiona.')
       }
     >
       <div className="space-y-4">
@@ -87,8 +88,8 @@ export const ProfileLeadsPanel: React.FC<ProfileLeadsPanelProps> = ({ profile, c
         {leads.data?.length === 0 && (
           <p className="text-sm text-text-secondary">
             {isGestor
-              ? 'Sem Manager atribuído: este gestor não tem supervisão e as decisões da equipa vão para a administração.'
-              : 'Sem gestor atribuído: ninguém acompanha o trabalho, as ausências e os timesheets desta pessoa.'}
+              ? t('Sem Manager atribuído: este gestor não tem supervisão e as decisões da equipa vão para a administração.')
+              : t('Sem gestor atribuído: ninguém acompanha o trabalho, as ausências e os timesheets desta pessoa.')}
           </p>
         )}
         {leads.data && leads.data.length > 0 && (
@@ -100,12 +101,12 @@ export const ProfileLeadsPanel: React.FC<ProfileLeadsPanelProps> = ({ profile, c
                     {lead.fullName}
                   </Link>
                   <span className="block text-xs text-text-muted">
-                    {lead.relation === 'LEAD' ? 'Responsável direto' : 'Supervisão'} · {lead.via}
+                    {lead.relation === 'LEAD' ? t('Responsável direto') : t('Supervisão')} · {lead.via}
                   </span>
                 </span>
                 <span className="flex shrink-0 items-center gap-2 text-xs text-text-secondary">
-                  {lead.roleCode ?? 'Sem perfil'}
-                  {!lead.isActive && <span className="rounded bg-warning-soft px-1.5 py-0.5 text-warning">Conta desativada</span>}
+                  {lead.roleCode ?? t('Sem perfil')}
+                  {!lead.isActive && <span className="rounded bg-warning-soft px-1.5 py-0.5 text-warning">{t('Conta desativada')}</span>}
                 </span>
               </li>
             ))}
@@ -115,7 +116,7 @@ export const ProfileLeadsPanel: React.FC<ProfileLeadsPanelProps> = ({ profile, c
         {canManage && (
           <form onSubmit={handleAssign} className="grid grid-cols-1 items-end gap-3 sm:grid-cols-[1fr_auto]" noValidate>
             <SelectField
-              label={isGestor ? 'Atribuir a um Manager' : 'Atribuir a um gestor'}
+              label={isGestor ? t('Atribuir a um Manager') : t('Atribuir a um gestor')}
               value={managerId}
               error={fieldError}
               onChange={(event) => {
@@ -123,7 +124,7 @@ export const ProfileLeadsPanel: React.FC<ProfileLeadsPanelProps> = ({ profile, c
                 setFieldError(null);
               }}
             >
-              <option value="">Selecione…</option>
+              <option value="">{t('Selecione…')}</option>
               {managerOptions.map((user) => (
                 <option key={user.id} value={user.id}>
                   {user.full_name} · {user.role?.name ?? '—'}
@@ -132,13 +133,13 @@ export const ProfileLeadsPanel: React.FC<ProfileLeadsPanelProps> = ({ profile, c
               ))}
             </SelectField>
             <Button type="submit" icon={Plus} isLoading={isSaving} className={fieldError ? 'sm:mb-6' : ''}>
-              Atribuir
+              {t('Atribuir')}
             </Button>
           </form>
         )}
         {canManage && (
           <p className="text-xs text-text-muted">
-            A atribuição é individual. Para retirar uma atribuição ou gerir departamentos, abra a página do gestor (Âmbito de gestão).
+            {t('A atribuição é individual. Para retirar uma atribuição ou gerir departamentos, abra a página do gestor (Âmbito de gestão).')}
           </p>
         )}
         {users.error && <p className="text-sm text-danger">{users.error}</p>}

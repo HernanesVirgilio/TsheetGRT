@@ -9,6 +9,7 @@ import type { ReviewDecision } from '../../services/approvalService';
 import type { TimesheetSummary } from '../../types';
 import { formatMinutesAsHours, formatPeriod } from '../../utils/format';
 import { MAX_REVIEW_COMMENT_LENGTH, validateRejectionReason } from '../../utils/timesheets';
+import { t } from '../../lib/i18n';
 
 interface ReviewDecisionModalProps {
   timesheet: TimesheetSummary | null;
@@ -43,12 +44,12 @@ export const ReviewDecisionModal: React.FC<ReviewDecisionModalProps> = ({ timesh
     try {
       await reviewTimesheet(timesheet.id, decision, comment.trim() || null);
       onDone(
-        `Timesheet de ${timesheet.employeeName} (${formatPeriod(timesheet.periodStart, timesheet.periodEnd)}) ${
-          isRejection ? 'rejeitado' : 'aprovado'
-        } com sucesso.`
+        isRejection
+          ? t('Timesheet de {name} ({period}) rejeitado com sucesso.', { name: timesheet.employeeName, period: formatPeriod(timesheet.periodStart, timesheet.periodEnd) })
+          : t('Timesheet de {name} ({period}) aprovado com sucesso.', { name: timesheet.employeeName, period: formatPeriod(timesheet.periodStart, timesheet.periodEnd) })
       );
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Não foi possível registar a decisão.'));
+      setErrorMessage(getErrorMessage(error, t('Não foi possível registar a decisão.')));
     } finally {
       setIsSubmitting(false);
     }
@@ -59,7 +60,7 @@ export const ReviewDecisionModal: React.FC<ReviewDecisionModalProps> = ({ timesh
   return (
     <Modal
       isOpen={Boolean(timesheet)}
-      title={isRejection ? 'Rejeitar timesheet' : 'Aprovar timesheet'}
+      title={isRejection ? t('Rejeitar timesheet') : t('Aprovar timesheet')}
       description={
         timesheet &&
         `${timesheet.employeeName} · ${formatPeriod(timesheet.periodStart, timesheet.periodEnd)} · ${formatMinutesAsHours(timesheet.totalMinutes)}`
@@ -70,7 +71,7 @@ export const ReviewDecisionModal: React.FC<ReviewDecisionModalProps> = ({ timesh
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
-            Cancelar
+            {t('Cancelar')}
           </Button>
           <Button type="submit" form={formId} variant={isRejection ? 'danger' : 'primary'} isLoading={isSubmitting}>
             {isRejection ? 'Rejeitar' : 'Aprovar'}
@@ -81,13 +82,13 @@ export const ReviewDecisionModal: React.FC<ReviewDecisionModalProps> = ({ timesh
       <form id={formId} onSubmit={handleSubmit} className="space-y-4" noValidate>
         {errorMessage && <Alert variant="error">{errorMessage}</Alert>}
         <TextAreaField
-          label={isRejection ? 'Motivo da rejeição' : 'Comentário (opcional)'}
+          label={isRejection ? t('Motivo da rejeição') : t('Comentário (opcional)')}
           required={isRejection}
           rows={4}
           maxLength={MAX_REVIEW_COMMENT_LENGTH}
           value={comment}
           error={fieldError}
-          hint={isRejection ? 'O colaborador recebe este motivo para corrigir o timesheet.' : undefined}
+          hint={isRejection ? t('O colaborador recebe este motivo para corrigir o timesheet.') : undefined}
           onChange={(event) => setComment(event.target.value)}
         />
       </form>

@@ -3,6 +3,7 @@ import { History, MessageSquare } from 'lucide-react';
 import type { WorkEvent } from '../../types/work';
 import { describeWorkEvent, isCommentEvent } from '../../utils/work';
 import { formatDateTime } from '../../utils/format';
+import { t } from '../../lib/i18n';
 
 interface WorkTimelineProps {
   events: WorkEvent[];
@@ -17,13 +18,13 @@ const ValueChange: React.FC<{ oldValue: string | null; newValue: string | null }
   return (
     <p className="mt-0.5 text-sm text-text-secondary">
       {oldValue} <span aria-hidden="true">→</span>
-      <span className="sr-only">passou a</span> {newValue}
+      <span className="sr-only">{t('passou a')}</span> {newValue}
     </p>
   );
 };
 
 /** Histórico append-only (só de leitura): quem, quando, o quê, valor anterior e novo, motivo. */
-export const WorkTimeline: React.FC<WorkTimelineProps> = ({ events, emptyMessage = 'Ainda não existe histórico.' }) => {
+export const WorkTimeline: React.FC<WorkTimelineProps> = ({ events, emptyMessage = t('Ainda não existe histórico.') }) => {
   if (events.length === 0) {
     return <p className="px-5 py-4 text-sm text-text-secondary">{emptyMessage}</p>;
   }
@@ -46,12 +47,12 @@ export const WorkTimeline: React.FC<WorkTimelineProps> = ({ events, emptyMessage
               <span className="font-medium">{describeWorkEvent(event)}</span>
               {event.afterClosure && (
                 <span className="rounded border border-warning/40 bg-warning-soft px-1.5 py-0.5 text-xs font-medium text-warning">
-                  após encerramento
+                  {t('após encerramento')}
                 </span>
               )}
             </p>
             {event.field !== 'description' && !event.eventType.endsWith('_CREATED') && <ValueChange oldValue={event.oldValue} newValue={event.newValue} />}
-            {event.field === 'description' && <p className="mt-0.5 text-sm text-text-secondary">Descrição atualizada.</p>}
+            {event.field === 'description' && <p className="mt-0.5 text-sm text-text-secondary">{t('Descrição atualizada.')}</p>}
             {event.note && <p className="mt-0.5 whitespace-pre-line text-sm text-text-secondary">Motivo / nota: {event.note}</p>}
             <p className="mt-0.5 text-xs text-text-muted">
               {event.actorName ?? 'Sistema'} · {formatDateTime(event.createdAt)}

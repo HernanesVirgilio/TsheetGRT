@@ -12,6 +12,7 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { UserAvatar } from '../../components/ui/UserAvatar';
 import { formatDateTime, pluralize } from '../../utils/format';
+import { t } from '../../lib/i18n';
 
 interface AttentionItem {
   id: string;
@@ -25,25 +26,29 @@ function buildAttentionItems(overview: AdminOverview): AttentionItem[] {
   if (overview.submittedTimesheets > 0) {
     items.push({
       id: 'submitted',
-      message: `${pluralize(overview.submittedTimesheets, 'timesheet aguarda', 'timesheets aguardam')} aprovação.`,
+      message: t('{timesheets} aprovação.', { timesheets: pluralize(overview.submittedTimesheets, 'timesheet aguarda', 'timesheets aguardam') }),
       to: '/reports',
-      linkLabel: 'Ver relatório',
+      linkLabel: t('Ver relatório'),
     });
   }
   if (overview.usersNeverSignedIn > 0) {
     items.push({
       id: 'never-signed-in',
-      message: `${pluralize(overview.usersNeverSignedIn, 'utilizador ativo ainda não iniciou', 'utilizadores ativos ainda não iniciaram')} sessão (convite pendente).`,
+      message: t('{users} sessão (convite pendente).', {
+        users: pluralize(overview.usersNeverSignedIn, 'utilizador ativo ainda não iniciou', 'utilizadores ativos ainda não iniciaram'),
+      }),
       to: '/users',
-      linkLabel: 'Ver utilizadores',
+      linkLabel: t('Ver utilizadores'),
     });
   }
   if (overview.activeUsersWithoutDepartment > 0) {
     items.push({
       id: 'without-department',
-      message: `${pluralize(overview.activeUsersWithoutDepartment, 'utilizador ativo não tem', 'utilizadores ativos não têm')} departamento atribuído.`,
+      message: t('{users} departamento atribuído.', {
+        users: pluralize(overview.activeUsersWithoutDepartment, 'utilizador ativo não tem', 'utilizadores ativos não têm'),
+      }),
       to: '/users',
-      linkLabel: 'Corrigir',
+      linkLabel: t('Corrigir'),
     });
   }
   return items;
@@ -62,38 +67,38 @@ export const AdminDashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Administração" subtitle="Estado atual de utilizadores, departamentos e timesheets." />
+      <PageHeader title={t('Administração')} subtitle={t('Estado atual de utilizadores, departamentos e timesheets.')} />
 
       {error && <ErrorState message={error} onRetry={reload} />}
-      {isLoading && !overview && <LoadingState label="A carregar indicadores..." />}
+      {isLoading && !overview && <LoadingState label={t('A carregar indicadores...')} />}
 
       {overview && (
         <>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard
-              label="Utilizadores ativos"
+              label={t('Utilizadores ativos')}
               value={overview.activeUsers}
               supporting={`${pluralize(overview.totalUsers, 'conta registada', 'contas registadas')}`}
               icon={Users}
             />
-            <StatCard label="Departamentos ativos" value={overview.activeDepartments} icon={Building2} />
+            <StatCard label={t('Departamentos ativos')} value={overview.activeDepartments} icon={Building2} />
             <StatCard
-              label="Timesheets por aprovar"
+              label={t('Timesheets por aprovar')}
               value={overview.submittedTimesheets}
-              supporting="Submetidos, a aguardar decisão"
+              supporting={t('Submetidos, a aguardar decisão')}
               icon={ClipboardCheck}
             />
             <StatCard
-              label="Timesheets aprovados"
+              label={t('Timesheets aprovados')}
               value={overview.approvedTimesheets}
-              supporting={`${pluralize(overview.rejectedTimesheets, 'rejeitado', 'rejeitados')} a aguardar correção`}
+              supporting={t('{rejected} a aguardar correção', { rejected: pluralize(overview.rejectedTimesheets, 'rejeitado', 'rejeitados') })}
               icon={CheckCircle2}
             />
           </div>
 
-          <Panel title="Pontos de atenção">
+          <Panel title={t('Pontos de atenção')}>
             {attentionItems.length === 0 ? (
-              <p className="text-sm text-text-secondary">Sem pontos de atenção de momento.</p>
+              <p className="text-sm text-text-secondary">{t('Sem pontos de atenção de momento.')}</p>
             ) : (
               <ul className="divide-y divide-border">
                 {attentionItems.map((item) => (
@@ -107,9 +112,9 @@ export const AdminDashboard: React.FC = () => {
           </Panel>
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <Panel title="Utilizadores recentes" actions={<PanelLink to="/users">Ver todos</PanelLink>} flush>
+            <Panel title={t('Utilizadores recentes')} actions={<PanelLink to="/users">{t('Ver todos')}</PanelLink>} flush>
               {overview.recentUsers.length === 0 ? (
-                <EmptyState bordered={false} title="Nenhum utilizador registado." icon={Users} />
+                <EmptyState bordered={false} title={t('Nenhum utilizador registado.')} icon={Users} />
               ) : (
                 <ul className="divide-y divide-border">
                   {overview.recentUsers.map((user) => (
@@ -123,7 +128,7 @@ export const AdminDashboard: React.FC = () => {
                           <span className="min-w-0">
                             <span className="block truncate text-sm font-semibold text-text">{user.full_name}</span>
                             <span className="block truncate text-xs text-text-secondary">
-                              {user.role?.name ?? 'Sem perfil'} · {user.department?.name ?? 'Sem departamento'}
+                              {user.role?.name ?? t('Sem perfil')} · {user.department?.name ?? t('Sem departamento')}
                             </span>
                           </span>
                         </span>
@@ -135,9 +140,9 @@ export const AdminDashboard: React.FC = () => {
               )}
             </Panel>
 
-            <Panel title="Auditoria recente" actions={<PanelLink to="/audit">Ver auditoria</PanelLink>} flush>
+            <Panel title={t('Auditoria recente')} actions={<PanelLink to="/audit">{t('Ver auditoria')}</PanelLink>} flush>
               {overview.recentAuditEvents.length === 0 ? (
-                <EmptyState bordered={false} title="Ainda não existem eventos de auditoria." />
+                <EmptyState bordered={false} title={t('Ainda não existem eventos de auditoria.')} />
               ) : (
                 <ul className="divide-y divide-border">
                   {overview.recentAuditEvents.map((event) => (

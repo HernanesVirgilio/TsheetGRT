@@ -8,6 +8,7 @@ import { Alert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { TextField } from '../../components/ui/FormField';
 import { isValidEmail } from '../../utils/validation';
+import { t } from '../../lib/i18n';
 
 const DEFAULT_REDIRECT_PATH = '/dashboard';
 
@@ -52,11 +53,11 @@ export const LoginPage: React.FC = () => {
     setErrorMessage(null);
 
     if (!isValidEmail(email)) {
-      setErrorMessage('Indique um endereço de e-mail válido.');
+      setErrorMessage(t('Indique um endereço de e-mail válido.'));
       return;
     }
     if (!password) {
-      setErrorMessage('Indique a palavra-passe.');
+      setErrorMessage(t('Indique a palavra-passe.'));
       return;
     }
 
@@ -67,25 +68,25 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <AuthLayout title="Iniciar sessão" subtitle="Utilize as suas credenciais institucionais.">
+    <AuthLayout title={t('Iniciar sessão')} subtitle={t('Utilize as suas credenciais institucionais.')}>
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
         {notice && !errorMessage && <Alert variant="info">{notice}</Alert>}
         {errorMessage && <Alert variant="error">{errorMessage}</Alert>}
 
         <TextField
-          label="E-mail"
+          label={t('E-mail')}
           type="email"
           autoComplete="email"
           required
           value={email}
           onChange={(event) => setEmail(event.target.value)}
-          placeholder="nome@siholdings-mz.com"
+          placeholder={t('nome@siholdings-mz.com')}
         />
 
         <div className="space-y-1.5">
           <div className="relative">
             <TextField
-              label="Palavra-passe"
+              label={t('Palavra-passe')}
               type={isPasswordVisible ? 'text' : 'password'}
               autoComplete="current-password"
               required
@@ -96,7 +97,7 @@ export const LoginPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsPasswordVisible((visible) => !visible)}
-              aria-label={isPasswordVisible ? 'Ocultar palavra-passe' : 'Mostrar palavra-passe'}
+              aria-label={isPasswordVisible ? t('Ocultar palavra-passe') : t('Mostrar palavra-passe')}
               className="absolute bottom-2 right-2 rounded p-1 text-text-muted hover:text-text"
             >
               {isPasswordVisible ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
@@ -104,13 +105,13 @@ export const LoginPage: React.FC = () => {
           </div>
           <div className="text-right">
             <Link to="/forgot-password" className="text-sm font-medium text-primary-hover hover:underline">
-              Esqueceu-se da palavra-passe?
+              {t('Esqueceu-se da palavra-passe?')}
             </Link>
           </div>
         </div>
 
         <Button type="submit" className="w-full" isLoading={isSubmitting}>
-          {isSubmitting ? 'A autenticar...' : 'Iniciar sessão'}
+          {isSubmitting ? t('A autenticar...') : t('Iniciar sessão')}
         </Button>
       </form>
     </AuthLayout>

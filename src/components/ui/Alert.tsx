@@ -1,6 +1,7 @@
 import React from 'react';
 import { AlertCircle, AlertTriangle, CheckCircle2, Info, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { t } from '../../lib/i18n';
 
 type AlertVariant = 'success' | 'error' | 'warning' | 'info';
 
@@ -36,7 +37,7 @@ export const Alert: React.FC<AlertProps> = ({ variant, title, children, onDismis
         <button
           type="button"
           onClick={onDismiss}
-          aria-label="Fechar mensagem"
+          aria-label={t('Fechar mensagem')}
           className="rounded p-0.5 text-text-muted hover:text-text"
         >
           <X className="h-4 w-4" aria-hidden="true" />

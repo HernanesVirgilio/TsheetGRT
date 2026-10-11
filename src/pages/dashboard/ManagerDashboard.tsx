@@ -24,12 +24,13 @@ import { StackedBarChart } from '../../components/charts/StackedCharts';
 import { MyTasksPanel, PanelLink, PipelinePanel, ReportSummaryPanel, UpcomingMeetingsPanel } from '../../components/work/DashboardPanels';
 import { formatMoney, recentPeriod } from '../../utils/work';
 import { formatCalendarDate, formatDateTime, formatMinutesAsHours, formatPeriod, pluralize } from '../../utils/format';
+import { t, translatedFields } from '../../lib/i18n';
 
-const PERIODS = [
+const PERIODS = translatedFields([
   { days: 7, label: 'Últimos 7 dias' },
   { days: 30, label: 'Últimos 30 dias' },
   { days: 90, label: 'Últimos 90 dias' },
-];
+], ['label']);
 const ALL = 'ALL';
 const PREVIEW = 5;
 
@@ -45,16 +46,16 @@ const PendingDecisionsPanel: React.FC<{ viewerId: string; directIds: Set<string>
   const total = (absences.data?.length ?? 0) + myApprovals.length + directTimesheets.length;
 
   return (
-    <Panel title="Decisões pendentes" description={isLoading ? undefined : pluralize(total, 'pedido aguarda a sua decisão', 'pedidos aguardam a sua decisão')} flush>
+    <Panel title={t('Decisões pendentes')} description={isLoading ? undefined : pluralize(total, 'pedido aguarda a sua decisão', 'pedidos aguardam a sua decisão')} flush>
       {error && <p className="px-5 py-4 text-sm text-danger">{error}</p>}
-      {!error && isLoading && <LoadingState label="A carregar decisões..." />}
-      {!error && !isLoading && total === 0 && <EmptyState bordered={false} icon={ClipboardCheck} title="Não há decisões pendentes." />}
+      {!error && isLoading && <LoadingState label={t('A carregar decisões...')} />}
+      {!error && !isLoading && total === 0 && <EmptyState bordered={false} icon={ClipboardCheck} title={t('Não há decisões pendentes.')} />}
       {!error && !isLoading && total > 0 && (
         <div className="divide-y divide-border">
           {(absences.data ?? []).length > 0 && (
             <section className="px-5 py-3">
               <h3 className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-text-secondary">
-                Ausências validadas pelos gestores <PanelLink to="/timesheet/absences?tab=TEAM">Decidir</PanelLink>
+                {t('Ausências validadas pelos gestores')} <PanelLink to="/timesheet/absences?tab=TEAM">{t('Decidir')}</PanelLink>
               </h3>
               <ul className="space-y-1.5 text-sm">
                 {(absences.data ?? []).slice(0, PREVIEW).map((request) => (
@@ -71,7 +72,7 @@ const PendingDecisionsPanel: React.FC<{ viewerId: string; directIds: Set<string>
           {myApprovals.length > 0 && (
             <section className="px-5 py-3">
               <h3 className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-text-secondary">
-                Oportunidades para aprovar <PanelLink to="/timesheet/approvals">Decidir</PanelLink>
+                {t('Oportunidades para aprovar')} <PanelLink to="/timesheet/approvals">{t('Decidir')}</PanelLink>
               </h3>
               <ul className="space-y-1.5 text-sm">
                 {myApprovals.slice(0, PREVIEW).map((request) => (
@@ -79,7 +80,7 @@ const PendingDecisionsPanel: React.FC<{ viewerId: string; directIds: Set<string>
                     <Link to={`/timesheet/opportunities/${request.opportunityId ?? ''}`} className="font-medium text-text hover:underline">
                       {request.title}
                     </Link>
-                    <span className="text-text-secondary">{request.amount === null ? 'Sem valor' : formatMoney(request.amount, request.currency ?? '')}</span>
+                    <span className="text-text-secondary">{request.amount === null ? t('Sem valor') : formatMoney(request.amount, request.currency ?? '')}</span>
                   </li>
                 ))}
               </ul>
@@ -88,7 +89,7 @@ const PendingDecisionsPanel: React.FC<{ viewerId: string; directIds: Set<string>
           {directTimesheets.length > 0 && (
             <section className="px-5 py-3">
               <h3 className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-text-secondary">
-                Timesheets dos gestores e da equipa direta <PanelLink to="/approvals">Rever</PanelLink>
+                {t('Timesheets dos gestores e da equipa direta')} <PanelLink to="/approvals">{t('Rever')}</PanelLink>
               </h3>
               <ul className="space-y-1.5 text-sm">
                 {directTimesheets.slice(0, PREVIEW).map((timesheet) => (
@@ -133,7 +134,7 @@ export const ManagerDashboard: React.FC = () => {
   const team = useAsyncData(getTeamWorkOverview, []);
 
   if (dashboard.error) return <ErrorState message={dashboard.error} onRetry={dashboard.reload} />;
-  if (!dashboard.data) return <LoadingState label="A carregar a supervisão..." />;
+  if (!dashboard.data) return <LoadingState label={t('A carregar a supervisão...')} />;
   const summary = dashboard.data;
   const leads = (supervision.data ?? []).filter((row) => row.leadId !== null);
   const members = (team.data ?? []).filter((member) => {
@@ -147,7 +148,7 @@ export const ManagerDashboard: React.FC = () => {
   const supervisionColumns: DataTableColumn<SupervisionRow>[] = [
     {
       id: 'lead',
-      header: 'Gestor / equipa',
+      header: t('Gestor / equipa'),
       render: (row) => (
         <span>
           {row.leadId ? (
@@ -157,14 +158,14 @@ export const ManagerDashboard: React.FC = () => {
           ) : (
             <span className="block font-semibold text-text">{row.leadName}</span>
           )}
-          <span className="block text-xs text-text-muted">{row.departments ?? (row.leadId ? 'Equipa por colaborador' : 'Sem gestor intermédio')}</span>
+          <span className="block text-xs text-text-muted">{row.departments ?? (row.leadId ? t('Equipa por colaborador') : t('Sem gestor intermédio'))}</span>
         </span>
       ),
     },
-    { id: 'size', header: 'Pessoas', align: 'right', render: (row) => row.teamSize },
+    { id: 'size', header: t('Pessoas'), align: 'right', render: (row) => row.teamSize },
     {
       id: 'completed',
-      header: 'Concluídas',
+      header: t('Concluídas'),
       align: 'right',
       render: (row) => (
         <span className="whitespace-nowrap">
@@ -173,33 +174,33 @@ export const ManagerDashboard: React.FC = () => {
         </span>
       ),
     },
-    { id: 'open', header: 'Em aberto', align: 'right', render: (row) => row.tasksOpen },
-    { id: 'overdue', header: 'Atrasadas', align: 'right', render: (row) => (row.tasksOverdue > 0 ? <OverdueBadge label={String(row.tasksOverdue)} /> : 0) },
-    { id: 'blocked', header: 'Bloqueadas', align: 'right', render: (row) => row.tasksBlocked },
-    { id: 'hours', header: 'Horas', align: 'right', render: (row) => formatMinutesAsHours(row.minutesLogged) },
-    { id: 'pending', header: 'Pedidos pendentes', align: 'right', render: (row) => row.absencesPending + row.approvalsPending },
+    { id: 'open', header: t('Em aberto'), align: 'right', render: (row) => row.tasksOpen },
+    { id: 'overdue', header: t('Atrasadas'), align: 'right', render: (row) => (row.tasksOverdue > 0 ? <OverdueBadge label={String(row.tasksOverdue)} /> : 0) },
+    { id: 'blocked', header: t('Bloqueadas'), align: 'right', render: (row) => row.tasksBlocked },
+    { id: 'hours', header: t('Horas'), align: 'right', render: (row) => formatMinutesAsHours(row.minutesLogged) },
+    { id: 'pending', header: t('Pedidos pendentes'), align: 'right', render: (row) => row.absencesPending + row.approvalsPending },
   ];
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Supervisão" subtitle="Gestores, equipas supervisionadas, decisões que lhe competem e resultados do período." />
+      <PageHeader title={t('Supervisão')} subtitle={t('Gestores, equipas supervisionadas, decisões que lhe competem e resultados do período.')} />
 
       {scopes.data && scopes.data.length === 0 && (
-        <Alert variant="warning" title="Sem gestores atribuídos">
-          Ainda não lhe foram atribuídos gestores ou equipas. Contacte a administração.
+        <Alert variant="warning" title={t('Sem gestores atribuídos')}>
+          {t('Ainda não lhe foram atribuídos gestores ou equipas. Contacte a administração.')}
         </Alert>
       )}
 
-      <div className="flex flex-wrap items-center gap-3" role="group" aria-label="Filtros do painel">
-        <FilterSelect label="Período" value={String(periodDays)} onChange={(event) => setPeriodDays(Number(event.target.value))} className="w-auto">
+      <div className="flex flex-wrap items-center gap-3" role="group" aria-label={t('Filtros do painel')}>
+        <FilterSelect label={t('Período')} value={String(periodDays)} onChange={(event) => setPeriodDays(Number(event.target.value))} className="w-auto">
           {PERIODS.map((option) => (
             <option key={option.days} value={option.days}>
               {option.label}
             </option>
           ))}
         </FilterSelect>
-        <FilterSelect label="Departamento" value={departmentId} onChange={(event) => setDepartmentId(event.target.value)} className="w-auto">
-          <option value={ALL}>Todos os departamentos</option>
+        <FilterSelect label={t('Departamento')} value={departmentId} onChange={(event) => setDepartmentId(event.target.value)} className="w-auto">
+          <option value={ALL}>{t('Todos os departamentos')}</option>
           {(departments.data ?? [])
             .filter((department) => department.active)
             .map((department) => (
@@ -208,8 +209,8 @@ export const ManagerDashboard: React.FC = () => {
               </option>
             ))}
         </FilterSelect>
-        <FilterSelect label="Gestor" value={leadId} onChange={(event) => setLeadId(event.target.value)} className="w-auto">
-          <option value={ALL}>Todos os gestores</option>
+        <FilterSelect label={t('Gestor')} value={leadId} onChange={(event) => setLeadId(event.target.value)} className="w-auto">
+          <option value={ALL}>{t('Todos os gestores')}</option>
           {leads.map((row) => (
             <option key={row.leadId ?? 'direct'} value={row.leadId ?? ''}>
               {row.leadName}
@@ -222,40 +223,40 @@ export const ManagerDashboard: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Gestores" value={leads.length} supporting={pluralize(summary.teamSize, 'pessoa supervisionada', 'pessoas supervisionadas')} icon={Network} />
-        <StatCard label="Concluídas" value={summary.tasksCompleted} supporting={pluralize(summary.tasksCompletedLate, 'com atraso', 'com atraso')} icon={CheckCircle2} />
-        <StatCard label="Em atraso" value={summary.tasksOverdue} supporting={pluralize(summary.tasksBlocked, 'bloqueada', 'bloqueadas')} icon={AlertCircle} />
-        <StatCard label="Horas registadas" value={formatMinutesAsHours(summary.minutesLogged)} supporting="Equipas supervisionadas, no período" icon={Users} />
+        <StatCard label={t('Gestores')} value={leads.length} supporting={pluralize(summary.teamSize, 'pessoa supervisionada', 'pessoas supervisionadas')} icon={Network} />
+        <StatCard label={t('Concluídas')} value={summary.tasksCompleted} supporting={pluralize(summary.tasksCompletedLate, 'com atraso', 'com atraso')} icon={CheckCircle2} />
+        <StatCard label={t('Em atraso')} value={summary.tasksOverdue} supporting={pluralize(summary.tasksBlocked, 'bloqueada', 'bloqueadas')} icon={AlertCircle} />
+        <StatCard label={t('Horas registadas')} value={formatMinutesAsHours(summary.minutesLogged)} supporting={t('Equipas supervisionadas, no período')} icon={Users} />
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <div className="space-y-6 xl:col-span-2">
-          <Panel title="Gestores e equipas" actions={<PanelLink to="/timesheet/team">Carga da equipa</PanelLink>} flush>
+          <Panel title={t('Gestores e equipas')} actions={<PanelLink to="/timesheet/team">{t('Carga da equipa')}</PanelLink>} flush>
             {supervision.error && (
               <div className="p-4">
                 <ErrorState message={supervision.error} onRetry={supervision.reload} />
               </div>
             )}
-            {supervision.isLoading && !supervision.data && <LoadingState label="A carregar as equipas..." />}
+            {supervision.isLoading && !supervision.data && <LoadingState label={t('A carregar as equipas...')} />}
             {supervision.data && supervision.data.length === 0 && (
-              <EmptyState bordered={false} icon={Network} title="Ainda não supervisiona gestores." message="A atribuição de gestores é feita pela administração." />
+              <EmptyState bordered={false} icon={Network} title={t('Ainda não supervisiona gestores.')} message={t('A atribuição de gestores é feita pela administração.')} />
             )}
             {supervision.data && supervision.data.length > 0 && (
-              <DataTable caption="Gestores e equipas supervisionadas" columns={supervisionColumns} rows={supervision.data} getRowKey={(row) => row.leadId ?? 'direct'} />
+              <DataTable caption={t('Gestores e equipas supervisionadas')} columns={supervisionColumns} rows={supervision.data} getRowKey={(row) => row.leadId ?? 'direct'} />
             )}
           </Panel>
           {supervision.data && supervision.data.length > 0 && (
-            <Panel title="Distribuição da carga">
+            <Panel title={t('Distribuição da carga')}>
               <StackedBarChart
-                title="Tarefas em aberto por equipa"
+                title={t('Tarefas em aberto por equipa')}
                 series={WORKLOAD_SERIES}
                 rows={supervision.data.map((row) => ({
                   id: row.leadId ?? 'direct',
                   label: row.leadName,
                   values: [Math.max(0, row.tasksOpen - row.tasksOverdue), row.tasksOverdue],
-                  detail: `${pluralize(row.teamSize, 'pessoa', 'pessoas')} · ${formatMinutesAsHours(row.minutesLogged)} no período`,
+                  detail: t('{people} · {hours} no período', { people: pluralize(row.teamSize, 'pessoa', 'pessoas'), hours: formatMinutesAsHours(row.minutesLogged) }),
                 }))}
-                emptyMessage="As equipas não têm tarefas em aberto."
+                emptyMessage={t('As equipas não têm tarefas em aberto.')}
               />
             </Panel>
           )}

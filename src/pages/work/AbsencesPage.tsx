@@ -22,6 +22,7 @@ import { AttachmentsPanel } from '../../components/work/AttachmentsPanel';
 import { AbsenceDecisionModal, AbsenceFormModal, AbsenceValidationModal } from '../../components/work/AbsenceModals';
 import { daysBetween, toDateInput } from '../../utils/work';
 import { formatDate, formatDateTime } from '../../utils/format';
+import { t } from '../../lib/i18n';
 
 type Tab = 'MINE' | 'TEAM';
 
@@ -31,7 +32,7 @@ function periodLabel(request: AbsenceRequest): string {
 }
 
 const validationNote = (request: AbsenceRequest) =>
-  request.validationComment ?? <span className="text-text-muted">{request.validatedAt ? 'Validado sem comentário' : 'Sem validação intermédia'}</span>;
+  request.validationComment ?? <span className="text-text-muted">{request.validatedAt ? t('Validado sem comentário') : t('Sem validação intermédia')}</span>;
 
 /**
  * Ausências: colaborador submete → gestor da equipa valida e encaminha → Manager decide.
@@ -73,10 +74,10 @@ export const AbsencesPage: React.FC = () => {
     setMessage(null);
     try {
       await submitAbsence(request.id);
-      setMessage({ variant: 'success', text: `Pedido ${request.reference} submetido. O estado é atualizado nesta página a cada etapa.` });
+      setMessage({ variant: 'success', text: t('Pedido {reference} submetido. O estado é atualizado nesta página a cada etapa.', { reference: request.reference }) });
       reloadAll();
     } catch (error) {
-      setMessage({ variant: 'error', text: getErrorMessage(error, 'Não foi possível submeter o pedido.') });
+      setMessage({ variant: 'error', text: getErrorMessage(error, t('Não foi possível submeter o pedido.')) });
     } finally {
       setPendingId(null);
     }
@@ -84,41 +85,41 @@ export const AbsencesPage: React.FC = () => {
 
   const today = toDateInput(new Date());
   const mineColumns: DataTableColumn<AbsenceRequest>[] = [
-    { id: 'reference', header: 'Pedido', render: (request) => <span className="font-semibold text-text">{request.reference}</span> },
-    { id: 'type', header: 'Tipo', render: (request) => request.absenceTypeName },
-    { id: 'period', header: 'Período', render: (request) => periodLabel(request) },
-    { id: 'status', header: 'Estado', render: (request) => <WorkStatusBadge kind="absence" status={request.status} /> },
+    { id: 'reference', header: t('Pedido'), render: (request) => <span className="font-semibold text-text">{request.reference}</span> },
+    { id: 'type', header: t('Tipo'), render: (request) => request.absenceTypeName },
+    { id: 'period', header: t('Período'), render: (request) => periodLabel(request) },
+    { id: 'status', header: t('Estado'), render: (request) => <WorkStatusBadge kind="absence" status={request.status} /> },
     {
       id: 'comment',
-      header: 'Observações',
+      header: t('Observações'),
       className: 'min-w-48',
       render: (request) => request.decisionComment ?? request.validationComment ?? <span className="text-text-muted">—</span>,
     },
     {
       id: 'actions',
-      header: 'Ações',
+      header: t('Ações'),
       align: 'right',
       hideLabelOnMobile: true,
       render: (request) => (
         <div className="flex flex-wrap justify-end gap-1">
-          <IconButton icon={Eye} label={`Ver ${request.reference}`} onClick={() => setDetail(request)} />
+          <IconButton icon={Eye} label={t('Ver {reference}', { reference: request.reference })} onClick={() => setDetail(request)} />
           {request.status === 'DRAFT' && (
             <>
               <IconButton
                 icon={Pencil}
-                label={`Corrigir ${request.reference}`}
+                label={t('Corrigir {reference}', { reference: request.reference })}
                 onClick={() => {
                   setFormRequest(request);
                   setIsFormOpen(true);
                 }}
               />
               <Button size="sm" icon={Send} isLoading={pendingId === request.id} onClick={() => submit(request)}>
-                Submeter
+                {t('Submeter')}
               </Button>
             </>
           )}
           {(['DRAFT', 'SUBMITTED', 'PENDING_APPROVAL'].includes(request.status) || (request.status === 'APPROVED' && request.startDate > today)) && (
-            <IconButton icon={Undo2} tone="danger" label={`Cancelar ${request.reference}`} onClick={() => setToCancel(request)} />
+            <IconButton icon={Undo2} tone="danger" label={t('Cancelar {reference}', { reference: request.reference })} onClick={() => setToCancel(request)} />
           )}
         </div>
       ),
@@ -126,28 +127,28 @@ export const AbsencesPage: React.FC = () => {
   ];
 
   const teamBaseColumns: DataTableColumn<AbsenceRequest>[] = [
-    { id: 'employee', header: 'Colaborador', render: (request) => <span className="font-semibold text-text">{request.employeeName ?? '—'}</span> },
-    { id: 'type', header: 'Tipo', render: (request) => request.absenceTypeName },
-    { id: 'period', header: 'Período', render: (request) => periodLabel(request) },
-    { id: 'submitted', header: 'Submetido', render: (request) => formatDateTime(request.submittedAt) },
-    { id: 'reason', header: 'Motivo', className: 'min-w-48', render: (request) => request.reason || '—' },
+    { id: 'employee', header: t('Colaborador'), render: (request) => <span className="font-semibold text-text">{request.employeeName ?? '—'}</span> },
+    { id: 'type', header: t('Tipo'), render: (request) => request.absenceTypeName },
+    { id: 'period', header: t('Período'), render: (request) => periodLabel(request) },
+    { id: 'submitted', header: t('Submetido'), render: (request) => formatDateTime(request.submittedAt) },
+    { id: 'reason', header: t('Motivo'), className: 'min-w-48', render: (request) => request.reason || '—' },
   ];
 
   const validationColumns: DataTableColumn<AbsenceRequest>[] = [
     ...teamBaseColumns,
     {
       id: 'actions',
-      header: 'Validação',
+      header: t('Validação'),
       align: 'right',
       hideLabelOnMobile: true,
       render: (request) => (
         <div className="flex flex-wrap justify-end gap-1">
-          <IconButton icon={Eye} label={`Ver ${request.reference}`} onClick={() => setDetail(request)} />
+          <IconButton icon={Eye} label={t('Ver {reference}', { reference: request.reference })} onClick={() => setDetail(request)} />
           <Button size="sm" variant="secondary" icon={Undo2} onClick={() => setValidation({ request, validation: 'CHANGES_REQUESTED' })}>
-            Pedir correção
+            {t('Pedir correção')}
           </Button>
           <Button size="sm" icon={Forward} onClick={() => setValidation({ request, validation: 'VALIDATED' })}>
-            Validar e encaminhar
+            {t('Validar e encaminhar')}
           </Button>
         </div>
       ),
@@ -156,35 +157,35 @@ export const AbsencesPage: React.FC = () => {
 
   const awaitingColumns: DataTableColumn<AbsenceRequest>[] = [
     ...teamBaseColumns,
-    { id: 'validation', header: 'Parecer do gestor', className: 'min-w-40', render: validationNote },
+    { id: 'validation', header: t('Parecer do gestor'), className: 'min-w-40', render: validationNote },
     {
       id: 'view',
-      header: 'Ver',
+      header: t('Ver'),
       align: 'right',
       hideLabelOnMobile: true,
-      render: (request) => <IconButton icon={Eye} label={`Ver ${request.reference}`} onClick={() => setDetail(request)} />,
+      render: (request) => <IconButton icon={Eye} label={t('Ver {reference}', { reference: request.reference })} onClick={() => setDetail(request)} />,
     },
   ];
 
   const decisionColumns: DataTableColumn<AbsenceRequest>[] = [
     ...teamBaseColumns,
-    { id: 'validation', header: 'Parecer do gestor', className: 'min-w-40', render: validationNote },
+    { id: 'validation', header: t('Parecer do gestor'), className: 'min-w-40', render: validationNote },
     {
       id: 'actions',
-      header: 'Decisão',
+      header: t('Decisão'),
       align: 'right',
       hideLabelOnMobile: true,
       render: (request) => (
         <div className="flex flex-wrap justify-end gap-1">
-          <IconButton icon={Eye} label={`Ver ${request.reference}`} onClick={() => setDetail(request)} />
+          <IconButton icon={Eye} label={t('Ver {reference}', { reference: request.reference })} onClick={() => setDetail(request)} />
           <Button size="sm" variant="secondary" icon={Undo2} onClick={() => setDecision({ request, decision: 'CHANGES_REQUESTED' })}>
-            Pedir correção
+            {t('Pedir correção')}
           </Button>
           <Button size="sm" variant="danger" icon={XCircle} onClick={() => setDecision({ request, decision: 'REJECTED' })}>
-            Rejeitar
+            {t('Rejeitar')}
           </Button>
           <Button size="sm" icon={CheckCircle2} onClick={() => setDecision({ request, decision: 'APPROVED' })}>
-            Aprovar
+            {t('Aprovar')}
           </Button>
         </div>
       ),
@@ -197,8 +198,8 @@ export const AbsencesPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Ausências"
-        subtitle="Pedidos de férias, doença, licenças e outras ausências: validação do gestor da equipa e decisão do Manager."
+        title={t('Ausências')}
+        subtitle={t('Pedidos de férias, doença, licenças e outras ausências: validação do gestor da equipa e decisão do Manager.')}
         actions={
           hasPermission('TIMESHEET_ABSENCE_CREATE') && (
             <Button
@@ -209,18 +210,18 @@ export const AbsencesPage: React.FC = () => {
                 setIsFormOpen(true);
               }}
             >
-              Novo pedido
+              {t('Novo pedido')}
             </Button>
           )
         }
       />
       {canSeeTeam && (
-        <div role="tablist" aria-label="Ausências" className="flex gap-2">
+        <div role="tablist" aria-label={t('Ausências')} className="flex gap-2">
           <Button role="tab" size="sm" aria-selected={tab === 'MINE'} variant={tab === 'MINE' ? 'primary' : 'secondary'} onClick={() => setTab('MINE')}>
-            Os meus pedidos
+            {t('Os meus pedidos')}
           </Button>
           <Button role="tab" size="sm" aria-selected={tab === 'TEAM'} variant={tab === 'TEAM' ? 'primary' : 'secondary'} onClick={() => setTab('TEAM')}>
-            Equipa{pendingCount > 0 ? ` (${pendingCount})` : ''}
+            {t('Equipa')}{pendingCount > 0 ? ` (${pendingCount})` : ''}
           </Button>
         </div>
       )}
@@ -237,38 +238,38 @@ export const AbsencesPage: React.FC = () => {
               <ErrorState message={mine.error} onRetry={mine.reload} />
             </div>
           )}
-          {mine.isLoading && !mine.data && <LoadingState label="A carregar pedidos..." />}
+          {mine.isLoading && !mine.data && <LoadingState label={t('A carregar pedidos...')} />}
           {mine.data && mine.data.length === 0 && (
             <EmptyState
               bordered={false}
               icon={CalendarOff}
-              title="Ainda não fez pedidos de ausência."
-              message="Crie um pedido, anexe comprovativos quando necessário e submeta-o. O estado é atualizado aqui a cada etapa."
+              title={t('Ainda não fez pedidos de ausência.')}
+              message={t('Crie um pedido, anexe comprovativos quando necessário e submeta-o. O estado é atualizado aqui a cada etapa.')}
             />
           )}
-          {mine.data && mine.data.length > 0 && <DataTable caption="Os meus pedidos de ausência" columns={mineColumns} rows={mine.data} getRowKey={(request) => request.id} />}
+          {mine.data && mine.data.length > 0 && <DataTable caption={t('Os meus pedidos de ausência')} columns={mineColumns} rows={mine.data} getRowKey={(request) => request.id} />}
         </Panel>
       )}
 
       {tab === 'TEAM' && canSeeTeam && (
         <>
           {canValidate && (
-            <Panel title="A aguardar a sua validação" description="Valide e encaminhe ao Manager, ou devolva ao colaborador." flush>
+            <Panel title={t('A aguardar a sua validação')} description={t('Valide e encaminhe ao Manager, ou devolva ao colaborador.')} flush>
               {toValidate.error && (
                 <div className="p-4">
                   <ErrorState message={toValidate.error} onRetry={toValidate.reload} />
                 </div>
               )}
-              {toValidate.isLoading && !toValidate.data && <LoadingState label="A carregar pedidos..." />}
-              {toValidate.data && toValidate.data.length === 0 && <EmptyState bordered={false} icon={CheckCircle2} title="Não há pedidos da equipa por validar." />}
+              {toValidate.isLoading && !toValidate.data && <LoadingState label={t('A carregar pedidos...')} />}
+              {toValidate.data && toValidate.data.length === 0 && <EmptyState bordered={false} icon={CheckCircle2} title={t('Não há pedidos da equipa por validar.')} />}
               {toValidate.data && toValidate.data.length > 0 && (
-                <DataTable caption="Pedidos por validar" columns={validationColumns} rows={toValidate.data} getRowKey={(request) => request.id} />
+                <DataTable caption={t('Pedidos por validar')} columns={validationColumns} rows={toValidate.data} getRowKey={(request) => request.id} />
               )}
             </Panel>
           )}
           <Panel
-            title={canApprove ? 'A aguardar a sua decisão' : 'A aguardar a decisão do Manager'}
-            description={canApprove ? 'Pedidos validados pelos gestores (ou sem gestor intermédio).' : 'Pedidos da equipa já validados.'}
+            title={canApprove ? t('A aguardar a sua decisão') : t('A aguardar a decisão do Manager')}
+            description={canApprove ? t('Pedidos validados pelos gestores (ou sem gestor intermédio).') : t('Pedidos da equipa já validados.')}
             flush
           >
             {awaitingDecision.error && (
@@ -276,20 +277,20 @@ export const AbsencesPage: React.FC = () => {
                 <ErrorState message={awaitingDecision.error} onRetry={awaitingDecision.reload} />
               </div>
             )}
-            {awaitingDecision.isLoading && !awaitingDecision.data && <LoadingState label="A carregar pedidos..." />}
-            {awaitingDecision.data && awaitingDecision.data.length === 0 && <EmptyState bordered={false} icon={CheckCircle2} title="Não há pedidos a aguardar decisão." />}
+            {awaitingDecision.isLoading && !awaitingDecision.data && <LoadingState label={t('A carregar pedidos...')} />}
+            {awaitingDecision.data && awaitingDecision.data.length === 0 && <EmptyState bordered={false} icon={CheckCircle2} title={t('Não há pedidos a aguardar decisão.')} />}
             {awaitingDecision.data && awaitingDecision.data.length > 0 && (
               <DataTable
-                caption={canApprove ? 'Pedidos por decidir' : 'Pedidos a aguardar o Manager'}
+                caption={canApprove ? t('Pedidos por decidir') : t('Pedidos a aguardar o Manager')}
                 columns={canApprove ? decisionColumns : awaitingColumns}
                 rows={awaitingDecision.data}
                 getRowKey={(request) => request.id}
               />
             )}
           </Panel>
-          <Panel title="Ausências aprovadas (atuais e futuras)" flush>
+          <Panel title={t('Ausências aprovadas (atuais e futuras)')} flush>
             {upcoming.length === 0 ? (
-              <p className="px-5 py-4 text-sm text-text-secondary">Sem ausências aprovadas na equipa.</p>
+              <p className="px-5 py-4 text-sm text-text-secondary">{t('Sem ausências aprovadas na equipa.')}</p>
             ) : (
               <ul className="divide-y divide-border">
                 {upcoming.map((request) => (
@@ -313,7 +314,7 @@ export const AbsencesPage: React.FC = () => {
         onClose={() => setIsFormOpen(false)}
         onSaved={() => {
           setIsFormOpen(false);
-          setMessage({ variant: 'success', text: 'Pedido guardado em rascunho. Anexe comprovativos se necessário e submeta-o.' });
+          setMessage({ variant: 'success', text: t('Pedido guardado em rascunho. Anexe comprovativos se necessário e submeta-o.') });
           mine.reload();
         }}
       />
@@ -339,17 +340,17 @@ export const AbsencesPage: React.FC = () => {
       />
       <TicketNoteModal
         isOpen={toCancel !== null}
-        title={toCancel ? `Cancelar ${toCancel.reference}` : 'Cancelar pedido'}
-        description={toCancel?.status === 'APPROVED' ? 'A ausência já foi aprovada: o gestor da equipa e quem decidiu são notificados.' : undefined}
-        note={toCancel?.status === 'APPROVED' ? { label: 'Motivo do cancelamento', minLength: 5, maxLength: 1000 } : { label: 'Motivo (opcional)', maxLength: 1000 }}
-        confirmLabel="Cancelar pedido"
+        title={toCancel ? t('Cancelar {reference}', { reference: toCancel.reference }) : t('Cancelar pedido')}
+        description={toCancel?.status === 'APPROVED' ? t('A ausência já foi aprovada: o gestor da equipa e quem decidiu são notificados.') : undefined}
+        note={toCancel?.status === 'APPROVED' ? { label: t('Motivo do cancelamento'), minLength: 5, maxLength: 1000 } : { label: t('Motivo (opcional)'), maxLength: 1000 }}
+        confirmLabel={t('Cancelar pedido')}
         variant="danger"
         onClose={() => setToCancel(null)}
         onConfirm={async (reason) => {
           if (!toCancel) return;
           await cancelAbsence(toCancel.id, reason);
           setToCancel(null);
-          setMessage({ variant: 'success', text: 'Pedido cancelado.' });
+          setMessage({ variant: 'success', text: t('Pedido cancelado.') });
           reloadAll();
         }}
       />
@@ -376,11 +377,11 @@ const AbsenceDetailModal: React.FC<{ request: AbsenceRequest; viewerId: string; 
         {request.reason && <p className="whitespace-pre-line text-sm text-text-secondary">{request.reason}</p>}
         {request.validatedAt && (
           <p className="text-sm text-text-secondary">
-            Validado pelo gestor em {formatDateTime(request.validatedAt)}
+            {t('Validado pelo gestor em {date}', { date: formatDateTime(request.validatedAt) })}
             {request.validationComment ? `: ${request.validationComment}` : '.'}
           </p>
         )}
-        {request.requiresAttachment && request.status === 'DRAFT' && <Alert variant="info">Este tipo de ausência exige um comprovativo anexado antes da submissão.</Alert>}
+        {request.requiresAttachment && request.status === 'DRAFT' && <Alert variant="info">{t('Este tipo de ausência exige um comprovativo anexado antes da submissão.')}</Alert>}
         <AttachmentsPanel
           entityType="ABSENCE"
           entityId={request.id}
@@ -389,8 +390,8 @@ const AbsenceDetailModal: React.FC<{ request: AbsenceRequest; viewerId: string; 
           canRemoveOthers={false}
           onChanged={onChanged}
         />
-        <Panel title="Histórico" flush>
-          {events.isLoading && !events.data && <LoadingState label="A carregar histórico..." />}
+        <Panel title={t('Histórico')} flush>
+          {events.isLoading && !events.data && <LoadingState label={t('A carregar histórico...')} />}
           {events.error && <p className="px-5 py-4 text-sm text-danger">{events.error}</p>}
           {events.data && <WorkTimeline events={events.data} />}
         </Panel>

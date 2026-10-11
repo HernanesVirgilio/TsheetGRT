@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '../../types/database';
+import { t } from '../i18n';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim() ?? '';
 const supabasePublishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() ?? '';
@@ -8,7 +9,7 @@ const supabasePublishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.tr
 export const supabaseConfigError: string | null =
   supabaseUrl && supabasePublishableKey
     ? null
-    : 'As variáveis VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY não estão definidas. Crie o ficheiro .env a partir de .env.example.';
+    : t('As variáveis VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY não estão definidas. Crie o ficheiro .env a partir de .env.example.');
 
 export const supabaseProjectUrl = supabaseUrl;
 export const supabasePublishableApiKey = supabasePublishableKey;

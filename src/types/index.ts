@@ -116,6 +116,10 @@ export interface Profile {
   created_at: string;
   updated_at: string;
   last_login_at?: string | null;
+  /** Perfil pessoal: como prefere ser tratado e preferências de idioma e tema (opcionais). */
+  display_name?: string | null;
+  preferred_language?: string | null;
+  theme_preference?: string | null;
   // joined fields
   department?: Department | null;
   role?: Role | null;

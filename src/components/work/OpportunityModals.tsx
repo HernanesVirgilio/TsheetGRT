@@ -4,6 +4,7 @@ import { Button } from '../ui/Button';
 import { Alert } from '../ui/Alert';
 import { SelectField, TextAreaField, TextField } from '../ui/FormField';
 import { InlineCompanyForm } from './InlineCompanyForm';
+import { MoreOptions } from '../ui/MoreOptions';
 import { PeoplePicker } from './PeoplePicker';
 import { getErrorMessage } from '../../lib/errors';
 import { assignProjectTeam, changeOpportunityStatus, createCompany, createOpportunity, updateCompany, updateOpportunity } from '../../services/work/opportunityService';
@@ -22,6 +23,7 @@ import {
 } from '../../utils/work';
 import type { FieldErrors } from '../../utils/validation';
 import { hasErrors, optionalText } from '../../utils/validation';
+import { t } from '../../lib/i18n';
 
 // ---------------------------------------------------------------------------- empresa
 
@@ -82,12 +84,12 @@ export const CompanyFormModal: React.FC<CompanyFormModalProps> = ({ isOpen, comp
     try {
       if (company) {
         await updateCompany(company.id, input);
-        onSaved(company.id, 'Empresa atualizada.');
+        onSaved(company.id, t('Empresa atualizada.'));
       } else {
-        onSaved(await createCompany(input), 'Empresa registada.');
+        onSaved(await createCompany(input), t('Empresa registada.'));
       }
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Não foi possível guardar a empresa.'));
+      setErrorMessage(getErrorMessage(error, t('Não foi possível guardar a empresa.')));
     } finally {
       setIsSubmitting(false);
     }
@@ -97,17 +99,17 @@ export const CompanyFormModal: React.FC<CompanyFormModalProps> = ({ isOpen, comp
   return (
     <Modal
       isOpen={isOpen}
-      title={company ? `Editar ${company.name}` : 'Nova empresa'}
+      title={company ? t('Editar {name}', { name: company.name }) : t('Nova empresa')}
       size="lg"
       isBusy={isSubmitting}
       onClose={onClose}
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
-            Cancelar
+            {t('Cancelar')}
           </Button>
           <Button type="submit" form={formId} isLoading={isSubmitting}>
-            {company ? 'Guardar alterações' : 'Registar empresa'}
+            {company ? t('Guardar alterações') : t('Registar empresa')}
           </Button>
         </>
       }
@@ -115,19 +117,19 @@ export const CompanyFormModal: React.FC<CompanyFormModalProps> = ({ isOpen, comp
       <form id={formId} onSubmit={handleSubmit} className="space-y-4" noValidate>
         {errorMessage && <Alert variant="error">{errorMessage}</Alert>}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <TextField label="Nome" required maxLength={200} value={values.name} error={fieldErrors.name} onChange={(event) => updateValue('name', event.target.value)} />
+          <TextField label={t('Nome')} required maxLength={200} value={values.name} error={fieldErrors.name} onChange={(event) => updateValue('name', event.target.value)} />
           <TextField label="NUIT" inputMode="numeric" maxLength={9} value={values.nuit} error={fieldErrors.nuit} onChange={(event) => updateValue('nuit', event.target.value)} />
-          <TextField label="Contacto" maxLength={150} value={values.contactName} onChange={(event) => updateValue('contactName', event.target.value)} />
-          <TextField label="Telefone" type="tel" maxLength={30} value={values.phone} onChange={(event) => updateValue('phone', event.target.value)} />
-          <TextField label="E-mail" type="email" maxLength={255} value={values.email} error={fieldErrors.email} onChange={(event) => updateValue('email', event.target.value)} />
-          <TextField label="Site" type="url" maxLength={255} value={values.website} error={fieldErrors.website} placeholder="https://" onChange={(event) => updateValue('website', event.target.value)} />
+          <TextField label={t('Contacto')} maxLength={150} value={values.contactName} onChange={(event) => updateValue('contactName', event.target.value)} />
+          <TextField label={t('Telefone')} type="tel" maxLength={30} value={values.phone} onChange={(event) => updateValue('phone', event.target.value)} />
+          <TextField label={t('E-mail')} type="email" maxLength={255} value={values.email} error={fieldErrors.email} onChange={(event) => updateValue('email', event.target.value)} />
+          <TextField label={t('Site')} type="url" maxLength={255} value={values.website} error={fieldErrors.website} placeholder="https://" onChange={(event) => updateValue('website', event.target.value)} />
         </div>
-        <TextField label="Endereço" maxLength={500} value={values.address} onChange={(event) => updateValue('address', event.target.value)} />
-        <TextAreaField label="Notas" rows={3} maxLength={5000} value={values.notes} onChange={(event) => updateValue('notes', event.target.value)} />
+        <TextField label={t('Endereço')} maxLength={500} value={values.address} onChange={(event) => updateValue('address', event.target.value)} />
+        <TextAreaField label={t('Notas')} rows={3} maxLength={5000} value={values.notes} onChange={(event) => updateValue('notes', event.target.value)} />
         {company && (
           <label className="flex items-center gap-2 text-sm text-text">
             <input type="checkbox" className="h-4 w-4 accent-primary-hover" checked={active} onChange={(event) => setActive(event.target.checked)} />
-            Empresa ativa (as inativas não aceitam novas oportunidades)
+            {t('Empresa ativa (as inativas não aceitam novas oportunidades)')}
           </label>
         )}
       </form>
@@ -230,7 +232,7 @@ export const OpportunityFormModal: React.FC<OpportunityFormModalProps> = ({
     event.preventDefault();
     setErrorMessage(null);
     const errors: FieldErrors<OpportunityFormField | 'reason'> = validateOpportunityForm(values);
-    const reasonError = isClosed ? validateReason(reason, 'Indique o motivo da alteração de uma oportunidade fechada') : null;
+    const reasonError = isClosed ? validateReason(reason, t('Indique o motivo da alteração de uma oportunidade fechada')) : null;
     if (reasonError) errors.reason = reasonError;
     setFieldErrors(errors);
     if (hasErrors(errors)) return;
@@ -256,7 +258,7 @@ export const OpportunityFormModal: React.FC<OpportunityFormModalProps> = ({
     try {
       if (opportunity) {
         await updateOpportunity(opportunity.id, input, reason.trim() || null, opportunity.updatedAt);
-        onSaved(opportunity.id, 'Oportunidade atualizada.');
+        onSaved(opportunity.id, t('Oportunidade atualizada.'));
       } else {
         const opportunityId = await createOpportunity(input, values.ownerId || null);
         const hasTeam = Boolean(executionLeadId) || memberIds.length > 0;
@@ -265,15 +267,17 @@ export const OpportunityFormModal: React.FC<OpportunityFormModalProps> = ({
           const nameOf = (profileId: string) => [...teamLeads, ...people].find((person) => person.profileId === profileId)?.fullName ?? 'Colaborador';
           onSaved(
             opportunityId,
-            `Oportunidade registada, mas não foi possível associar: ${failures.map((failure) => `${nameOf(failure.profileId)} (${failure.error})`).join('; ')}. Pode acrescentá-los na secção Equipa do projeto.`,
+            t('Oportunidade registada, mas não foi possível associar: {people}. Pode acrescentá-los na secção Equipa do projeto.', {
+              people: failures.map((failure) => `${nameOf(failure.profileId)} (${failure.error})`).join('; '),
+            }),
             'warning'
           );
         } else {
-          onSaved(opportunityId, hasTeam ? 'Oportunidade registada. A equipa do projeto foi associada e notificada.' : 'Oportunidade registada.');
+          onSaved(opportunityId, hasTeam ? t('Oportunidade registada. A equipa do projeto foi associada e notificada.') : t('Oportunidade registada.'));
         }
       }
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Não foi possível guardar a oportunidade.'));
+      setErrorMessage(getErrorMessage(error, t('Não foi possível guardar a oportunidade.')));
     } finally {
       setIsSubmitting(false);
     }
@@ -287,24 +291,24 @@ export const OpportunityFormModal: React.FC<OpportunityFormModalProps> = ({
   return (
     <Modal
       isOpen={isOpen}
-      title={opportunity ? `Editar ${opportunity.reference}` : 'Nova oportunidade'}
+      title={opportunity ? t('Editar {reference}', { reference: opportunity.reference }) : t('Nova oportunidade')}
       size="lg"
       isBusy={isSubmitting}
       onClose={onClose}
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
-            Cancelar
+            {t('Cancelar')}
           </Button>
           <Button type="submit" form={formId} isLoading={isSubmitting}>
-            {opportunity ? 'Guardar alterações' : 'Registar oportunidade'}
+            {opportunity ? t('Guardar alterações') : t('Registar oportunidade')}
           </Button>
         </>
       }
     >
       <form id={formId} onSubmit={handleSubmit} className="space-y-4" noValidate>
         {errorMessage && <Alert variant="error">{errorMessage}</Alert>}
-        <TextField label="Título" required maxLength={200} value={values.title} error={fieldErrors.title} onChange={(event) => updateValue('title', event.target.value)} />
+        <TextField label={t('Título')} required maxLength={200} value={values.title} error={fieldErrors.title} onChange={(event) => updateValue('title', event.target.value)} />
         {isCompanyFormOpen && (
           <InlineCompanyForm
             onCancel={() => setIsCompanyFormOpen(false)}
@@ -318,8 +322,8 @@ export const OpportunityFormModal: React.FC<OpportunityFormModalProps> = ({
         )}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-1">
-            <SelectField label="Empresa" required value={values.companyId} error={fieldErrors.companyId} onChange={(event) => updateValue('companyId', event.target.value)}>
-              <option value="">Selecione…</option>
+            <SelectField label={t('Empresa')} required value={values.companyId} error={fieldErrors.companyId} onChange={(event) => updateValue('companyId', event.target.value)}>
+              <option value="">{t('Selecione…')}</option>
               {selectableCompanies.map((company) => (
                 <option key={company.id} value={company.id}>
                   {company.name}
@@ -328,14 +332,14 @@ export const OpportunityFormModal: React.FC<OpportunityFormModalProps> = ({
             </SelectField>
             {canCreateCompany && !isCompanyFormOpen && (
               <button type="button" onClick={() => setIsCompanyFormOpen(true)} className="text-xs font-semibold text-primary-hover hover:underline">
-                A empresa não existe? Criar empresa
+                {t('A empresa não existe? Criar empresa')}
               </button>
             )}
             {companyNotice && <p className="text-xs text-success">{companyNotice}</p>}
           </div>
           {!opportunity && owners.length > 0 && (
-            <SelectField label="Responsável" value={values.ownerId} hint="Por omissão, fica consigo." onChange={(event) => updateValue('ownerId', event.target.value)}>
-              <option value="">Eu próprio</option>
+            <SelectField label={t('Responsável')} value={values.ownerId} hint={t('Por omissão, fica consigo.')} onChange={(event) => updateValue('ownerId', event.target.value)}>
+              <option value="">{t('Eu próprio')}</option>
               {owners.map((person) => (
                 <option key={person.profileId} value={person.profileId}>
                   {person.fullName}
@@ -343,37 +347,81 @@ export const OpportunityFormModal: React.FC<OpportunityFormModalProps> = ({
               ))}
             </SelectField>
           )}
-          <TextField label="Contacto" maxLength={150} value={values.contactName} onChange={(event) => updateValue('contactName', event.target.value)} />
-          <TextField label="Telefone do contacto" type="tel" maxLength={30} value={values.contactPhone} onChange={(event) => updateValue('contactPhone', event.target.value)} />
-          <TextField label="E-mail do contacto" type="email" maxLength={255} value={values.contactEmail} error={fieldErrors.contactEmail} onChange={(event) => updateValue('contactEmail', event.target.value)} />
-          <TextField label="Data esperada de fecho" type="date" value={values.expectedCloseDate} onChange={(event) => updateValue('expectedCloseDate', event.target.value)} />
-          <TextField label="Valor inicial" inputMode="decimal" value={values.initialValue} error={fieldErrors.initialValue} hint="Ex.: 500 000,00" onChange={(event) => updateValue('initialValue', event.target.value)} />
-          <TextField label="Valor estimado" inputMode="decimal" value={values.estimatedValue} error={fieldErrors.estimatedValue} onChange={(event) => updateValue('estimatedValue', event.target.value)} />
-          <TextField label="Moeda" maxLength={3} value={values.currency} error={fieldErrors.currency} onChange={(event) => updateValue('currency', event.target.value.toUpperCase())} />
-          <TextField label="Probabilidade (%)" type="number" min={0} max={100} value={values.probability} error={fieldErrors.probability} onChange={(event) => updateValue('probability', event.target.value)} />
+          <TextField
+            label={t('Valor estimado')}
+            inputMode="decimal"
+            value={values.estimatedValue}
+            error={fieldErrors.estimatedValue}
+            hint={t('Ex.: 500 000,00. Aparece no pedido de aprovação.')}
+            onChange={(event) => updateValue('estimatedValue', event.target.value)}
+          />
+          <TextField label={t('Moeda')} maxLength={3} value={values.currency} error={fieldErrors.currency} onChange={(event) => updateValue('currency', event.target.value.toUpperCase())} />
         </div>
-        <TextAreaField label="Descrição" rows={2} maxLength={5000} value={values.description} onChange={(event) => updateValue('description', event.target.value)} />
-        <TextAreaField label="Necessidade identificada" rows={2} maxLength={5000} value={values.problem} onChange={(event) => updateValue('problem', event.target.value)} />
-        <TextAreaField label="Proposta" rows={2} maxLength={5000} value={values.proposal} onChange={(event) => updateValue('proposal', event.target.value)} />
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <TextField label="Próxima atividade" maxLength={300} value={values.nextStep} onChange={(event) => updateValue('nextStep', event.target.value)} />
-          <TextField label="Data da próxima atividade" type="date" value={values.nextStepDate} hint="Aparece no calendário." onChange={(event) => updateValue('nextStepDate', event.target.value)} />
-        </div>
-        <TextAreaField label="Observações" rows={2} maxLength={5000} value={values.notes} onChange={(event) => updateValue('notes', event.target.value)} />
+
+        <MoreOptions
+          title={t('Previsão comercial')}
+          summary={[values.probability ? `${values.probability}%` : null, values.expectedCloseDate || null, values.initialValue ? 'valor inicial' : null].filter(Boolean).join(' · ') || 'opcional'}
+          defaultOpen={Boolean(values.probability || values.expectedCloseDate || values.initialValue)}
+          forceOpen={Boolean(fieldErrors.initialValue || fieldErrors.probability)}
+        >
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <TextField label={t('Valor inicial')} inputMode="decimal" value={values.initialValue} error={fieldErrors.initialValue} onChange={(event) => updateValue('initialValue', event.target.value)} />
+            <TextField label={t('Probabilidade (%)')} type="number" min={0} max={100} value={values.probability} error={fieldErrors.probability} onChange={(event) => updateValue('probability', event.target.value)} />
+            <TextField label={t('Data esperada de fecho')} type="date" value={values.expectedCloseDate} onChange={(event) => updateValue('expectedCloseDate', event.target.value)} />
+          </div>
+        </MoreOptions>
+
+        <MoreOptions
+          title={t('Contacto do cliente')}
+          summary={values.contactName.trim() || 'opcional'}
+          defaultOpen={Boolean(values.contactName || values.contactPhone || values.contactEmail)}
+          forceOpen={Boolean(fieldErrors.contactEmail)}
+        >
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <TextField label={t('Contacto')} maxLength={150} value={values.contactName} onChange={(event) => updateValue('contactName', event.target.value)} />
+            <TextField label={t('Telefone do contacto')} type="tel" maxLength={30} value={values.contactPhone} onChange={(event) => updateValue('contactPhone', event.target.value)} />
+            <TextField label={t('E-mail do contacto')} type="email" maxLength={255} value={values.contactEmail} error={fieldErrors.contactEmail} onChange={(event) => updateValue('contactEmail', event.target.value)} />
+          </div>
+        </MoreOptions>
+
+        <MoreOptions
+          title={t('Necessidade e proposta')}
+          summary={values.description.trim() || values.problem.trim() || values.proposal.trim() ? 'preenchidas' : 'opcionais'}
+          defaultOpen={Boolean(values.description || values.problem || values.proposal)}
+        >
+          <TextAreaField label={t('Descrição')} rows={2} maxLength={5000} value={values.description} onChange={(event) => updateValue('description', event.target.value)} />
+          <TextAreaField label={t('Necessidade identificada')} rows={2} maxLength={5000} value={values.problem} onChange={(event) => updateValue('problem', event.target.value)} />
+          <TextAreaField label={t('Proposta')} rows={2} maxLength={5000} value={values.proposal} onChange={(event) => updateValue('proposal', event.target.value)} />
+        </MoreOptions>
+
+        <MoreOptions
+          title={t('Seguimento')}
+          summary={values.nextStep.trim() || 'opcional'}
+          defaultOpen={Boolean(values.nextStep || values.nextStepDate || values.notes)}
+        >
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <TextField label={t('Próxima atividade')} maxLength={300} value={values.nextStep} onChange={(event) => updateValue('nextStep', event.target.value)} />
+            <TextField label={t('Data da próxima atividade')} type="date" value={values.nextStepDate} hint={t('Aparece no calendário.')} onChange={(event) => updateValue('nextStepDate', event.target.value)} />
+          </div>
+          <TextAreaField label={t('Observações')} rows={2} maxLength={5000} value={values.notes} onChange={(event) => updateValue('notes', event.target.value)} />
+        </MoreOptions>
+
         {!opportunity && (teamLeads.length > 0 || people.length > 0) && (
-          <fieldset className="space-y-4 rounded-md border border-border p-4">
-            <legend className="px-1 text-sm font-semibold text-text">Equipa do projeto (opcional)</legend>
+          <MoreOptions
+            title={t('Equipa do projeto')}
+            summary={executionLeadId || memberIds.length > 0 ? `${memberIds.length + (executionLeadId ? 1 : 0)} pessoa(s)` : 'opcional'}
+          >
             {teamLeads.length > 0 && (
               <SelectField
-                label="Gestor de execução"
+                label={t('Gestor de execução')}
                 value={executionLeadId}
-                hint="Coordena a execução e atribui tarefas à sua equipa; pode ser de outro departamento. Não altera os dados comerciais."
+                hint={t('Coordena a execução e atribui tarefas à sua equipa; pode ser de outro departamento. Não altera os dados comerciais.')}
                 onChange={(event) => {
                   setExecutionLeadId(event.target.value);
                   setMemberIds((current) => current.filter((id) => id !== event.target.value));
                 }}
               >
-                <option value="">Sem gestor de execução</option>
+                <option value="">{t('Sem gestor de execução')}</option>
                 {teamLeads
                   .filter((person) => person.profileId !== values.ownerId)
                   .map((person) => (
@@ -385,17 +433,17 @@ export const OpportunityFormModal: React.FC<OpportunityFormModalProps> = ({
             )}
             {people.length > 0 && (
               <PeoplePicker
-                label="Colaboradores"
+                label={t('Colaboradores')}
                 people={people.filter((person) => person.profileId !== values.ownerId && person.profileId !== executionLeadId)}
                 selectedIds={memberIds}
                 onChange={setMemberIds}
-                hint="Passam a ver a oportunidade, comentar e registar tempo. Cada pessoa é notificada."
+                hint={t('Passam a ver a oportunidade, comentar e registar tempo. Cada pessoa é notificada.')}
               />
             )}
-          </fieldset>
+          </MoreOptions>
         )}
         {isClosed && (
-          <TextAreaField label="Motivo da alteração" required rows={2} maxLength={1000} value={reason} error={fieldErrors.reason} onChange={(event) => setReason(event.target.value)} />
+          <TextAreaField label={t('Motivo da alteração')} required rows={2} maxLength={1000} value={reason} error={fieldErrors.reason} onChange={(event) => setReason(event.target.value)} />
         )}
       </form>
     </Modal>
@@ -431,19 +479,19 @@ export const OpportunityStatusModal: React.FC<OpportunityStatusModalProps> = ({ 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!opportunity || !status) {
-      setErrorMessage('Selecione o novo estado.');
+      setErrorMessage(t('Selecione o novo estado.'));
       return;
     }
-    const validation = needsNote ? validateReason(note, status === 'LOST' ? 'Indique o motivo da perda' : 'Indique o motivo') : null;
+    const validation = needsNote ? validateReason(note, status === 'LOST' ? t('Indique o motivo da perda') : t('Indique o motivo')) : null;
     setNoteError(validation);
     if (validation) return;
     setIsSubmitting(true);
     setErrorMessage(null);
     try {
       await changeOpportunityStatus(opportunity.id, status, note.trim() || null);
-      onSaved(`Oportunidade: ${OPPORTUNITY_STATUS_LABELS[status].toLowerCase()}.`);
+      onSaved(t('Oportunidade: {status}.', { status: OPPORTUNITY_STATUS_LABELS[status].toLowerCase() }));
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Não foi possível alterar o estado.'));
+      setErrorMessage(getErrorMessage(error, t('Não foi possível alterar o estado.')));
     } finally {
       setIsSubmitting(false);
     }
@@ -453,17 +501,17 @@ export const OpportunityStatusModal: React.FC<OpportunityStatusModalProps> = ({ 
   return (
     <Modal
       isOpen={opportunity !== null}
-      title="Alterar etapa"
+      title={t('Alterar etapa')}
       size="sm"
       isBusy={isSubmitting}
       onClose={onClose}
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
-            Cancelar
+            {t('Cancelar')}
           </Button>
           <Button type="submit" form={formId} variant={status === 'LOST' || status === 'CANCELLED' ? 'danger' : 'primary'} isLoading={isSubmitting}>
-            Confirmar
+            {t('Confirmar')}
           </Button>
         </>
       }
@@ -471,10 +519,10 @@ export const OpportunityStatusModal: React.FC<OpportunityStatusModalProps> = ({ 
       <form id={formId} onSubmit={handleSubmit} className="space-y-4" noValidate>
         {errorMessage && <Alert variant="error">{errorMessage}</Alert>}
         {awaitingApproval && (
-          <Alert variant="info">Proposta, Negociação e Ganha ficam disponíveis depois da aprovação do Manager.</Alert>
+          <Alert variant="info">{t('Proposta, Negociação e Ganha ficam disponíveis depois da aprovação do Manager.')}</Alert>
         )}
         <SelectField
-          label="Novo estado"
+          label={t('Novo estado')}
           required
           value={status}
           onChange={(event) => {
@@ -482,7 +530,7 @@ export const OpportunityStatusModal: React.FC<OpportunityStatusModalProps> = ({ 
             setStatus(value ?? '');
           }}
         >
-          <option value="">Selecione…</option>
+          <option value="">{t('Selecione…')}</option>
           {options.map((option) => (
             <option key={option} value={option}>
               {OPPORTUNITY_STATUS_LABELS[option]}
@@ -490,7 +538,7 @@ export const OpportunityStatusModal: React.FC<OpportunityStatusModalProps> = ({ 
           ))}
         </SelectField>
         <TextAreaField
-          label={needsNote ? 'Motivo' : 'Nota (opcional)'}
+          label={needsNote ? 'Motivo' : t('Nota (opcional)')}
           required={needsNote}
           rows={3}
           maxLength={1000}

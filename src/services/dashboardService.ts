@@ -4,6 +4,7 @@ import type { Profile } from '../types';
 import type { AuditEventWithActor } from './auditService';
 import { listRecentAuditEvents } from './auditService';
 import { mapProfile, PROFILE_WITH_RELATIONS_SELECT } from './mappers';
+import { t } from '../lib/i18n';
 
 export interface AdminOverview {
   totalUsers: number;
@@ -27,7 +28,7 @@ interface CountResult {
 }
 
 function readCount(result: CountResult): number {
-  if (result.error) throw toServiceError(result.error, 'Não foi possível carregar os indicadores.');
+  if (result.error) throw toServiceError(result.error, t('Não foi possível carregar os indicadores.'));
   return result.count ?? 0;
 }
 
@@ -65,7 +66,7 @@ export async function getAdminOverview(): Promise<AdminOverview> {
   ]);
 
   if (recentUsersResult.error) {
-    throw toServiceError(recentUsersResult.error, 'Não foi possível carregar os utilizadores recentes.');
+    throw toServiceError(recentUsersResult.error, t('Não foi possível carregar os utilizadores recentes.'));
   }
 
   return {

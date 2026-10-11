@@ -1,5 +1,6 @@
 import React, { useEffect, useId, useRef } from 'react';
 import { X } from 'lucide-react';
+import { t } from '../../lib/i18n';
 
 const SIZE_CLASSES = {
   sm: 'max-w-md',
@@ -108,7 +109,7 @@ export const Modal: React.FC<ModalProps> = ({
             type="button"
             onClick={onClose}
             disabled={isBusy}
-            aria-label="Fechar"
+            aria-label={t('Fechar')}
             className="rounded-md p-1 text-text-muted hover:bg-surface-muted hover:text-text disabled:opacity-40"
           >
             <X className="h-5 w-5" aria-hidden="true" />

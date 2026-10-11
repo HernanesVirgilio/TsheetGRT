@@ -1,10 +1,11 @@
 import { supabase } from '../lib/supabase/client';
 import { toServiceError } from '../lib/errors';
 import type { SystemSetting } from '../types';
+import { t } from '../lib/i18n';
 
 export async function listSystemSettings(): Promise<SystemSetting[]> {
   const { data, error } = await supabase.from('system_settings').select('*').order('key');
-  if (error) throw toServiceError(error, 'Não foi possível carregar as configurações.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar as configurações.'));
   return data;
 }
 
@@ -12,5 +13,5 @@ export async function listSystemSettings(): Promise<SystemSetting[]> {
 export async function updateSystemSettings(changes: Record<string, string>): Promise<void> {
   if (Object.keys(changes).length === 0) return;
   const { error } = await supabase.rpc('update_system_settings', { p_settings: changes });
-  if (error) throw toServiceError(error, 'Não foi possível guardar as configurações.');
+  if (error) throw toServiceError(error, t('Não foi possível guardar as configurações.'));
 }

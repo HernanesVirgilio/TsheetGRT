@@ -26,6 +26,7 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import { formatDate, pluralize } from '../../utils/format';
 import type { DepartmentFormField, DepartmentFormValues, FieldErrors } from '../../utils/validation';
 import { hasErrors, normalizeDepartmentCode, validateDepartmentForm } from '../../utils/validation';
+import { t } from '../../lib/i18n';
 
 interface DepartmentFormModalProps {
   isOpen: boolean;
@@ -66,13 +67,13 @@ const DepartmentFormModal: React.FC<DepartmentFormModalProps> = ({ isOpen, depar
       const payload = { name: values.name.trim(), description: values.description.trim() };
       if (department) {
         await updateDepartment(department.id, payload);
-        onSaved(`Departamento ${payload.name} atualizado com sucesso.`);
+        onSaved(t('Departamento {name} atualizado com sucesso.', { name: payload.name }));
       } else {
         await createDepartment({ ...payload, code: normalizeDepartmentCode(values.code) });
-        onSaved(`Departamento ${payload.name} criado com sucesso.`);
+        onSaved(t('Departamento {name} criado com sucesso.', { name: payload.name }));
       }
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Não foi possível guardar o departamento.'));
+      setErrorMessage(getErrorMessage(error, t('Não foi possível guardar o departamento.')));
     } finally {
       setIsSubmitting(false);
     }
@@ -83,16 +84,16 @@ const DepartmentFormModal: React.FC<DepartmentFormModalProps> = ({ isOpen, depar
   return (
     <Modal
       isOpen={isOpen}
-      title={department ? 'Editar departamento' : 'Novo departamento'}
+      title={department ? t('Editar departamento') : t('Novo departamento')}
       isBusy={isSubmitting}
       onClose={onClose}
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
-            Cancelar
+            {t('Cancelar')}
           </Button>
           <Button type="submit" form={formId} isLoading={isSubmitting}>
-            Guardar
+            {t('Guardar')}
           </Button>
         </>
       }
@@ -100,24 +101,24 @@ const DepartmentFormModal: React.FC<DepartmentFormModalProps> = ({ isOpen, depar
       <form id={formId} onSubmit={handleSubmit} className="space-y-4" noValidate>
         {errorMessage && <Alert variant="error">{errorMessage}</Alert>}
         <TextField
-          label="Código"
+          label={t('Código')}
           required
           disabled={Boolean(department)}
           value={values.code}
           error={fieldErrors.code}
-          hint={department ? 'O código não pode ser alterado.' : 'Ex.: FIN, RH, OPS. Não pode ser alterado depois.'}
+          hint={department ? t('O código não pode ser alterado.') : t('Ex.: FIN, RH, OPS. Não pode ser alterado depois.')}
           className="font-mono uppercase"
           onChange={(event) => updateValue('code', event.target.value.toUpperCase())}
         />
         <TextField
-          label="Nome"
+          label={t('Nome')}
           required
           value={values.name}
           error={fieldErrors.name}
           onChange={(event) => updateValue('name', event.target.value)}
         />
         <TextAreaField
-          label="Descrição"
+          label={t('Descrição')}
           rows={3}
           value={values.description}
           onChange={(event) => updateValue('description', event.target.value)}
@@ -156,45 +157,45 @@ export const DepartmentsPage: React.FC = () => {
     try {
       await setDepartmentActive(departmentToToggle.id, !departmentToToggle.active);
       setSuccessMessage(
-        `Departamento ${departmentToToggle.name} ${departmentToToggle.active ? 'desativado' : 'ativado'} com sucesso.`
+        departmentToToggle.active ? t('Departamento {name} desativado com sucesso.', { name: departmentToToggle.name }) : t('Departamento {name} ativado com sucesso.', { name: departmentToToggle.name })
       );
       setDepartmentToToggle(null);
       departments.reload();
     } catch (error) {
-      setToggleError(getErrorMessage(error, 'Não foi possível alterar o estado do departamento.'));
+      setToggleError(getErrorMessage(error, t('Não foi possível alterar o estado do departamento.')));
     } finally {
       setIsToggling(false);
     }
   };
 
   const columns: DataTableColumn<Department>[] = [
-    { id: 'code', header: 'Código', render: (department) => <span className="font-mono font-semibold text-text">{department.code}</span> },
-    { id: 'name', header: 'Nome', render: (department) => <span className="font-medium text-text">{department.name}</span> },
-    { id: 'description', header: 'Descrição', className: 'max-w-sm', render: (department) => department.description || '—' },
+    { id: 'code', header: t('Código'), render: (department) => <span className="font-mono font-semibold text-text">{department.code}</span> },
+    { id: 'name', header: t('Nome'), render: (department) => <span className="font-medium text-text">{department.name}</span> },
+    { id: 'description', header: t('Descrição'), className: 'max-w-sm', render: (department) => department.description || '—' },
     {
       id: 'users',
-      header: 'Utilizadores ativos',
+      header: t('Utilizadores ativos'),
       render: (department) => (userCounts.data ? activeUsersIn(department) : '—'),
     },
     {
       id: 'status',
-      header: 'Estado',
+      header: t('Estado'),
       render: (department) => <StatusBadge status={department.active ? 'ACTIVE' : 'INACTIVE'} size="sm" />,
     },
-    { id: 'created', header: 'Criado em', render: (department) => formatDate(department.created_at) },
+    { id: 'created', header: t('Criado em'), render: (department) => formatDate(department.created_at) },
   ];
 
   if (canManage) {
     columns.push({
       id: 'actions',
-      header: 'Ações',
+      header: t('Ações'),
       align: 'right',
       hideLabelOnMobile: true,
       render: (department) => (
         <div className="flex justify-end gap-1">
           <IconButton
             icon={Pencil}
-            label={`Editar ${department.name}`}
+            label={t('Editar {name}', { name: department.name })}
             onClick={() => {
               setDepartmentToEdit(department);
               setIsFormOpen(true);
@@ -219,8 +220,8 @@ export const DepartmentsPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Departamentos"
-        subtitle="Estrutura organizacional da SI Holdings."
+        title={t('Departamentos')}
+        subtitle={t('Estrutura organizacional da SI Holdings.')}
         actions={
           canManage && (
             <Button
@@ -230,7 +231,7 @@ export const DepartmentsPage: React.FC = () => {
                 setIsFormOpen(true);
               }}
             >
-              Novo departamento
+              {t('Novo departamento')}
             </Button>
           )
         }
@@ -248,13 +249,13 @@ export const DepartmentsPage: React.FC = () => {
             <ErrorState message={departments.error} onRetry={departments.reload} />
           </div>
         )}
-        {departments.isLoading && !departments.data && <LoadingState label="A carregar departamentos..." />}
+        {departments.isLoading && !departments.data && <LoadingState label={t('A carregar departamentos...')} />}
         {departments.data?.length === 0 && (
-          <EmptyState bordered={false} icon={Building2} title="Nenhum departamento encontrado." />
+          <EmptyState bordered={false} icon={Building2} title={t('Nenhum departamento encontrado.')} />
         )}
         {departments.data && departments.data.length > 0 && (
           <DataTable
-            caption="Lista de departamentos"
+            caption={t('Lista de departamentos')}
             columns={columns}
             rows={departments.data}
             getRowKey={(department) => department.id}
@@ -274,15 +275,18 @@ export const DepartmentsPage: React.FC = () => {
 
       <ConfirmDialog
         isOpen={Boolean(departmentToToggle)}
-        title={departmentToToggle?.active ? 'Desativar departamento?' : 'Ativar departamento?'}
+        title={departmentToToggle?.active ? t('Desativar departamento?') : t('Ativar departamento?')}
         message={
           departmentToToggle?.active
-            ? `${departmentToToggle.name} deixará de poder ser atribuído a utilizadores.${
+            ? [
+                t('{name} deixará de poder ser atribuído a utilizadores.', { name: departmentToToggle.name }),
                 toggleUsers > 0
-                  ? ` Tem ${pluralize(toggleUsers, 'utilizador ativo', 'utilizadores ativos')}, que mantêm a associação atual.`
-                  : ''
-              }`
-            : `${departmentToToggle?.name} voltará a estar disponível para atribuição.`
+                  ? t('Tem {users}, que mantêm a associação atual.', { users: pluralize(toggleUsers, 'utilizador ativo', 'utilizadores ativos') })
+                  : '',
+              ]
+                .filter(Boolean)
+                .join(' ')
+            : t('{name} voltará a estar disponível para atribuição.', { name: departmentToToggle?.name })
         }
         confirmLabel={departmentToToggle?.active ? 'Desativar' : 'Ativar'}
         variant={departmentToToggle?.active ? 'danger' : 'primary'}

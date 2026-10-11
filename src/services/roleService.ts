@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabase/client';
 import { toServiceError } from '../lib/errors';
 import type { Permission, PermissionCode, Role, RoleCode } from '../types';
 import { isPresent, mapPermission, mapRole } from './mappers';
+import { t } from '../lib/i18n';
 
 export interface RoleWithAccess extends Role {
   permissions: Permission[];
@@ -16,13 +17,13 @@ export const ADMIN_ONLY_PERMISSION: PermissionCode = 'ADMIN_ACCESS';
 
 export async function listRoles(): Promise<Role[]> {
   const { data, error } = await supabase.from('roles').select('*').order('name');
-  if (error) throw toServiceError(error, 'Não foi possível carregar os perfis de acesso.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar os perfis de acesso.'));
   return data.map(mapRole).filter(isPresent);
 }
 
 export async function listPermissions(): Promise<Permission[]> {
   const { data, error } = await supabase.from('permissions').select('*').order('module').order('code');
-  if (error) throw toServiceError(error, 'Não foi possível carregar as permissões.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar as permissões.'));
   return data.map(mapPermission).filter(isPresent);
 }
 
@@ -31,9 +32,9 @@ export async function listRolesWithAccess(): Promise<RoleWithAccess[]> {
     supabase.from('roles').select('*, role_permissions(permission:permissions(*))').order('name'),
     supabase.from('user_roles').select('role_id'),
   ]);
-  if (rolesResult.error) throw toServiceError(rolesResult.error, 'Não foi possível carregar os perfis de acesso.');
+  if (rolesResult.error) throw toServiceError(rolesResult.error, t('Não foi possível carregar os perfis de acesso.'));
   if (assignmentsResult.error) {
-    throw toServiceError(assignmentsResult.error, 'Não foi possível contar os utilizadores por perfil.');
+    throw toServiceError(assignmentsResult.error, t('Não foi possível contar os utilizadores por perfil.'));
   }
 
   const userCountByRole = new Map<string, number>();
@@ -57,5 +58,5 @@ export async function setRolePermissions(roleCode: RoleCode, permissionCodes: Pe
     p_role_code: roleCode,
     p_permission_codes: permissionCodes,
   });
-  if (error) throw toServiceError(error, 'Não foi possível guardar as permissões.');
+  if (error) throw toServiceError(error, t('Não foi possível guardar as permissões.'));
 }

@@ -8,6 +8,7 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { Panel } from '../../components/ui/Panel';
 import { Alert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
+import { t, translatedFields } from '../../lib/i18n';
 
 interface Shortcut {
   to: string;
@@ -17,14 +18,14 @@ interface Shortcut {
 }
 
 // Áreas que não têm painel próprio; cada atalho só aparece se a rota for acessível ao utilizador.
-const SHORTCUTS: Shortcut[] = [
+const SHORTCUTS: Shortcut[] = translatedFields([
   { to: '/timesheets', label: 'Meu Timesheet', description: 'Registar horas e submeter o período para aprovação.', icon: Clock3 },
   { to: '/support', label: 'Pedidos de suporte', description: 'Pedir ajuda à equipa de IT e acompanhar os seus pedidos.', icon: LifeBuoy },
   { to: '/reports', label: 'Relatórios', description: 'Consultar indicadores de horas e timesheets.', icon: BarChart3 },
   { to: '/users', label: 'Utilizadores', description: 'Consultar as contas registadas.', icon: Users },
   { to: '/audit', label: 'Auditoria', description: 'Consultar o registo de eventos do sistema.', icon: FileClock },
   { to: '/system-health', label: 'Saúde do sistema', description: 'Verificar o estado dos serviços.', icon: Activity },
-];
+], ['label', 'description']);
 
 /** Conta ativa sem nenhuma permissão funcional: explica a situação em vez de mostrar erros de acesso. */
 const AwaitingAccess: React.FC = () => {
@@ -40,21 +41,19 @@ const AwaitingAccess: React.FC = () => {
   return (
     <Panel>
       <div className="space-y-4">
-        <Alert variant="info" title="A sua conta está ativa">
-          Ainda não lhe foram atribuídas funcionalidades no TsheetGRT (perfil de acesso e permissões). Contacte o administrador
-          do sistema ou o seu responsável direto e indique o e-mail com que entrou. Assim que o acesso for atribuído, os
-          módulos aparecem automaticamente no menu.
+        <Alert variant="info" title={t('A sua conta está ativa')}>
+          {t('Ainda não lhe foram atribuídas funcionalidades no TsheetGRT (perfil de acesso e permissões). Contacte o administrador do sistema ou o seu responsável direto e indique o e-mail com que entrou. Assim que o acesso for atribuído, os módulos aparecem automaticamente no menu.')}
         </Alert>
         <div className="flex flex-col gap-2 sm:flex-row">
           <Button variant="secondary" icon={RefreshCw} isLoading={isChecking} onClick={handleCheck}>
-            Verificar novamente
+            {t('Verificar novamente')}
           </Button>
           <Link
             to="/profile"
             className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-border-input bg-surface px-4 text-sm font-semibold text-text hover:bg-surface-muted"
           >
             <UserCircle className="h-4 w-4" aria-hidden="true" />
-            Ver o meu perfil
+            {t('Ver o meu perfil')}
           </Link>
         </div>
       </div>
@@ -69,7 +68,7 @@ export const StartDashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Início" subtitle="As áreas do TsheetGRT disponíveis para o seu perfil." />
+      <PageHeader title={t('Início')} subtitle={t('As áreas do TsheetGRT disponíveis para o seu perfil.')} />
       {shortcuts.length === 0 ? (
         <AwaitingAccess />
       ) : (

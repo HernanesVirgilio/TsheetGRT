@@ -24,14 +24,15 @@ import { ManagerScopePanel } from '../../components/admin/ManagerScopePanel';
 import { ProfileLeadsPanel } from '../../components/admin/ProfileLeadsPanel';
 import { formatDate, formatDateTime, formatMinutesAsHours, formatPeriod } from '../../utils/format';
 import { isUuid } from '../../utils/validation';
+import { t, translatedFields } from '../../lib/i18n';
 
-const TIMESHEET_COLUMNS: DataTableColumn<UserTimesheetSummary>[] = [
+const TIMESHEET_COLUMNS: DataTableColumn<UserTimesheetSummary>[] = translatedFields([
   { id: 'period', header: 'Período', render: (timesheet) => formatPeriod(timesheet.periodStart, timesheet.periodEnd) },
   { id: 'status', header: 'Estado', render: (timesheet) => <StatusBadge status={timesheet.status} size="sm" /> },
   { id: 'entries', header: 'Registos', render: (timesheet) => timesheet.entryCount },
   { id: 'hours', header: 'Horas', render: (timesheet) => formatMinutesAsHours(timesheet.totalMinutes) },
   { id: 'submitted', header: 'Submetido em', render: (timesheet) => formatDate(timesheet.submittedAt) },
-];
+], ['header']);
 
 const DetailItem: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
   <div>
@@ -43,7 +44,7 @@ const DetailItem: React.FC<{ label: string; children: React.ReactNode }> = ({ la
 const BackLink: React.FC = () => (
   <Link to="/users" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary-hover hover:underline">
     <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-    Voltar a utilizadores
+    {t('Voltar a utilizadores')}
   </Link>
 );
 
@@ -67,7 +68,7 @@ export const UserDetailPage: React.FC = () => {
   const [isRoleOpen, setIsRoleOpen] = useState(false);
   const [isStatusOpen, setIsStatusOpen] = useState(false);
 
-  if (user.isLoading && !user.data) return <LoadingState label="A carregar utilizador..." />;
+  if (user.isLoading && !user.data) return <LoadingState label={t('A carregar utilizador...')} />;
   if (user.error) {
     return (
       <div className="space-y-4">
@@ -80,7 +81,7 @@ export const UserDetailPage: React.FC = () => {
     return (
       <div className="space-y-4">
         <BackLink />
-        <EmptyState title="Utilizador não encontrado." message="O utilizador não existe ou não tem permissão para o consultar." />
+        <EmptyState title={t('Utilizador não encontrado.')} message={t('O utilizador não existe ou não tem permissão para o consultar.')} />
       </div>
     );
   }
@@ -103,17 +104,17 @@ export const UserDetailPage: React.FC = () => {
       <BackLink />
       <PageHeader
         title={profile.full_name}
-        subtitle={`${profile.employee_number ?? ''} · ${profile.job_title ?? 'Sem cargo definido'}`}
+        subtitle={`${profile.employee_number ?? ''} · ${profile.job_title ?? t('Sem cargo definido')}`}
         actions={
           <>
             {hasPermission('USERS_UPDATE') && (
               <Button variant="secondary" icon={Pencil} onClick={() => setIsEditOpen(true)} disabled={!referenceData.data}>
-                Editar
+                {t('Editar')}
               </Button>
             )}
             {hasPermission('USERS_ASSIGN_ROLE') && (
               <Button variant="secondary" icon={Shield} onClick={() => setIsRoleOpen(true)} disabled={!referenceData.data}>
-                Perfil de acesso
+                {t('Perfil de acesso')}
               </Button>
             )}
             {hasPermission('USERS_DISABLE') && !isCurrentUser && (
@@ -135,7 +136,7 @@ export const UserDetailPage: React.FC = () => {
         </Alert>
       )}
       {!profile.is_active && (
-        <Alert variant="warning">Esta conta está desativada e não consegue aceder ao sistema.</Alert>
+        <Alert variant="warning">{t('Esta conta está desativada e não consegue aceder ao sistema.')}</Alert>
       )}
 
       <Panel>
@@ -150,16 +151,16 @@ export const UserDetailPage: React.FC = () => {
           </div>
         </div>
         <dl className="grid grid-cols-1 gap-4 border-t border-border pt-5 sm:grid-cols-2 lg:grid-cols-3">
-          <DetailItem label="Perfil de acesso">{profile.role?.name ?? 'Sem perfil'}</DetailItem>
-          <DetailItem label="Departamento">{profile.department?.name ?? 'Sem departamento'}</DetailItem>
-          <DetailItem label="Cargo">{profile.job_title ?? '—'}</DetailItem>
-          <DetailItem label="Telefone">{profile.phone ?? '—'}</DetailItem>
-          <DetailItem label="Criado em">{formatDate(profile.created_at)}</DetailItem>
-          <DetailItem label="Último acesso">{formatDateTime(profile.last_login_at, 'Nunca acedeu')}</DetailItem>
+          <DetailItem label={t('Perfil de acesso')}>{profile.role?.name ?? t('Sem perfil')}</DetailItem>
+          <DetailItem label={t('Departamento')}>{profile.department?.name ?? t('Sem departamento')}</DetailItem>
+          <DetailItem label={t('Cargo')}>{profile.job_title ?? '—'}</DetailItem>
+          <DetailItem label={t('Telefone')}>{profile.phone ?? '—'}</DetailItem>
+          <DetailItem label={t('Criado em')}>{formatDate(profile.created_at)}</DetailItem>
+          <DetailItem label={t('Último acesso')}>{formatDateTime(profile.last_login_at, t('Nunca acedeu'))}</DetailItem>
         </dl>
         <div className="mt-4 border-t border-border pt-4">
-          <p className="text-sm text-text-muted">Descrição da função</p>
-          <p className="mt-0.5 whitespace-pre-line text-sm text-text">{profile.job_description ?? 'Por preencher.'}</p>
+          <p className="text-sm text-text-muted">{t('Descrição da função')}</p>
+          <p className="mt-0.5 whitespace-pre-line text-sm text-text">{profile.job_description ?? t('Por preencher.')}</p>
         </div>
       </Panel>
 
@@ -171,17 +172,17 @@ export const UserDetailPage: React.FC = () => {
         <ManagerScopePanel manager={profile} departments={departments} canManage={hasPermission('USERS_UPDATE')} />
       )}
 
-      <Panel title="Timesheets" description="Períodos registados por este colaborador." flush>
+      <Panel title={t('Timesheets')} description={t('Períodos registados por este colaborador.')} flush>
         {timesheets.error && (
           <div className="p-4">
             <ErrorState message={timesheets.error} onRetry={timesheets.reload} />
           </div>
         )}
         {timesheets.isLoading && !timesheets.data && <LoadingState />}
-        {timesheets.data?.length === 0 && <EmptyState bordered={false} title="Nenhum timesheet registado." />}
+        {timesheets.data?.length === 0 && <EmptyState bordered={false} title={t('Nenhum timesheet registado.')} />}
         {timesheets.data && timesheets.data.length > 0 && (
           <DataTable
-            caption={`Timesheets de ${profile.full_name}`}
+            caption={t('Timesheets de {full_name}', { full_name: profile.full_name })}
             columns={TIMESHEET_COLUMNS}
             rows={timesheets.data}
             getRowKey={(timesheet) => timesheet.id}
@@ -190,7 +191,7 @@ export const UserDetailPage: React.FC = () => {
       </Panel>
 
       {canReadAudit && (
-        <Panel title="Atividade recente" description="Ações realizadas por este utilizador ou sobre a sua conta." flush>
+        <Panel title={t('Atividade recente')} description={t('Ações realizadas por este utilizador ou sobre a sua conta.')} flush>
           {activity.error && (
             <div className="p-4">
               <ErrorState message={activity.error} onRetry={activity.reload} />
@@ -198,7 +199,7 @@ export const UserDetailPage: React.FC = () => {
           )}
           {activity.isLoading && !activity.data && <LoadingState />}
           {activity.data?.length === 0 && (
-            <EmptyState bordered={false} icon={FileClock} title="Sem atividade registada." />
+            <EmptyState bordered={false} icon={FileClock} title={t('Sem atividade registada.')} />
           )}
           {activity.data && activity.data.length > 0 && (
             <ul className="divide-y divide-border">

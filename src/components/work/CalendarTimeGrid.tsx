@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
+import { dateTimeFormatter } from '../../utils/format';
 import type { CalendarItem } from '../../types/work';
 import {
   CALENDAR_DAY_START_HOUR,
@@ -10,14 +11,15 @@ import {
   slotStartTime,
 } from '../../utils/work';
 import type { SlotSelection } from '../../utils/work';
+import { t } from '../../lib/i18n';
 
 const SLOT_HEIGHT = 22;
 const GRID_HEIGHT = SLOT_HEIGHT * CALENDAR_SLOT_COUNT;
 const SLOTS_PER_HOUR = 60 / CALENDAR_SLOT_MINUTES;
 const SCROLL_TO_HOUR = 8;
 
-const weekdayFormatter = new Intl.DateTimeFormat('pt-PT', { weekday: 'short', day: 'numeric' });
-const longDayFormatter = new Intl.DateTimeFormat('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' });
+const weekdayFormatter = () => dateTimeFormatter({ weekday: 'short', day: 'numeric' });
+const longDayFormatter = () => dateTimeFormatter({ weekday: 'long', day: 'numeric', month: 'long' });
 
 interface Selection {
   day: number;
@@ -168,7 +170,7 @@ export const CalendarTimeGrid: React.FC<CalendarTimeGridProps> = ({ days, timedI
         {days.map((day) => (
           <div key={day.toISOString()} className="border-l border-border px-2 py-2">
             <p className={`text-xs font-semibold uppercase tracking-wide ${isSameDay(day, today) ? 'text-primary-hover' : 'text-sidebar'}`}>
-              {days.length === 1 ? longDayFormatter.format(day) : weekdayFormatter.format(day)}
+              {days.length === 1 ? longDayFormatter().format(day) : weekdayFormatter().format(day)}
             </p>
             <div className="mt-1 space-y-1">{allDayItemsFor(day).map((item) => <div key={`${item.itemType}-${item.itemId}`}>{renderItem(item, true)}</div>)}</div>
           </div>
@@ -178,8 +180,8 @@ export const CalendarTimeGrid: React.FC<CalendarTimeGridProps> = ({ days, timedI
       {canSelect && (
         <p id={hintId} className="border-b border-border px-4 py-2 text-xs text-text-muted">
           {touchAnchor
-            ? `Início às ${slotStartTime(touchAnchor.slot)}. Toque na hora final para abrir o formulário.`
-            : 'Arraste sobre as horas para marcar uma reunião (no ecrã tátil, toque na hora inicial e depois na final). Teclado: setas, Shift+setas e Enter.'}
+            ? t('Início às {slot}. Toque na hora final para abrir o formulário.', { slot: slotStartTime(touchAnchor.slot) })
+            : t('Arraste sobre as horas para marcar uma reunião (no ecrã tátil, toque na hora inicial e depois na final). Teclado: setas, Shift+setas e Enter.')}
         </p>
       )}
 
@@ -190,7 +192,7 @@ export const CalendarTimeGrid: React.FC<CalendarTimeGridProps> = ({ days, timedI
           style={{ gridTemplateColumns: columns, height: GRID_HEIGHT }}
           role={canSelect ? 'application' : undefined}
           tabIndex={canSelect ? 0 : undefined}
-          aria-label={canSelect ? 'Grelha horária: selecione um intervalo para agendar uma reunião' : 'Grelha horária'}
+          aria-label={canSelect ? t('Grelha horária: selecione um intervalo para agendar uma reunião') : t('Grelha horária')}
           aria-describedby={canSelect ? hintId : undefined}
           onKeyDown={onKeyDown}
           onFocus={() => setIsFocused(true)}
@@ -279,7 +281,7 @@ export const CalendarTimeGrid: React.FC<CalendarTimeGridProps> = ({ days, timedI
         </div>
       </div>
       <p className="sr-only" aria-live="polite">
-        {activeRange && cursorDay ? `Selecionado de ${activeRange.startTime} a ${activeRange.endTime}.` : ''}
+        {activeRange && cursorDay ? t('Selecionado de {startTime} a {endTime}.', { startTime: activeRange.startTime, endTime: activeRange.endTime }) : ''}
       </p>
     </div>
   );

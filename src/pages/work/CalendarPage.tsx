@@ -36,24 +36,26 @@ import {
   validateReason,
 } from '../../utils/work';
 import type { SlotSelection } from '../../utils/work';
-import { formatDateTime } from '../../utils/format';
+import { formatDateTime, dateTimeFormatter } from '../../utils/format';
+import { t, translatedFields } from '../../lib/i18n';
 
 type View = 'MONTH' | 'WEEK' | 'DAY';
 type FilterKey = 'TASKS' | 'MEETINGS' | 'ABSENCES' | 'ACTIVITIES' | 'EVENTS' | 'OPPORTUNITIES';
 
-const FILTERS: { key: FilterKey; label: string; types: CalendarItemType[] }[] = [
+const FILTERS: { key: FilterKey; label: string; types: CalendarItemType[] }[] = translatedFields([
   { key: 'TASKS', label: 'Tarefas e prazos', types: ['DEADLINE', 'TASK'] },
   { key: 'MEETINGS', label: 'Reuniões', types: ['MEETING'] },
   { key: 'ABSENCES', label: 'Ausências', types: ['ABSENCE'] },
   { key: 'ACTIVITIES', label: 'Atividades', types: ['ACTIVITY'] },
   { key: 'EVENTS', label: 'Eventos internos', types: ['INTERNAL_EVENT'] },
   { key: 'OPPORTUNITIES', label: 'Oportunidades', types: ['OPPORTUNITY_ACTIVITY'] },
-];
+], ['label']);
 
-const WEEKDAYS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
-const monthFormatter = new Intl.DateTimeFormat('pt-PT', { month: 'long', year: 'numeric' });
-const dayFormatter = new Intl.DateTimeFormat('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' });
-const timeFormatter = new Intl.DateTimeFormat('pt-PT', { hour: '2-digit', minute: '2-digit' });
+// Segunda a domingo, abreviados no idioma ativo (6 de janeiro de 2025 foi uma segunda-feira).
+const weekdayNames = () => Array.from({ length: 7 }, (_, index) => dateTimeFormatter({ weekday: 'short' }).format(new Date(2025, 0, 6 + index)));
+const monthFormatter = () => dateTimeFormatter({ month: 'long', year: 'numeric' });
+const dayFormatter = () => dateTimeFormatter({ weekday: 'long', day: 'numeric', month: 'long' });
+const timeFormatter = () => dateTimeFormatter({ hour: '2-digit', minute: '2-digit' });
 
 function itemTone(item: CalendarItem): BadgeTone {
   if (item.isOverdue) return 'danger';
@@ -96,14 +98,14 @@ function itemStatusLabel(item: CalendarItem): string {
   if (itemType === 'MEETING' && isMeetingStatus(status)) return MEETING_STATUS_LABELS[status];
   if (itemType === 'ABSENCE' && isAbsenceStatus(status)) return ABSENCE_STATUS_LABELS[status];
   if (itemType === 'OPPORTUNITY_ACTIVITY' && isOpportunityStatus(status)) return OPPORTUNITY_STATUS_LABELS[status];
-  if (itemType === 'ACTIVITY' && isEntryKind(status)) return `Tempo registado · ${ENTRY_KIND_LABELS[status]}`;
+  if (itemType === 'ACTIVITY' && isEntryKind(status)) return t('Tempo registado · {status}', { status: ENTRY_KIND_LABELS[status] });
   return status === 'ACTIVE' ? 'Ativo' : status;
 }
 
 function itemTime(item: CalendarItem): string {
-  if (item.allDay) return 'Dia inteiro';
-  const start = timeFormatter.format(new Date(item.startsAt));
-  return item.startsAt === item.endsAt ? start : `${start}–${timeFormatter.format(new Date(item.endsAt))}`;
+  if (item.allDay) return t('Dia inteiro');
+  const start = timeFormatter().format(new Date(item.startsAt));
+  return item.startsAt === item.endsAt ? start : `${start}–${timeFormatter().format(new Date(item.endsAt))}`;
 }
 
 /** Bloco de um item com hora na grelha (ocupa a altura da sua duração). */
@@ -131,7 +133,7 @@ const ItemChip: React.FC<{ item: CalendarItem; compact?: boolean; onOpen: (item:
     }`}
     title={`${CALENDAR_ITEM_LABELS[item.itemType]}: ${item.title}`}
   >
-    {!compact && !item.allDay && <span className="mr-1 tabular-nums">{timeFormatter.format(new Date(item.startsAt))}</span>}
+    {!compact && !item.allDay && <span className="mr-1 tabular-nums">{timeFormatter().format(new Date(item.startsAt))}</span>}
     <span className="sr-only">{CALENDAR_ITEM_LABELS[item.itemType]}: </span>
     {item.reference ? `${item.reference} · ` : ''}
     {item.title}
@@ -197,7 +199,7 @@ export const CalendarPage: React.FC = () => {
     setAnchor(next);
   };
   const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
-  const title = view === 'MONTH' ? capitalize(monthFormatter.format(anchor)) : view === 'WEEK' ? `Semana de ${dayFormatter.format(days[0] ?? anchor)}` : dayFormatter.format(anchor);
+  const title = view === 'MONTH' ? capitalize(monthFormatter().format(anchor)) : view === 'WEEK' ? t('Semana de {days}', { days: dayFormatter().format(days[0] ?? anchor) }) : dayFormatter().format(anchor);
   const today = new Date();
 
   const toggleFilter = (key: FilterKey) =>
@@ -213,11 +215,11 @@ export const CalendarPage: React.FC = () => {
     return (
       <li key={day.toISOString()} className="px-4 py-3">
         <p className={`text-sm font-semibold ${isSameDay(day, today) ? 'text-primary-hover' : 'text-text'}`}>
-          {dayFormatter.format(day)}
-          {isSameDay(day, today) && <span className="ml-2 text-xs font-medium">(hoje)</span>}
+          {dayFormatter().format(day)}
+          {isSameDay(day, today) && <span className="ml-2 text-xs font-medium">{t('(hoje)')}</span>}
         </p>
         {dayItems.length === 0 ? (
-          <p className="mt-1 text-sm text-text-muted">Sem registos.</p>
+          <p className="mt-1 text-sm text-text-muted">{t('Sem registos.')}</p>
         ) : (
           <ul className="mt-2 space-y-1.5">
             {dayItems.map((item) => (
@@ -238,18 +240,18 @@ export const CalendarPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Calendário"
-        subtitle="Tarefas, prazos, reuniões, ausências, atividades e eventos num só lugar."
+        title={t('Calendário')}
+        subtitle={t('Tarefas, prazos, reuniões, ausências, atividades e eventos num só lugar.')}
         actions={
           <>
             {canCreateMeeting && (
               <Button variant="secondary" icon={CalendarPlus} onClick={() => openMeetingForm(null)} disabled={!people.data}>
-                Nova reunião
+                {t('Nova reunião')}
               </Button>
             )}
             {canManageEvents && (
               <Button icon={Plus} onClick={() => setIsEventFormOpen(true)}>
-                Evento interno
+                {t('Evento interno')}
               </Button>
             )}
           </>
@@ -264,37 +266,37 @@ export const CalendarPage: React.FC = () => {
       <Panel flush>
         <div className="flex flex-col gap-3 border-b border-border p-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-2">
-            <IconButton icon={ChevronLeft} label="Período anterior" onClick={() => move(-1)} />
+            <IconButton icon={ChevronLeft} label={t('Período anterior')} onClick={() => move(-1)} />
             <Button size="sm" variant="secondary" onClick={() => setAnchor(new Date())}>
-              Hoje
+              {t('Hoje')}
             </Button>
-            <IconButton icon={ChevronRight} label="Período seguinte" onClick={() => move(1)} />
+            <IconButton icon={ChevronRight} label={t('Período seguinte')} onClick={() => move(1)} />
             <h2 className="ml-2 text-base font-semibold text-text" aria-live="polite">
               {title}
             </h2>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <div role="group" aria-label="Vista" className="flex gap-1">
+            <div role="group" aria-label={t('Vista')} className="flex gap-1">
               {(['MONTH', 'WEEK', 'DAY'] as const).map((option) => (
                 <Button key={option} size="sm" variant={view === option ? 'primary' : 'secondary'} aria-pressed={view === option} onClick={() => setView(option)}>
-                  {option === 'MONTH' ? 'Mês' : option === 'WEEK' ? 'Semana' : 'Dia'}
+                  {option === 'MONTH' ? t('Mês') : option === 'WEEK' ? 'Semana' : 'Dia'}
                 </Button>
               ))}
             </div>
             {canSeeTeam && (
-              <div role="group" aria-label="Âmbito" className="flex gap-1">
+              <div role="group" aria-label={t('Âmbito')} className="flex gap-1">
                 <Button size="sm" variant={scope === 'ME' ? 'primary' : 'secondary'} aria-pressed={scope === 'ME'} onClick={() => setScope('ME')}>
-                  O meu
+                  {t('O meu')}
                 </Button>
                 <Button size="sm" variant={scope === 'TEAM' ? 'primary' : 'secondary'} aria-pressed={scope === 'TEAM'} onClick={() => setScope('TEAM')}>
-                  Equipa
+                  {t('Equipa')}
                 </Button>
               </div>
             )}
           </div>
         </div>
         <fieldset className="flex flex-wrap gap-x-4 gap-y-2 border-b border-border px-4 py-3">
-          <legend className="sr-only">Tipos de registo</legend>
+          <legend className="sr-only">{t('Tipos de registo')}</legend>
           {FILTERS.map((filter) => (
             <label key={filter.key} className="flex items-center gap-2 text-sm text-text">
               <input type="checkbox" className="h-4 w-4 accent-primary-hover" checked={enabled.has(filter.key)} onChange={() => toggleFilter(filter.key)} />
@@ -308,13 +310,13 @@ export const CalendarPage: React.FC = () => {
             <ErrorState message={items.error} onRetry={items.reload} />
           </div>
         )}
-        {items.isLoading && !items.data && <LoadingState label="A carregar calendário..." />}
+        {items.isLoading && !items.data && <LoadingState label={t('A carregar calendário...')} />}
 
         {items.data && view === 'MONTH' && (
           <>
             <div className="hidden md:block">
               <div className="grid grid-cols-7 border-b border-border bg-background text-xs font-semibold uppercase tracking-wide text-sidebar">
-                {WEEKDAYS.map((weekday) => (
+                {weekdayNames().map((weekday) => (
                   <div key={weekday} className="px-2 py-2">
                     {weekday}
                   </div>
@@ -336,7 +338,7 @@ export const CalendarPage: React.FC = () => {
                           className={`inline-flex h-6 min-w-6 items-center justify-center rounded px-1 text-xs font-semibold ${
                             isSameDay(day, today) ? 'bg-primary text-on-primary' : outside ? 'text-text-muted' : 'text-text'
                           }`}
-                          aria-label={`Ver ${dayFormatter.format(day)} e escolher a hora`}
+                          aria-label={t('Ver {day} e escolher a hora', { day: dayFormatter().format(day) })}
                         >
                           {day.getDate()}
                         </button>
@@ -345,8 +347,8 @@ export const CalendarPage: React.FC = () => {
                             type="button"
                             onClick={() => openMeetingForm({ date: toDateInput(day), startTime: '09:00', endTime: '10:00' })}
                             className="rounded p-0.5 text-text-muted opacity-0 hover:bg-surface-muted hover:text-text focus:opacity-100 group-hover:opacity-100"
-                            aria-label={`Nova reunião a ${dayFormatter.format(day)}`}
-                            title="Nova reunião neste dia"
+                            aria-label={t('Nova reunião a {day}', { day: dayFormatter().format(day) })}
+                            title={t('Nova reunião neste dia')}
                           >
                             <Plus className="h-3.5 w-3.5" aria-hidden="true" />
                           </button>
@@ -365,7 +367,7 @@ export const CalendarPage: React.FC = () => {
                               setView('DAY');
                             }}
                           >
-                            +{dayItems.length - 3} mais
+                            {t('+{count} mais', { count: dayItems.length - 3 })}
                           </button>
                         )}
                       </div>
@@ -374,10 +376,10 @@ export const CalendarPage: React.FC = () => {
                 })}
               </div>
             </div>
-            <ul className="divide-y divide-border md:hidden" aria-label="Agenda do mês">
+            <ul className="divide-y divide-border md:hidden" aria-label={t('Agenda do mês')}>
               {days.filter((day) => day.getMonth() === anchor.getMonth() && itemsOn(day).length > 0).map(dayList)}
               {days.every((day) => day.getMonth() !== anchor.getMonth() || itemsOn(day).length === 0) && (
-                <li className="px-4 py-6 text-sm text-text-secondary">Sem registos neste mês.</li>
+                <li className="px-4 py-6 text-sm text-text-secondary">{t('Sem registos neste mês.')}</li>
               )}
             </ul>
           </>
@@ -401,7 +403,7 @@ export const CalendarPage: React.FC = () => {
         }}
         onEventCancelled={() => {
           setSelected(null);
-          setMessage('Evento cancelado.');
+          setMessage(t('Evento cancelado.'));
           items.reload();
         }}
         viewerId={currentUser?.id ?? ''}
@@ -413,7 +415,7 @@ export const CalendarPage: React.FC = () => {
         onClose={() => setIsEventFormOpen(false)}
         onSaved={() => {
           setIsEventFormOpen(false);
-          setMessage('Evento interno criado.');
+          setMessage(t('Evento interno criado.'));
           items.reload();
         }}
       />
@@ -471,48 +473,52 @@ const CalendarItemDialog: React.FC<CalendarItemDialogProps> = ({ item, viewerId,
                 setError(null);
                 cancelCalendarEvent(item.itemId)
                   .then(onEventCancelled)
-                  .catch((reason: unknown) => setError(getErrorMessage(reason, 'Não foi possível cancelar o evento.')))
+                  .catch((reason: unknown) => setError(getErrorMessage(reason, t('Não foi possível cancelar o evento.'))))
                   .finally(() => setIsCancelling(false));
               }}
             >
-              Cancelar evento
+              {t('Cancelar evento')}
             </Button>
           )}
-          {route && <Button onClick={() => onOpenRecord(route)}>Abrir registo</Button>}
+          {route && <Button onClick={() => onOpenRecord(route)}>{t('Abrir registo')}</Button>}
         </>
       }
     >
       {error && <Alert variant="error">{error}</Alert>}
       <dl className="grid grid-cols-1 gap-3 text-sm">
         <div>
-          <dt className="text-text-muted">Quando</dt>
+          <dt className="text-text-muted">{t('Quando')}</dt>
           <dd className="font-medium text-text">
             {item.allDay ? `${formatDateTime(item.startsAt).split(',')[0]} (dia inteiro)` : `${formatDateTime(item.startsAt)} · ${itemTime(item)}`}
           </dd>
         </div>
         {item.reference && (
           <div>
-            <dt className="text-text-muted">Referência</dt>
+            <dt className="text-text-muted">{t('Referência')}</dt>
             <dd className="font-medium text-text">{item.reference}</dd>
           </div>
         )}
         {item.personName && (
           <div>
-            <dt className="text-text-muted">{item.itemType === 'MEETING' ? 'Organizador' : 'Responsável'}</dt>
+            <dt className="text-text-muted">{item.itemType === 'MEETING' ? 'Organizador' : t('Responsável')}</dt>
             <dd className="font-medium text-text">{item.personName}</dd>
           </div>
         )}
         <div>
-          <dt className="text-text-muted">Estado</dt>
+          <dt className="text-text-muted">{t('Estado')}</dt>
           <dd className="font-medium text-text">
             {itemStatusLabel(item)}
-            {item.isOverdue && <span className="ml-2 text-danger">(em atraso)</span>}
+            {item.isOverdue && <span className="ml-2 text-danger">{t('(em atraso)')}</span>}
           </dd>
         </div>
       </dl>
       {route === '/timesheet/absences' && (
         <p className="mt-3 text-xs text-text-muted">
-          Os pedidos de ausência estão em <Link to="/timesheet/absences" className="text-primary-hover hover:underline">Ausências</Link>.
+          {t('Os pedidos de ausência estão em')}{' '}
+          <Link to="/timesheet/absences" className="text-primary-hover hover:underline">
+            {t('Ausências')}
+          </Link>
+          .
         </p>
       )}
     </Modal>
@@ -560,8 +566,8 @@ const InternalEventFormModal: React.FC<InternalEventFormModalProps> = ({ isOpen,
     const start = allDay ? combineDateTime(date, '00:00') : combineDateTime(date, startTime);
     const end = allDay ? combineDateTime(date, '23:59') : combineDateTime(date, endTime);
     const nextErrors = {
-      title: validateReason(title, 'Indique o título', 3, 200),
-      time: !start || !end || end < start ? 'O evento tem de terminar depois de começar.' : null,
+      title: validateReason(title, t('Indique o título'), 3, 200),
+      time: !start || !end || end < start ? t('O evento tem de terminar depois de começar.') : null,
     };
     setErrors(nextErrors);
     if (nextErrors.title || nextErrors.time || !start || !end) return;
@@ -579,7 +585,7 @@ const InternalEventFormModal: React.FC<InternalEventFormModalProps> = ({ isOpen,
       });
       onSaved();
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Não foi possível criar o evento.'));
+      setErrorMessage(getErrorMessage(error, t('Não foi possível criar o evento.')));
     } finally {
       setIsSubmitting(false);
     }
@@ -589,37 +595,37 @@ const InternalEventFormModal: React.FC<InternalEventFormModalProps> = ({ isOpen,
   return (
     <Modal
       isOpen={isOpen}
-      title="Novo evento interno"
-      description="Visível a toda a empresa ou apenas ao departamento escolhido."
+      title={t('Novo evento interno')}
+      description={t('Visível a toda a empresa ou apenas ao departamento escolhido.')}
       isBusy={isSubmitting}
       onClose={onClose}
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
-            Cancelar
+            {t('Cancelar')}
           </Button>
           <Button type="submit" form={formId} isLoading={isSubmitting}>
-            Criar evento
+            {t('Criar evento')}
           </Button>
         </>
       }
     >
       <form id={formId} onSubmit={handleSubmit} className="space-y-4" noValidate>
         {errorMessage && <Alert variant="error">{errorMessage}</Alert>}
-        <TextField label="Título" required maxLength={200} value={title} error={errors.title} onChange={(event) => setTitle(event.target.value)} />
+        <TextField label={t('Título')} required maxLength={200} value={title} error={errors.title} onChange={(event) => setTitle(event.target.value)} />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <TextField label="Data" type="date" required value={date} onChange={(event) => setDate(event.target.value)} />
-          <TextField label="Início" type="time" disabled={allDay} value={startTime} error={errors.time} onChange={(event) => setStartTime(event.target.value)} />
-          <TextField label="Fim" type="time" disabled={allDay} value={endTime} onChange={(event) => setEndTime(event.target.value)} />
+          <TextField label={t('Data')} type="date" required value={date} onChange={(event) => setDate(event.target.value)} />
+          <TextField label={t('Início')} type="time" disabled={allDay} value={startTime} error={errors.time} onChange={(event) => setStartTime(event.target.value)} />
+          <TextField label={t('Fim')} type="time" disabled={allDay} value={endTime} onChange={(event) => setEndTime(event.target.value)} />
         </div>
         <label className="flex items-center gap-2 text-sm text-text">
           <input type="checkbox" className="h-4 w-4 accent-primary-hover" checked={allDay} onChange={(event) => setAllDay(event.target.checked)} />
-          Dia inteiro
+          {t('Dia inteiro')}
         </label>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <TextField label="Local" maxLength={200} value={location} onChange={(event) => setLocation(event.target.value)} />
-          <SelectField label="Visível a" value={departmentId} onChange={(event) => setDepartmentId(event.target.value)}>
-            <option value="">Toda a empresa</option>
+          <TextField label={t('Local')} maxLength={200} value={location} onChange={(event) => setLocation(event.target.value)} />
+          <SelectField label={t('Visível a')} value={departmentId} onChange={(event) => setDepartmentId(event.target.value)}>
+            <option value="">{t('Toda a empresa')}</option>
             {(departments.data ?? [])
               .filter((department) => department.active)
               .map((department) => (
@@ -629,7 +635,7 @@ const InternalEventFormModal: React.FC<InternalEventFormModalProps> = ({ isOpen,
               ))}
           </SelectField>
         </div>
-        <TextAreaField label="Descrição" rows={3} maxLength={5000} value={description} onChange={(event) => setDescription(event.target.value)} />
+        <TextAreaField label={t('Descrição')} rows={3} maxLength={5000} value={description} onChange={(event) => setDescription(event.target.value)} />
       </form>
     </Modal>
   );

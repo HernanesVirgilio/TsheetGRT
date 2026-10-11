@@ -18,16 +18,17 @@ import { StackedBarChart, StackedColumnChart } from '../../components/charts/Sta
 import { daysBetween, recentPeriod } from '../../utils/work';
 import { buildCsv, downloadCsv } from '../../utils/csv';
 import { formatCalendarDate, formatMinutesAsHours } from '../../utils/format';
+import { t, translatedFields } from '../../lib/i18n';
 
 const ALL = 'ALL';
 type MemberFilter = 'ALL' | 'OVERDUE' | 'BLOCKED' | 'NO_TIME';
 
-const MEMBER_FILTERS: { value: MemberFilter; label: string }[] = [
+const MEMBER_FILTERS: { value: MemberFilter; label: string }[] = translatedFields([
   { value: 'ALL', label: 'Todas as pessoas' },
   { value: 'OVERDUE', label: 'Com tarefas em atraso' },
   { value: 'BLOCKED', label: 'Com tarefas bloqueadas' },
   { value: 'NO_TIME', label: 'Sem tempo registado no período' },
-];
+], ['label']);
 
 function matchesFilter(row: TeamReportRow, filter: MemberFilter): boolean {
   switch (filter) {
@@ -59,7 +60,7 @@ export const TeamReportsPage: React.FC = () => {
   const [leadId, setLeadId] = useState(ALL);
   const [memberFilter, setMemberFilter] = useState<MemberFilter>('ALL');
 
-  const periodError = !from || !to || to < from ? 'A data final tem de ser igual ou posterior à inicial.' : daysBetween(from, to) > 366 ? 'O período máximo é de um ano.' : null;
+  const periodError = !from || !to || to < from ? t('A data final tem de ser igual ou posterior à inicial.') : daysBetween(from, to) > 366 ? t('O período máximo é de um ano.') : null;
   const filters = { from, to, departmentId: departmentId === ALL ? null : departmentId, leadId: leadId === ALL ? null : leadId };
   const key = [from, to, departmentId, leadId];
 
@@ -82,7 +83,7 @@ export const TeamReportsPage: React.FC = () => {
   const columns: DataTableColumn<TeamReportRow>[] = [
     {
       id: 'name',
-      header: 'Pessoa',
+      header: t('Pessoa'),
       render: (row) => (
         <span>
           <span className="block font-semibold text-text">{row.fullName}</span>
@@ -90,18 +91,18 @@ export const TeamReportsPage: React.FC = () => {
         </span>
       ),
     },
-    ...(canSupervise ? [{ id: 'lead', header: 'Gestor', render: (row: TeamReportRow) => row.leadNames ?? <span className="text-text-muted">—</span> }] : []),
-    { id: 'completed', header: 'Concluídas', align: 'right', render: (row) => row.tasksCompleted },
-    { id: 'late', header: 'Com atraso', align: 'right', render: (row) => row.tasksCompletedLate },
-    { id: 'open', header: 'Em aberto', align: 'right', render: (row) => row.tasksOpen },
-    { id: 'overdue', header: 'Atrasadas', align: 'right', render: (row) => (row.tasksOverdue > 0 ? <OverdueBadge label={String(row.tasksOverdue)} /> : 0) },
-    { id: 'blocked', header: 'Bloqueadas', align: 'right', render: (row) => row.tasksBlocked },
-    { id: 'hours', header: 'Horas registadas', align: 'right', render: (row) => formatMinutesAsHours(row.minutesLogged) },
+    ...(canSupervise ? [{ id: 'lead', header: t('Gestor'), render: (row: TeamReportRow) => row.leadNames ?? <span className="text-text-muted">—</span> }] : []),
+    { id: 'completed', header: t('Concluídas'), align: 'right', render: (row) => row.tasksCompleted },
+    { id: 'late', header: t('Com atraso'), align: 'right', render: (row) => row.tasksCompletedLate },
+    { id: 'open', header: t('Em aberto'), align: 'right', render: (row) => row.tasksOpen },
+    { id: 'overdue', header: t('Atrasadas'), align: 'right', render: (row) => (row.tasksOverdue > 0 ? <OverdueBadge label={String(row.tasksOverdue)} /> : 0) },
+    { id: 'blocked', header: t('Bloqueadas'), align: 'right', render: (row) => row.tasksBlocked },
+    { id: 'hours', header: t('Horas registadas'), align: 'right', render: (row) => formatMinutesAsHours(row.minutesLogged) },
   ];
 
   const exportCsv = () => {
     const csv = buildCsv(
-      ['Pessoa', 'Cargo', 'Departamento', 'Gestor', 'Concluídas', 'Concluídas com atraso', 'Em aberto', 'Atrasadas', 'Bloqueadas', 'Minutos registados', 'Registos'],
+      [t('Pessoa'), t('Cargo'), t('Departamento'), t('Gestor'), t('Concluídas'), t('Concluídas com atraso'), t('Em aberto'), t('Atrasadas'), t('Bloqueadas'), t('Minutos registados'), t('Registos')],
       rows.map((row) => [
         row.fullName,
         row.jobTitle,
@@ -122,12 +123,12 @@ export const TeamReportsPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Relatórios da equipa"
-        subtitle={canSupervise ? 'Resultados das equipas supervisionadas: conclusões, atrasos, carga e horas.' : 'Resultados da sua equipa: conclusões, atrasos, carga e horas.'}
+        title={t('Relatórios da equipa')}
+        subtitle={canSupervise ? t('Resultados das equipas supervisionadas: conclusões, atrasos, carga e horas.') : t('Resultados da sua equipa: conclusões, atrasos, carga e horas.')}
         actions={
           canExport && (
             <Button variant="secondary" icon={Download} onClick={exportCsv} disabled={rows.length === 0}>
-              Exportar CSV
+              {t('Exportar CSV')}
             </Button>
           )
         }
@@ -135,12 +136,12 @@ export const TeamReportsPage: React.FC = () => {
 
       <Panel>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <TextField label="De" type="date" value={from} error={periodError} onChange={(event) => setFrom(event.target.value)} />
-          <TextField label="Até" type="date" value={to} onChange={(event) => setTo(event.target.value)} />
+          <TextField label={t('De')} type="date" value={from} error={periodError} onChange={(event) => setFrom(event.target.value)} />
+          <TextField label={t('Até')} type="date" value={to} onChange={(event) => setTo(event.target.value)} />
           <label className="space-y-1 text-sm font-medium text-text">
-            <span className="block">Departamento</span>
-            <FilterSelect label="Departamento" value={departmentId} onChange={(event) => setDepartmentId(event.target.value)}>
-              <option value={ALL}>Todos</option>
+            <span className="block">{t('Departamento')}</span>
+            <FilterSelect label={t('Departamento')} value={departmentId} onChange={(event) => setDepartmentId(event.target.value)}>
+              <option value={ALL}>{t('Todos')}</option>
               {(departments.data ?? [])
                 .filter((department) => department.active)
                 .map((department) => (
@@ -152,9 +153,9 @@ export const TeamReportsPage: React.FC = () => {
           </label>
           {canSupervise && (
             <label className="space-y-1 text-sm font-medium text-text">
-              <span className="block">Gestor</span>
-              <FilterSelect label="Gestor" value={leadId} onChange={(event) => setLeadId(event.target.value)}>
-                <option value={ALL}>Todos</option>
+              <span className="block">{t('Gestor')}</span>
+              <FilterSelect label={t('Gestor')} value={leadId} onChange={(event) => setLeadId(event.target.value)}>
+                <option value={ALL}>{t('Todos')}</option>
                 {(leads.data ?? [])
                   .filter((row) => row.leadId !== null)
                   .map((row) => (
@@ -166,9 +167,9 @@ export const TeamReportsPage: React.FC = () => {
             </label>
           )}
           <label className="space-y-1 text-sm font-medium text-text">
-            <span className="block">Situação</span>
+            <span className="block">{t('Situação')}</span>
             <FilterSelect
-              label="Situação"
+              label={t('Situação')}
               value={memberFilter}
               onChange={(event) => setMemberFilter(MEMBER_FILTERS.find((option) => option.value === event.target.value)?.value ?? 'ALL')}
             >
@@ -189,27 +190,27 @@ export const TeamReportsPage: React.FC = () => {
       </Panel>
 
       {(report.error || trend.error) && <ErrorState message={report.error ?? trend.error ?? ''} onRetry={() => { report.reload(); trend.reload(); }} />}
-      {!periodError && (report.isLoading || trend.isLoading) && !report.data && <LoadingState label="A calcular o relatório..." />}
+      {!periodError && (report.isLoading || trend.isLoading) && !report.data && <LoadingState label={t('A calcular o relatório...')} />}
 
       {report.data && trend.data && !periodError && (
         <>
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-            <Panel title="Evolução">
+            <Panel title={t('Evolução')}>
               <StackedColumnChart
-                title="Tarefas concluídas por semana"
+                title={t('Tarefas concluídas por semana')}
                 series={COMPLETION_SERIES}
                 rows={trend.data.map((point) => ({
                   id: point.weekStart,
                   label: formatCalendarDate(point.weekStart).slice(0, 5),
                   values: [Math.max(0, point.tasksCompleted - point.tasksCompletedLate), point.tasksCompletedLate],
-                  detail: `Semana de ${formatCalendarDate(point.weekStart)} · ${formatMinutesAsHours(point.minutesLogged)} registadas`,
+                  detail: t('Semana de {weekStart} · {minutesLogged} registadas', { weekStart: formatCalendarDate(point.weekStart), minutesLogged: formatMinutesAsHours(point.minutesLogged) }),
                 }))}
-                emptyMessage="Nenhuma tarefa concluída no período."
+                emptyMessage={t('Nenhuma tarefa concluída no período.')}
               />
             </Panel>
-            <Panel title="Distribuição por pessoa">
+            <Panel title={t('Distribuição por pessoa')}>
               <StackedBarChart
-                title="Tarefas concluídas no período"
+                title={t('Tarefas concluídas no período')}
                 series={COMPLETION_SERIES}
                 rows={[...rows]
                   .sort((first, second) => second.tasksCompleted - first.tasksCompleted)
@@ -217,17 +218,17 @@ export const TeamReportsPage: React.FC = () => {
                     id: row.profileId,
                     label: row.fullName,
                     values: [Math.max(0, row.tasksCompleted - row.tasksCompletedLate), row.tasksCompletedLate],
-                    detail: `${formatMinutesAsHours(row.minutesLogged)} registadas · ${row.tasksOpen} em aberto`,
+                    detail: t('{minutesLogged} registadas · {tasksOpen} em aberto', { minutesLogged: formatMinutesAsHours(row.minutesLogged), tasksOpen: row.tasksOpen }),
                   }))}
-                emptyMessage="Nenhuma tarefa concluída no período."
+                emptyMessage={t('Nenhuma tarefa concluída no período.')}
               />
             </Panel>
           </div>
-          <Panel title="Detalhe por pessoa" flush>
+          <Panel title={t('Detalhe por pessoa')} flush>
             {rows.length === 0 ? (
-              <EmptyState bordered={false} icon={BarChart3} title="Sem pessoas para estes filtros." />
+              <EmptyState bordered={false} icon={BarChart3} title={t('Sem pessoas para estes filtros.')} />
             ) : (
-              <DataTable caption="Relatório da equipa por pessoa" columns={columns} rows={rows} getRowKey={(row) => row.profileId} />
+              <DataTable caption={t('Relatório da equipa por pessoa')} columns={columns} rows={rows} getRowKey={(row) => row.profileId} />
             )}
           </Panel>
         </>

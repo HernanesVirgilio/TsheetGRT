@@ -41,15 +41,16 @@ import { WorkLogFormModal } from '../../components/work/WorkLogFormModal';
 import { canRequestOpportunityApproval, formatMoney, isOpportunityActive, OPPORTUNITY_APPROVAL_LABELS } from '../../utils/work';
 import { formatDate, formatDateTime, formatMinutesAsHours } from '../../utils/format';
 import { isUuid } from '../../utils/validation';
+import { t, translated } from '../../lib/i18n';
 
 type ModalKind = 'edit' | 'owner' | 'member' | 'lead' | 'task' | 'meeting' | 'logTime' | null;
 type Notice = { variant: 'success' | 'warning' | 'error'; text: string };
 
-const ROLE_LABELS: Record<OpportunityRole, string> = {
+const ROLE_LABELS: Record<OpportunityRole, string> = translated({
   OWNER: 'Responsável comercial',
   EXECUTION_LEAD: 'Gestor de execução',
   MEMBER: 'Membro',
-};
+});
 
 /** Aviso enviado pela página anterior (ex.: equipa associada na criação). */
 function readNotice(state: unknown): Notice | null {
@@ -104,10 +105,10 @@ export const OpportunityDetailPage: React.FC = () => {
   const backLink = (
     <Link to="/timesheet/opportunities" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary-hover hover:underline">
       <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-      Voltar às oportunidades
+      {t('Voltar às oportunidades')}
     </Link>
   );
-  if (detail.isLoading && !detail.data) return <LoadingState label="A carregar oportunidade..." />;
+  if (detail.isLoading && !detail.data) return <LoadingState label={t('A carregar oportunidade...')} />;
   if (detail.error && !detail.data) {
     return (
       <div className="space-y-4">
@@ -120,7 +121,7 @@ export const OpportunityDetailPage: React.FC = () => {
     return (
       <div className="space-y-4">
         {backLink}
-        <EmptyState title="Oportunidade não encontrada." message="A oportunidade não existe ou não participa nela." />
+        <EmptyState title={t('Oportunidade não encontrada.')} message={t('A oportunidade não existe ou não participa nela.')} />
       </div>
     );
   }
@@ -167,22 +168,22 @@ export const OpportunityDetailPage: React.FC = () => {
       {backLink}
       <PageHeader
         title={`${opportunity.reference} · ${opportunity.title}`}
-        subtitle={`${opportunity.companyName ?? '—'} · responsável: ${opportunity.ownerName ?? '—'}`}
+        subtitle={t('{companyName} · responsável: {ownerName}', { companyName: opportunity.companyName ?? '—', ownerName: opportunity.ownerName ?? '—' })}
         actions={
           <>
             {canUpdate && (active || canManage) && (
               <Button icon={GitBranch} onClick={() => setStatusFor(opportunity)}>
-                Alterar etapa
+                {t('Alterar etapa')}
               </Button>
             )}
             {canUpdate && (
               <Button variant="secondary" icon={Pencil} onClick={() => setModal('edit')} disabled={!companies.data}>
-                Editar
+                {t('Editar')}
               </Button>
             )}
             {(isOwner || isMember) && hasPermission('SELF_TIMESHEET_UPDATE') && opportunity.status !== 'CANCELLED' && (
               <Button variant="secondary" icon={Clock3} onClick={() => setModal('logTime')}>
-                Registar tempo
+                {t('Registar tempo')}
               </Button>
             )}
           </>
@@ -194,12 +195,12 @@ export const OpportunityDetailPage: React.FC = () => {
         </Alert>
       )}
       {opportunity.approvalStatus === 'NOT_SUBMITTED' && active && (
-        <Alert variant="info" title="Aprovação do Manager por pedir">
-          A oportunidade só avança para Proposta, Negociação ou Ganha depois de aprovada.
+        <Alert variant="info" title={t('Aprovação do Manager por pedir')}>
+          {t('A oportunidade só avança para Proposta, Negociação ou Ganha depois de aprovada.')}
         </Alert>
       )}
       {opportunity.status === 'LOST' && opportunity.lostReason && (
-        <Alert variant="warning" title="Oportunidade perdida">
+        <Alert variant="warning" title={t('Oportunidade perdida')}>
           {opportunity.lostReason}
         </Alert>
       )}
@@ -212,38 +213,38 @@ export const OpportunityDetailPage: React.FC = () => {
               {opportunity.probability !== null && <span className="text-sm text-text-secondary">Probabilidade {opportunity.probability}%</span>}
             </div>
             <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <Field label="Valor inicial">{formatMoney(opportunity.initialValue, opportunity.currency)}</Field>
-              <Field label="Valor estimado">{formatMoney(opportunity.estimatedValue, opportunity.currency)}</Field>
-              <Field label="Data esperada">{formatDate(opportunity.expectedCloseDate)}</Field>
-              <Field label="Contacto">{opportunity.contactName ?? '—'}</Field>
-              <Field label="Telefone">{opportunity.contactPhone ?? '—'}</Field>
-              <Field label="E-mail">{opportunity.contactEmail ?? '—'}</Field>
-              <Field label="Próximo passo">{opportunity.nextStep ?? '—'}</Field>
-              <Field label="Data do próximo passo">{formatDate(opportunity.nextStepDate)}</Field>
-              <Field label="Tempo dedicado">{formatMinutesAsHours(totalMinutes)}</Field>
+              <Field label={t('Valor inicial')}>{formatMoney(opportunity.initialValue, opportunity.currency)}</Field>
+              <Field label={t('Valor estimado')}>{formatMoney(opportunity.estimatedValue, opportunity.currency)}</Field>
+              <Field label={t('Data esperada')}>{formatDate(opportunity.expectedCloseDate)}</Field>
+              <Field label={t('Contacto')}>{opportunity.contactName ?? '—'}</Field>
+              <Field label={t('Telefone')}>{opportunity.contactPhone ?? '—'}</Field>
+              <Field label={t('E-mail')}>{opportunity.contactEmail ?? '—'}</Field>
+              <Field label={t('Próximo passo')}>{opportunity.nextStep ?? '—'}</Field>
+              <Field label={t('Data do próximo passo')}>{formatDate(opportunity.nextStepDate)}</Field>
+              <Field label={t('Tempo dedicado')}>{formatMinutesAsHours(totalMinutes)}</Field>
             </dl>
             <dl className="mt-5 grid grid-cols-1 gap-4 border-t border-border pt-5">
-              {opportunity.description && <Field label="Descrição">{opportunity.description}</Field>}
-              {opportunity.problem && <Field label="Problema / oportunidade identificada">{opportunity.problem}</Field>}
-              {opportunity.proposal && <Field label="Proposta">{opportunity.proposal}</Field>}
-              {opportunity.notes && <Field label="Observações">{opportunity.notes}</Field>}
+              {opportunity.description && <Field label={t('Descrição')}>{opportunity.description}</Field>}
+              {opportunity.problem && <Field label={t('Problema / oportunidade identificada')}>{opportunity.problem}</Field>}
+              {opportunity.proposal && <Field label={t('Proposta')}>{opportunity.proposal}</Field>}
+              {opportunity.notes && <Field label={t('Observações')}>{opportunity.notes}</Field>}
             </dl>
           </Panel>
 
           <Panel
-            title="Tarefas"
+            title={t('Tarefas')}
             actions={
               hasPermission('TIMESHEET_TASK_CREATE') &&
               opportunity.status !== 'CANCELLED' && (
                 <Button size="sm" variant="secondary" icon={ListPlus} onClick={() => setModal('task')}>
-                  Criar tarefa
+                  {t('Criar tarefa')}
                 </Button>
               )
             }
             flush
           >
             {tasks.length === 0 ? (
-              <p className="px-5 py-4 text-sm text-text-secondary">Nenhuma tarefa ligada a esta oportunidade.</p>
+              <p className="px-5 py-4 text-sm text-text-secondary">{t('Nenhuma tarefa ligada a esta oportunidade.')}</p>
             ) : (
               <ul className="divide-y divide-border">
                 {tasks.map((task) => (
@@ -252,7 +253,7 @@ export const OpportunityDetailPage: React.FC = () => {
                       {task.reference} · {task.title}
                     </Link>
                     <span className="flex items-center gap-2 text-xs text-text-muted">
-                      {task.assigneeName ?? 'Sem responsável'} <WorkStatusBadge kind="task" status={task.status} />
+                      {task.assigneeName ?? t('Sem responsável')} <WorkStatusBadge kind="task" status={task.status} />
                     </span>
                   </li>
                 ))}
@@ -261,19 +262,19 @@ export const OpportunityDetailPage: React.FC = () => {
           </Panel>
 
           <Panel
-            title="Reuniões"
+            title={t('Reuniões')}
             actions={
               hasPermission('TIMESHEET_MEETING_CREATE') &&
               opportunity.status !== 'CANCELLED' && (
                 <Button size="sm" variant="secondary" icon={CalendarPlus} onClick={() => setModal('meeting')} disabled={!meetingPeople.data}>
-                  Marcar reunião
+                  {t('Marcar reunião')}
                 </Button>
               )
             }
             flush
           >
             {meetings.length === 0 ? (
-              <p className="px-5 py-4 text-sm text-text-secondary">Nenhuma reunião ligada a esta oportunidade.</p>
+              <p className="px-5 py-4 text-sm text-text-secondary">{t('Nenhuma reunião ligada a esta oportunidade.')}</p>
             ) : (
               <ul className="divide-y divide-border">
                 {meetings.map((meeting) => (
@@ -290,15 +291,15 @@ export const OpportunityDetailPage: React.FC = () => {
             )}
           </Panel>
 
-          <Panel title="Histórico e comentários" flush>
+          <Panel title={t('Histórico e comentários')} flush>
             <WorkTimeline events={events} />
             {hasPermission('TIMESHEET_OPPORTUNITY_UPDATE') && opportunity.status !== 'CANCELLED' && (
               <TicketCommentForm
-                label="Novo comentário"
+                label={t('Novo comentário')}
                 allowInternal={false}
                 onSubmit={async (body) => {
                   await addOpportunityComment(opportunity.id, body);
-                  afterAction('Comentário registado.');
+                  afterAction(t('Comentário registado.'));
                 }}
               />
             )}
@@ -306,7 +307,7 @@ export const OpportunityDetailPage: React.FC = () => {
         </div>
 
         <div className="space-y-6">
-          <Panel title="Aprovação" flush>
+          <Panel title={t('Aprovação')} flush>
             <div className="space-y-3 px-5 py-4">
               <p className="text-sm font-medium text-text">{OPPORTUNITY_APPROVAL_LABELS[opportunity.approvalStatus]}</p>
               {pendingApproval && (
@@ -318,16 +319,16 @@ export const OpportunityDetailPage: React.FC = () => {
               <div className="flex flex-wrap gap-2">
                 {canRequestApproval && (
                   <Button size="sm" icon={Send} onClick={() => setApprovalFor(opportunity)}>
-                    Pedir aprovação
+                    {t('Pedir aprovação')}
                   </Button>
                 )}
                 {canDecideApproval && pendingApproval && (
                   <>
                     <Button size="sm" icon={CheckCircle2} onClick={() => setDecision({ request: pendingApproval, decision: 'APPROVED' })}>
-                      Aprovar
+                      {t('Aprovar')}
                     </Button>
                     <Button size="sm" variant="danger" icon={XCircle} onClick={() => setDecision({ request: pendingApproval, decision: 'REJECTED' })}>
-                      Rejeitar
+                      {t('Rejeitar')}
                     </Button>
                   </>
                 )}
@@ -338,11 +339,11 @@ export const OpportunityDetailPage: React.FC = () => {
                     icon={Undo2}
                     onClick={() =>
                       cancelOpportunityApproval(pendingApproval.id, null)
-                        .then(() => afterAction('Pedido de aprovação anulado.'))
-                        .catch((error: unknown) => setMessage({ variant: 'error', text: error instanceof Error ? error.message : 'Não foi possível anular o pedido.' }))
+                        .then(() => afterAction(t('Pedido de aprovação anulado.')))
+                        .catch((error: unknown) => setMessage({ variant: 'error', text: error instanceof Error ? error.message : t('Não foi possível anular o pedido.') }))
                     }
                   >
-                    Anular pedido
+                    {t('Anular pedido')}
                   </Button>
                 )}
               </div>
@@ -368,16 +369,16 @@ export const OpportunityDetailPage: React.FC = () => {
             )}
           </Panel>
           <Panel
-            title="Equipa do projeto"
+            title={t('Equipa do projeto')}
             actions={
               canUpdate &&
               opportunity.status !== 'CANCELLED' && (
                 <div className="flex flex-wrap gap-2">
                   <Button size="sm" variant="secondary" icon={UserCog} onClick={() => setModal('lead')} disabled={!teamLeads.data}>
-                    Gestor de execução
+                    {t('Gestor de execução')}
                   </Button>
                   <Button size="sm" variant="secondary" icon={UserPlus} onClick={() => setModal('member')} disabled={!participants.data}>
-                    Membro
+                    {t('Membro')}
                   </Button>
                 </div>
               )
@@ -398,11 +399,11 @@ export const OpportunityDetailPage: React.FC = () => {
                     <IconButton
                       icon={UserMinus}
                       tone="danger"
-                      label={`Retirar ${person.fullName}`}
+                      label={t('Retirar {fullName}', { fullName: person.fullName })}
                       onClick={() =>
                         removeOpportunityMember(opportunity.id, person.profileId)
-                          .then(() => afterAction('Membro retirado.'))
-                          .catch((error: unknown) => setMessage({ variant: 'error', text: error instanceof Error ? error.message : 'Não foi possível retirar o membro.' }))
+                          .then(() => afterAction(t('Membro retirado.')))
+                          .catch((error: unknown) => setMessage({ variant: 'error', text: error instanceof Error ? error.message : t('Não foi possível retirar o membro.') }))
                       }
                     />
                   )}
@@ -411,19 +412,19 @@ export const OpportunityDetailPage: React.FC = () => {
             </ul>
             {!executionLead && (
               <p className="border-t border-border px-5 py-3 text-xs text-text-muted">
-                Sem gestor de execução: a execução é coordenada pelo responsável comercial e pela sua chefia.
+                {t('Sem gestor de execução: a execução é coordenada pelo responsável comercial e pela sua chefia.')}
               </p>
             )}
             {canManage && manages && (
               <div className="border-t border-border p-4">
                 <Button size="sm" variant="ghost" icon={Users} onClick={() => setModal('owner')} disabled={!assignees.data}>
-                  Alterar responsável
+                  {t('Alterar responsável')}
                 </Button>
               </div>
             )}
           </Panel>
           {totals.length > 0 && (
-            <Panel title="Tempo por pessoa">
+            <Panel title={t('Tempo por pessoa')}>
               <ul className="space-y-1 text-sm">
                 {totals.map((row) => (
                   <li key={row.profileId} className="flex justify-between gap-3">
@@ -463,50 +464,50 @@ export const OpportunityDetailPage: React.FC = () => {
       />
       <TicketSelectModal
         isOpen={modal === 'owner'}
-        title="Alterar responsável"
-        fieldLabel="Novo responsável"
+        title={t('Alterar responsável')}
+        fieldLabel={t('Novo responsável')}
         options={(assignees.data ?? []).map((person) => ({ value: person.profileId, label: person.fullName }))}
         initialValue={opportunity.ownerId}
-        optionalNote={{ label: 'Nota (opcional)', maxLength: 1000 }}
-        confirmLabel="Alterar"
+        optionalNote={{ label: t('Nota (opcional)'), maxLength: 1000 }}
+        confirmLabel={t('Alterar')}
         onClose={() => setModal(null)}
         onConfirm={async (ownerId, note) => {
           if (!ownerId) return;
           await setOpportunityOwner(opportunity.id, ownerId, note);
-          afterAction('Responsável alterado. O novo responsável foi notificado.');
+          afterAction(t('Responsável alterado. O novo responsável foi notificado.'));
         }}
       />
       <TicketSelectModal
         isOpen={modal === 'lead'}
-        title="Gestor de execução"
-        fieldLabel="Gestor responsável pela execução"
+        title={t('Gestor de execução')}
+        fieldLabel={t('Gestor responsável pela execução')}
         options={leadCandidates.map((person) => ({ value: person.profileId, label: person.departmentName ? `${person.fullName} · ${person.departmentName}` : person.fullName }))}
         initialValue={executionLead?.profileId ?? ''}
-        emptyOptionLabel="Sem gestor de execução"
-        optionalNote={{ label: 'Nota (opcional)', maxLength: 1000 }}
-        confirmLabel="Guardar"
+        emptyOptionLabel={t('Sem gestor de execução')}
+        optionalNote={{ label: t('Nota (opcional)'), maxLength: 1000 }}
+        confirmLabel={t('Guardar')}
         onClose={() => setModal(null)}
         onConfirm={async (profileId, note) => {
           await setOpportunityExecutionLead(opportunity.id, profileId || null, note);
           afterAction(
             profileId
-              ? `Gestor de execução definido e notificado.${executionLead ? ` ${executionLead.fullName} continua na equipa como membro.` : ''}`
-              : 'Gestor de execução retirado. A pessoa continua na equipa como membro.'
+              ? executionLead ? t('Gestor de execução definido e notificado. {name} continua na equipa como membro.', { name: executionLead.fullName }) : t('Gestor de execução definido e notificado.')
+              : t('Gestor de execução retirado. A pessoa continua na equipa como membro.')
           );
         }}
       />
       <TicketSelectModal
         isOpen={modal === 'member'}
-        title="Acrescentar membro"
-        fieldLabel="Colaborador"
+        title={t('Acrescentar membro')}
+        fieldLabel={t('Colaborador')}
         options={memberCandidates.map((person) => ({ value: person.profileId, label: person.departmentName ? `${person.fullName} · ${person.departmentName}` : person.fullName }))}
         initialValue=""
-        confirmLabel="Acrescentar"
+        confirmLabel={t('Acrescentar')}
         onClose={() => setModal(null)}
         onConfirm={async (profileId) => {
           if (!profileId) return;
           await addOpportunityMember(opportunity.id, profileId);
-          afterAction('Membro acrescentado e notificado.');
+          afterAction(t('Membro acrescentado e notificado.'));
         }}
       />
       <TaskFormModal
@@ -515,7 +516,7 @@ export const OpportunityDetailPage: React.FC = () => {
         assignees={assignees.data ?? []}
         links={{ opportunityId: opportunity.id }}
         canRequestManagerReview={hasPermission('TIMESHEET_TASK_ASSIGN') && !hasPermission('TEAM_SUPERVISE')}
-        contextLabel={`Tarefa da oportunidade ${opportunity.reference}.`}
+        contextLabel={t('Tarefa da oportunidade {reference}.', { reference: opportunity.reference })}
         onClose={() => setModal(null)}
         onSaved={(taskId) => {
           setModal(null);
@@ -528,7 +529,7 @@ export const OpportunityDetailPage: React.FC = () => {
         participantIds={people.filter((person) => person.profileId !== viewerId).map((person) => person.profileId)}
         people={invitable}
         links={{ opportunityId: opportunity.id }}
-        contextLabel={`Reunião da oportunidade ${opportunity.reference}.`}
+        contextLabel={t('Reunião da oportunidade {reference}.', { reference: opportunity.reference })}
         onClose={() => setModal(null)}
         onSaved={(meetingId) => {
           setModal(null);
@@ -540,7 +541,7 @@ export const OpportunityDetailPage: React.FC = () => {
         employeeId={viewerId}
         preset={{ kind: 'OPPORTUNITY', contextId: opportunity.id, contextLabel: `${opportunity.reference} · ${opportunity.title}` }}
         onClose={() => setModal(null)}
-        onSaved={() => afterAction('Tempo registado na oportunidade.')}
+        onSaved={() => afterAction(t('Tempo registado na oportunidade.'))}
       />
     </div>
   );

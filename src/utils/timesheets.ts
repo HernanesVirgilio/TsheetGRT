@@ -1,6 +1,7 @@
 import type { TimesheetSummary } from '../types';
 import type { TimesheetReviewer } from '../services/timesheetService';
 import type { FieldErrors } from './validation';
+import { t } from '../lib/i18n';
 
 const MINUTES_PER_HOUR = 60;
 const MAX_DESCRIPTION_LENGTH = 1000;
@@ -36,26 +37,26 @@ export function validateEntryForm(
   period: { start: string; end: string }
 ): FieldErrors<EntryFormField> {
   const errors: FieldErrors<EntryFormField> = {};
-  if (!values.workDate) errors.workDate = 'Indique a data.';
+  if (!values.workDate) errors.workDate = t('Indique a data.');
   else if (values.workDate < period.start || values.workDate > period.end) {
-    errors.workDate = 'A data tem de estar dentro do período do timesheet.';
+    errors.workDate = t('A data tem de estar dentro do período do timesheet.');
   }
-  if (!values.activityId) errors.activityId = 'Selecione a atividade.';
-  if (!values.startTime) errors.startTime = 'Indique a hora de início.';
-  if (!values.endTime) errors.endTime = 'Indique a hora de fim.';
+  if (!values.activityId) errors.activityId = t('Selecione a atividade.');
+  if (!values.startTime) errors.startTime = t('Indique a hora de início.');
+  if (!values.endTime) errors.endTime = t('Indique a hora de fim.');
   else if (values.startTime && values.endTime <= values.startTime) {
-    errors.endTime = 'A hora de fim tem de ser posterior à de início.';
+    errors.endTime = t('A hora de fim tem de ser posterior à de início.');
   }
 
   const breakMinutes = Number(values.breakMinutes);
-  if (!/^\d+$/.test(values.breakMinutes)) errors.breakMinutes = 'Indique a pausa em minutos (número inteiro).';
+  if (!/^\d+$/.test(values.breakMinutes)) errors.breakMinutes = t('Indique a pausa em minutos (número inteiro).');
   else if (!errors.endTime && values.startTime && values.endTime && calculateEntryMinutes(values.startTime, values.endTime, breakMinutes) <= 0) {
-    errors.breakMinutes = 'A pausa não pode ser igual ou superior ao tempo de trabalho.';
+    errors.breakMinutes = t('A pausa não pode ser igual ou superior ao tempo de trabalho.');
   }
 
   const description = values.description.trim();
-  if (!description) errors.description = 'Descreva as tarefas realizadas.';
-  else if (description.length > MAX_DESCRIPTION_LENGTH) errors.description = `Máximo de ${MAX_DESCRIPTION_LENGTH} carateres.`;
+  if (!description) errors.description = t('Descreva as tarefas realizadas.');
+  else if (description.length > MAX_DESCRIPTION_LENGTH) errors.description = t('Máximo de {MAX_DESCRIPTION_LENGTH} carateres.', { MAX_DESCRIPTION_LENGTH });
   return errors;
 }
 
@@ -63,16 +64,16 @@ export type PeriodField = 'periodStart' | 'periodEnd';
 
 export function validatePeriod(periodStart: string, periodEnd: string): FieldErrors<PeriodField> {
   const errors: FieldErrors<PeriodField> = {};
-  if (!periodStart) errors.periodStart = 'Indique a data de início.';
-  if (!periodEnd) errors.periodEnd = 'Indique a data de fim.';
-  else if (periodStart && periodEnd < periodStart) errors.periodEnd = 'A data de fim não pode ser anterior à de início.';
+  if (!periodStart) errors.periodStart = t('Indique a data de início.');
+  if (!periodEnd) errors.periodEnd = t('Indique a data de fim.');
+  else if (periodStart && periodEnd < periodStart) errors.periodEnd = t('A data de fim não pode ser anterior à de início.');
   return errors;
 }
 
 export function validateRejectionReason(reason: string): string | null {
   const trimmed = reason.trim();
-  if (!trimmed) return 'Indique o motivo da rejeição.';
-  if (trimmed.length > MAX_REVIEW_COMMENT_LENGTH) return `O motivo não pode exceder ${MAX_REVIEW_COMMENT_LENGTH} carateres.`;
+  if (!trimmed) return t('Indique o motivo da rejeição.');
+  if (trimmed.length > MAX_REVIEW_COMMENT_LENGTH) return t('O motivo não pode exceder {MAX_REVIEW_COMMENT_LENGTH} carateres.', { MAX_REVIEW_COMMENT_LENGTH });
   return null;
 }
 
@@ -122,6 +123,6 @@ export function lastActivityAt(timesheet: TimesheetSummary): string | null {
 
 /** Nome (e cargo) de quem decidiu; o servidor só expõe estes dados do gestor. */
 export function describeReviewer(reviewer: TimesheetReviewer | null): string {
-  if (!reviewer) return 'gestor responsável';
+  if (!reviewer) return t('gestor responsável');
   return reviewer.jobTitle ? `${reviewer.name} (${reviewer.jobTitle})` : reviewer.name;
 }

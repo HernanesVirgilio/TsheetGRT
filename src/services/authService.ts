@@ -4,6 +4,7 @@ import { ServiceError, toServiceError } from '../lib/errors';
 import type { PermissionCode, Profile, RoleCode } from '../types';
 import { isPermissionCode } from '../types';
 import { mapProfile, PROFILE_WITH_RELATIONS_SELECT } from './mappers';
+import { t, translated } from '../lib/i18n';
 
 export type AuthEventAction = 'auth.login.success' | 'auth.logout' | 'auth.password.changed';
 
@@ -11,7 +12,7 @@ export type AccessResult =
   | { kind: 'granted'; profile: Profile; role: RoleCode | null; permissions: PermissionCode[] }
   | { kind: 'denied'; reason: string };
 
-const AUTH_ERROR_MESSAGES: Record<string, string> = {
+const AUTH_ERROR_MESSAGES: Record<string, string> = translated({
   invalid_credentials: 'E-mail ou palavra-passe incorretos.',
   email_not_confirmed: 'A conta ainda não foi ativada. Utilize o link do convite enviado por e-mail.',
   user_banned: 'Esta conta está bloqueada. Contacte o administrador.',
@@ -21,13 +22,13 @@ const AUTH_ERROR_MESSAGES: Record<string, string> = {
   same_password: 'A nova palavra-passe deve ser diferente da atual.',
   session_not_found: 'A sessão expirou. Inicie sessão novamente.',
   session_expired: 'A sessão expirou. Inicie sessão novamente.',
-};
+});
 
 function toAuthServiceError(error: AuthError, fallback: string): ServiceError {
   const message = error.code ? AUTH_ERROR_MESSAGES[error.code] : undefined;
   if (message) return new ServiceError(message, error.code ?? null);
   if (error.name === 'AuthRetryableFetchError') {
-    return new ServiceError('Não foi possível contactar o servidor de autenticação. Verifique a ligação.', null);
+    return new ServiceError(t('Não foi possível contactar o servidor de autenticação. Verifique a ligação.'), null);
   }
   return new ServiceError(fallback, error.code ?? null);
 }
@@ -40,19 +41,19 @@ export async function fetchAccess(authUserId: string): Promise<AccessResult> {
     .eq('auth_user_id', authUserId)
     .maybeSingle();
 
-  if (profileError) throw toServiceError(profileError, 'Não foi possível carregar o seu perfil.');
+  if (profileError) throw toServiceError(profileError, t('Não foi possível carregar o seu perfil.'));
   if (!profileRow) {
     return {
       kind: 'denied',
-      reason: 'A sua conta não tem um perfil associado no TsheetGRT. Contacte o administrador.',
+      reason: t('A sua conta não tem um perfil associado no TsheetGRT. Contacte o administrador.'),
     };
   }
   if (!profileRow.is_active) {
-    return { kind: 'denied', reason: 'A sua conta está desativada. Contacte o administrador.' };
+    return { kind: 'denied', reason: t('A sua conta está desativada. Contacte o administrador.') };
   }
 
   const { data: permissionCodes, error: permissionsError } = await supabase.rpc('get_my_permissions');
-  if (permissionsError) throw toServiceError(permissionsError, 'Não foi possível carregar as suas permissões.');
+  if (permissionsError) throw toServiceError(permissionsError, t('Não foi possível carregar as suas permissões.'));
 
   const profile = mapProfile(profileRow);
   return {
@@ -68,7 +69,7 @@ export async function signInWithPassword(email: string, password: string): Promi
     email: email.trim().toLowerCase(),
     password,
   });
-  if (error) throw toAuthServiceError(error, 'Não foi possível iniciar sessão. Tente novamente.');
+  if (error) throw toAuthServiceError(error, t('Não foi possível iniciar sessão. Tente novamente.'));
   return data.user.id;
 }
 
@@ -76,26 +77,26 @@ export async function signInWithPassword(email: string, password: string): Promi
 export async function logAuthEvent(action: AuthEventAction): Promise<void> {
   const { error } = await supabase.rpc('log_auth_event', { p_action: action });
   if (error && import.meta.env.DEV) {
-    console.warn(`Não foi possível registar o evento ${action}:`, error.message);
+    console.warn(t('Não foi possível registar o evento {action}:', { action }), error.message);
   }
 }
 
 export async function signOut(): Promise<void> {
   await logAuthEvent('auth.logout');
   const { error } = await supabase.auth.signOut();
-  if (error) throw toAuthServiceError(error, 'Não foi possível terminar a sessão.');
+  if (error) throw toAuthServiceError(error, t('Não foi possível terminar a sessão.'));
 }
 
 export async function requestPasswordReset(email: string): Promise<void> {
   const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
     redirectTo: `${window.location.origin}/reset-password`,
   });
-  if (error) throw toAuthServiceError(error, 'Não foi possível enviar o pedido de recuperação.');
+  if (error) throw toAuthServiceError(error, t('Não foi possível enviar o pedido de recuperação.'));
 }
 
 export async function updatePassword(newPassword: string): Promise<void> {
   const { error } = await supabase.auth.updateUser({ password: newPassword });
-  if (error) throw toAuthServiceError(error, 'Não foi possível atualizar a palavra-passe.');
+  if (error) throw toAuthServiceError(error, t('Não foi possível atualizar a palavra-passe.'));
   await logAuthEvent('auth.password.changed');
 }
 
@@ -104,8 +105,8 @@ export async function verifyCurrentPassword(email: string, password: string): Pr
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) {
     if (error.code === 'invalid_credentials') {
-      throw new ServiceError('A palavra-passe atual está incorreta.', error.code);
+      throw new ServiceError(t('A palavra-passe atual está incorreta.'), error.code);
     }
-    throw toAuthServiceError(error, 'Não foi possível validar a palavra-passe atual.');
+    throw toAuthServiceError(error, t('Não foi possível validar a palavra-passe atual.'));
   }
 }

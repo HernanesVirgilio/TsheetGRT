@@ -14,10 +14,11 @@ import { Pagination } from '../../components/ui/Pagination';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState, LoadingState } from '../../components/ui/States';
 import { formatDateTime } from '../../utils/format';
+import { t, translatedFields } from '../../lib/i18n';
 
 const PAGE_SIZE = 25;
 
-const COLUMNS: DataTableColumn<AuditEventWithActor>[] = [
+const COLUMNS: DataTableColumn<AuditEventWithActor>[] = translatedFields([
   {
     id: 'date',
     header: 'Data e hora',
@@ -34,7 +35,7 @@ const COLUMNS: DataTableColumn<AuditEventWithActor>[] = [
           <span className="block text-xs text-text-muted">{event.actor.email}</span>
         </span>
       ) : (
-        'Sistema'
+        t('Sistema')
       ),
   },
   {
@@ -48,7 +49,7 @@ const COLUMNS: DataTableColumn<AuditEventWithActor>[] = [
     header: 'Endereço IP',
     render: (event) => <span className="font-mono text-xs">{event.ip_address ?? '—'}</span>,
   },
-];
+], ['header']);
 
 export const AuditPage: React.FC = () => {
   const [actionFilter, setActionFilter] = useState('');
@@ -69,20 +70,20 @@ export const AuditPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Auditoria"
-        subtitle="Registo imutável de autenticação, alterações administrativas e ciclo de vida dos timesheets."
+        title={t('Auditoria')}
+        subtitle={t('Registo imutável de autenticação, alterações administrativas e ciclo de vida dos timesheets.')}
       />
 
       <Panel flush>
         <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center">
           <SearchInput
-            label="Filtrar por ação (ex.: user, auth.login)"
+            label={t('Filtrar por ação (ex.: user, auth.login)')}
             value={actionFilter}
             onChange={(event) => setActionFilter(event.target.value)}
             className="sm:max-w-xs"
           />
           <SearchInput
-            label="Filtrar por utilizador (nome ou e-mail)"
+            label={t('Filtrar por utilizador (nome ou e-mail)')}
             value={actorFilter}
             onChange={(event) => setActorFilter(event.target.value)}
             className="sm:max-w-xs"
@@ -96,7 +97,7 @@ export const AuditPage: React.FC = () => {
                 setActorFilter('');
               }}
             >
-              Limpar filtros
+              {t('Limpar filtros')}
             </Button>
           )}
         </div>
@@ -106,18 +107,18 @@ export const AuditPage: React.FC = () => {
             <ErrorState message={audit.error} onRetry={audit.reload} />
           </div>
         )}
-        {audit.isLoading && !audit.data && <LoadingState label="A carregar eventos..." />}
+        {audit.isLoading && !audit.data && <LoadingState label={t('A carregar eventos...')} />}
         {audit.data?.items.length === 0 && (
           <EmptyState
             bordered={false}
             icon={FileClock}
-            title={hasFilters ? 'Nenhum evento corresponde aos filtros.' : 'Ainda não existem eventos de auditoria.'}
+            title={hasFilters ? t('Nenhum evento corresponde aos filtros.') : t('Ainda não existem eventos de auditoria.')}
           />
         )}
         {audit.data && audit.data.items.length > 0 && (
           <div className={audit.isLoading ? 'opacity-60' : ''} aria-busy={audit.isLoading}>
             <DataTable
-              caption="Eventos de auditoria"
+              caption={t('Eventos de auditoria')}
               columns={COLUMNS}
               rows={audit.data.items}
               getRowKey={(event) => event.id}

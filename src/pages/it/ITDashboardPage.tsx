@@ -19,6 +19,7 @@ import {
   isWaitingTooLong,
 } from '../../utils/it';
 import { formatDateTime, pluralize } from '../../utils/format';
+import { t } from '../../lib/i18n';
 
 const ATTENTION_LIMIT = 10;
 const RECENT_ACTIVITY_LIMIT = 12;
@@ -33,11 +34,11 @@ function buildAttentionList(tickets: TicketSummary[], waitingAlertDays: number, 
   return tickets
     .map((ticket) => {
       const reasons: string[] = [];
-      if (ticket.priority === 'CRITICAL') reasons.push('Crítico');
-      if (!ticket.assignedTo) reasons.push('Sem técnico');
-      if (isTicketOverdue(ticket, now)) reasons.push('Prazo ultrapassado');
-      if (isTicketDueSoon(ticket, now)) reasons.push(`Prazo termina em menos de ${DUE_SOON_HOURS} h`);
-      if (isWaitingTooLong(ticket, waitingAlertDays, now)) reasons.push(`À espera há mais de ${waitingAlertDays} dias`);
+      if (ticket.priority === 'CRITICAL') reasons.push(t('Crítico'));
+      if (!ticket.assignedTo) reasons.push(t('Sem técnico'));
+      if (isTicketOverdue(ticket, now)) reasons.push(t('Prazo ultrapassado'));
+      if (isTicketDueSoon(ticket, now)) reasons.push(t('Prazo termina em menos de {DUE_SOON_HOURS} h', { DUE_SOON_HOURS }));
+      if (isWaitingTooLong(ticket, waitingAlertDays, now)) reasons.push(t('À espera há mais de {waitingAlertDays} dias', { waitingAlertDays }));
       return { ticket, reasons };
     })
     .filter((item) => item.reasons.length > 0)
@@ -50,9 +51,9 @@ export const ITDashboardPage: React.FC = () => {
     []
   );
 
-  if (dashboard.isLoading && !dashboard.data) return <LoadingState label="A carregar o painel do IT..." />;
+  if (dashboard.isLoading && !dashboard.data) return <LoadingState label={t('A carregar o painel do IT...')} />;
   if (!dashboard.data) {
-    return <ErrorState message={dashboard.error ?? 'Sem dados.'} onRetry={dashboard.reload} />;
+    return <ErrorState message={dashboard.error ?? t('Sem dados.')} onRetry={dashboard.reload} />;
   }
 
   const [summary, activeTickets, recentEvents] = dashboard.data;
@@ -63,58 +64,58 @@ export const ITDashboardPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Suporte IT"
-        subtitle="Estado atual dos pedidos de suporte e do trabalho da equipa."
+        title={t('Suporte IT')}
+        subtitle={t('Estado atual dos pedidos de suporte e do trabalho da equipa.')}
         actions={
           <Link
             to="/it/tickets"
-            className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-sm font-semibold text-on-primary hover:bg-primary-hover hover:text-white"
+            className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-sm font-semibold text-on-primary hover:bg-primary-hover hover:text-on-primary-hover"
           >
-            Abrir fila de pedidos
+            {t('Abrir fila de pedidos')}
           </Link>
         }
       />
 
       {dashboard.error && <ErrorState message={dashboard.error} onRetry={dashboard.reload} />}
 
-      <section aria-label="Pedidos por estado" className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Abertos" value={summary.openCount} icon={CircleDot} supporting="Ainda sem atendimento iniciado" />
-        <StatCard label="Em atendimento" value={summary.inProgressCount} icon={Wrench} supporting="Com técnico a trabalhar no pedido" />
-        <StatCard label="A aguardar colaborador" value={summary.waitingUserCount} icon={PauseCircle} supporting="Dependem de resposta do colaborador" />
-        <StatCard label="Resolvidos" value={summary.resolvedCount} icon={CheckCircle2} supporting="A aguardar confirmação do colaborador" />
+      <section aria-label={t('Pedidos por estado')} className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard label={t('Abertos')} value={summary.openCount} icon={CircleDot} supporting={t('Ainda sem atendimento iniciado')} />
+        <StatCard label={t('Em atendimento')} value={summary.inProgressCount} icon={Wrench} supporting={t('Com técnico a trabalhar no pedido')} />
+        <StatCard label={t('A aguardar colaborador')} value={summary.waitingUserCount} icon={PauseCircle} supporting={t('Dependem de resposta do colaborador')} />
+        <StatCard label={t('Resolvidos')} value={summary.resolvedCount} icon={CheckCircle2} supporting={t('A aguardar confirmação do colaborador')} />
       </section>
 
-      <section aria-label="Indicadores de atenção" className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Críticos em curso" value={summary.criticalCount} icon={AlertTriangle} supporting="Prioridade crítica ainda por concluir" />
-        <StatCard label="Sem técnico" value={summary.unassignedCount} icon={UserX} supporting="Pedidos em curso por atribuir" />
+      <section aria-label={t('Indicadores de atenção')} className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard label={t('Críticos em curso')} value={summary.criticalCount} icon={AlertTriangle} supporting={t('Prioridade crítica ainda por concluir')} />
+        <StatCard label={t('Sem técnico')} value={summary.unassignedCount} icon={UserX} supporting={t('Pedidos em curso por atribuir')} />
         <StatCard
-          label="Prazo ultrapassado"
+          label={t('Prazo ultrapassado')}
           value={summary.overdueCount}
           icon={Clock}
-          supporting={`Abertos ou em atendimento · ${dueSoonCount} a terminar nas próximas ${DUE_SOON_HOURS} h`}
+          supporting={t('Abertos ou em atendimento · {dueSoonCount} a terminar nas próximas {DUE_SOON_HOURS} h', { dueSoonCount, DUE_SOON_HOURS })}
         />
         <StatCard
-          label="Espera prolongada"
+          label={t('Espera prolongada')}
           value={summary.waitingTooLongCount}
           icon={Hourglass}
-          supporting={`A aguardar o colaborador há mais de ${pluralize(summary.waitingAlertDays, 'dia', 'dias')}`}
+          supporting={t('A aguardar o colaborador há mais de {days}', { days: pluralize(summary.waitingAlertDays, 'dia', 'dias') })}
         />
       </section>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <div className="xl:col-span-2">
           <Panel
-            title="Requer atenção"
-            description="Pedidos em curso críticos, sem técnico, com prazo ultrapassado ou a terminar, ou parados à espera do colaborador."
+            title={t('Requer atenção')}
+            description={t('Pedidos em curso críticos, sem técnico, com prazo ultrapassado ou a terminar, ou parados à espera do colaborador.')}
             actions={
               <Link to="/it/tickets?assignee=UNASSIGNED" className="text-sm font-medium text-primary-hover hover:underline">
-                Ver pedidos sem técnico
+                {t('Ver pedidos sem técnico')}
               </Link>
             }
             flush
           >
             {attention.length === 0 ? (
-              <p className="px-5 py-6 text-sm text-text-secondary">Nenhum pedido requer atenção neste momento.</p>
+              <p className="px-5 py-6 text-sm text-text-secondary">{t('Nenhum pedido requer atenção neste momento.')}</p>
             ) : (
               <ul className="divide-y divide-border">
                 {attention.slice(0, ATTENTION_LIMIT).map(({ ticket, reasons }) => (
@@ -139,18 +140,18 @@ export const ITDashboardPage: React.FC = () => {
             )}
             {attention.length > ATTENTION_LIMIT && (
               <p className="border-t border-border px-5 py-3 text-sm text-text-secondary">
-                E mais {attention.length - ATTENTION_LIMIT}.{' '}
+                {t('E mais {count}.', { count: attention.length - ATTENTION_LIMIT })}{' '}
                 <Link to="/it/tickets" className="font-medium text-primary-hover hover:underline">
-                  Ver todos na fila
+                  {t('Ver todos na fila')}
                 </Link>
               </p>
             )}
           </Panel>
         </div>
 
-        <Panel title="Atividade recente" flush>
+        <Panel title={t('Atividade recente')} flush>
           {recentEvents.length === 0 ? (
-            <p className="px-5 py-6 text-sm text-text-secondary">Ainda não existe atividade registada.</p>
+            <p className="px-5 py-6 text-sm text-text-secondary">{t('Ainda não existe atividade registada.')}</p>
           ) : (
             <ul className="divide-y divide-border">
               {recentEvents.map((event) => (

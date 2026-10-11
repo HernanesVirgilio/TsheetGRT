@@ -3,6 +3,7 @@ import { ServiceError, toServiceError } from '../../lib/errors';
 import type { EntryKind, WorkLogEntry, WorkTimeTotal } from '../../types/work';
 import { isEntryKind } from '../../types/work';
 import { isPresent } from '../mappers';
+import { t } from '../../lib/i18n';
 
 /**
  * Registo de tempo com contexto. Reutiliza timesheet_entries (fonte única do tempo): o servidor
@@ -73,7 +74,7 @@ export async function listWorkLog(query: WorkLogQuery): Promise<WorkLogEntry[]> 
     .limit(500);
   if (query.kind) request = request.eq('kind', query.kind);
   const { data, error } = await request;
-  if (error) throw toServiceError(error, 'Não foi possível carregar as atividades.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar as atividades.'));
   return data.map(mapEntry).filter(isPresent);
 }
 
@@ -85,14 +86,14 @@ export async function listContextEntries(column: 'task_id' | 'meeting_id' | 'opp
     .eq(column, id)
     .order('work_date', { ascending: false })
     .limit(200);
-  if (error) throw toServiceError(error, 'Não foi possível carregar o tempo registado.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar o tempo registado.'));
   return data.map(mapEntry).filter(isPresent);
 }
 
 /** Registos de tempo de um período (revisão do timesheet com contexto). */
 export async function listTimesheetContext(timesheetId: string): Promise<WorkLogEntry[]> {
   const { data, error } = await supabase.from('timesheet_entries').select(ENTRY_SELECT).eq('timesheet_id', timesheetId);
-  if (error) throw toServiceError(error, 'Não foi possível carregar o contexto do timesheet.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar o contexto do timesheet.'));
   return data.map(mapEntry).filter(isPresent);
 }
 
@@ -111,7 +112,7 @@ export interface WorkLogInput {
 
 export async function createWorkLog(employeeId: string, input: WorkLogInput): Promise<void> {
   const period = await supabase.rpc('ensure_my_timesheet_period', { p_work_date: input.workDate });
-  if (period.error) throw toServiceError(period.error, 'Não foi possível preparar o período do timesheet.');
+  if (period.error) throw toServiceError(period.error, t('Não foi possível preparar o período do timesheet.'));
   const { error } = await supabase.from('timesheet_entries').insert({
     timesheet_id: period.data,
     employee_id: employeeId,
@@ -126,17 +127,17 @@ export async function createWorkLog(employeeId: string, input: WorkLogInput): Pr
     meeting_id: input.meetingId,
     opportunity_id: input.kind === 'OPPORTUNITY' ? input.opportunityId : null,
   });
-  if (error) throw toServiceError(error, 'Não foi possível registar a atividade.');
+  if (error) throw toServiceError(error, t('Não foi possível registar a atividade.'));
 }
 
 export async function deleteWorkLog(entryId: string): Promise<void> {
   const { data, error } = await supabase.from('timesheet_entries').delete().eq('id', entryId).select('id');
-  if (error) throw toServiceError(error, 'Não foi possível eliminar o registo.');
-  if (data.length === 0) throw new ServiceError('O registo não pode ser eliminado: o período já foi submetido.');
+  if (error) throw toServiceError(error, t('Não foi possível eliminar o registo.'));
+  if (data.length === 0) throw new ServiceError(t('O registo não pode ser eliminado: o período já foi submetido.'));
 }
 
 export async function getWorkTimeTotals(entityType: 'TASK' | 'MEETING' | 'OPPORTUNITY', entityId: string): Promise<WorkTimeTotal[]> {
   const { data, error } = await supabase.rpc('get_work_time_totals', { p_entity_type: entityType, p_entity_id: entityId });
-  if (error) throw toServiceError(error, 'Não foi possível carregar o tempo dedicado.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar o tempo dedicado.'));
   return data.map((row) => ({ profileId: row.profile_id, fullName: row.full_name, totalMinutes: row.total_minutes, entryCount: row.entry_count }));
 }

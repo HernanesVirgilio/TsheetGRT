@@ -6,6 +6,7 @@ import { PriorityBadge } from './PriorityBadge';
 import type { TicketDetail } from '../../types/it';
 import { isTicketOverdue } from '../../utils/it';
 import { formatDateTime } from '../../utils/format';
+import { t } from '../../lib/i18n';
 
 const DetailItem: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
   <div>
@@ -28,21 +29,21 @@ export const TicketInfoPanel: React.FC<TicketInfoPanelProps> = ({ ticket, assign
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <StatusBadge status={ticket.status} />
         <PriorityBadge priority={ticket.priority} />
-        {overdue && <StatusBadge status="BLOCKED" label="Prazo ultrapassado" />}
+        {overdue && <StatusBadge status="BLOCKED" label={t('Prazo ultrapassado')} />}
       </div>
       <p className="whitespace-pre-line text-sm text-text-secondary">{ticket.description}</p>
       {ticket.resolutionSummary && (
         <div className="mt-4 rounded-md border border-success/30 bg-success-soft px-4 py-3">
-          <p className="text-sm font-semibold text-text">Resolução</p>
+          <p className="text-sm font-semibold text-text">{t('Resolução')}</p>
           <p className="mt-0.5 whitespace-pre-line text-sm text-text-secondary">{ticket.resolutionSummary}</p>
         </div>
       )}
       <dl className="mt-5 grid grid-cols-1 gap-4 border-t border-border pt-5 sm:grid-cols-2 lg:grid-cols-4">
-        <DetailItem label="Solicitante">{ticket.requesterName ?? '—'}</DetailItem>
-        <DetailItem label="Departamento">{ticket.departmentName ?? 'Sem departamento'}</DetailItem>
-        <DetailItem label="Categoria">{ticket.categoryName ?? '—'}</DetailItem>
-        <DetailItem label="Técnico responsável">{assigneeName ?? 'Ainda sem técnico'}</DetailItem>
-        <DetailItem label="Equipamento">
+        <DetailItem label={t('Solicitante')}>{ticket.requesterName ?? '—'}</DetailItem>
+        <DetailItem label={t('Departamento')}>{ticket.departmentName ?? t('Sem departamento')}</DetailItem>
+        <DetailItem label={t('Categoria')}>{ticket.categoryName ?? '—'}</DetailItem>
+        <DetailItem label={t('Técnico responsável')}>{assigneeName ?? t('Ainda sem técnico')}</DetailItem>
+        <DetailItem label={t('Equipamento')}>
           {ticket.assetTag ? (
             assetLink ? (
               <Link to={assetLink} className="text-primary-hover hover:underline">
@@ -55,10 +56,10 @@ export const TicketInfoPanel: React.FC<TicketInfoPanelProps> = ({ ticket, assign
             '—'
           )}
         </DetailItem>
-        <DetailItem label="Aberto em">{formatDateTime(ticket.createdAt)}</DetailItem>
-        <DetailItem label="Prazo de resolução">{formatDateTime(ticket.dueAt)}</DetailItem>
+        <DetailItem label={t('Aberto em')}>{formatDateTime(ticket.createdAt)}</DetailItem>
+        <DetailItem label={t('Prazo de resolução')}>{formatDateTime(ticket.dueAt)}</DetailItem>
         {(ticket.closedAt ?? ticket.resolvedAt) && (
-          <DetailItem label={ticket.closedAt ? 'Fechado em' : 'Resolvido em'}>
+          <DetailItem label={ticket.closedAt ? t('Fechado em') : t('Resolvido em')}>
             {formatDateTime(ticket.closedAt ?? ticket.resolvedAt)}
           </DetailItem>
         )}

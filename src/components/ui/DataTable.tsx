@@ -1,5 +1,6 @@
 import React from 'react';
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react';
+import { t } from '../../lib/i18n';
 
 export type SortDirection = 'asc' | 'desc';
 
@@ -110,7 +111,7 @@ export function DataTable<Row, SortKey extends string = string>({
                   <input
                     type="checkbox"
                     className={CHECKBOX_CLASS}
-                    aria-label="Selecionar todos"
+                    aria-label={t('Selecionar todos')}
                     disabled={selectableKeys.length === 0}
                     checked={allSelected}
                     onChange={toggleAll}

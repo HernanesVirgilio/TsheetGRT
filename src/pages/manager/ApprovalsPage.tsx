@@ -21,16 +21,17 @@ import { ErrorState, LoadingState } from '../../components/ui/States';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { ReviewDecisionModal } from '../../components/manager/ReviewDecisionModal';
 import { formatDate, formatMinutesAsHours, formatPeriod, pluralize } from '../../utils/format';
+import { t, translatedFields } from '../../lib/i18n';
 
 type ApprovalTab = 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'DRAFT' | 'ALL';
 
-const TABS: { id: ApprovalTab; label: string; emptyMessage: string }[] = [
+const TABS: { id: ApprovalTab; label: string; emptyMessage: string }[] = translatedFields([
   { id: 'SUBMITTED', label: 'Por aprovar', emptyMessage: 'Não existem timesheets pendentes para a sua equipa.' },
   { id: 'APPROVED', label: 'Aprovados', emptyMessage: 'Ainda não existem timesheets aprovados.' },
   { id: 'REJECTED', label: 'Rejeitados', emptyMessage: 'Não existem timesheets rejeitados a aguardar correção.' },
   { id: 'DRAFT', label: 'Em rascunho', emptyMessage: 'Não existem timesheets em rascunho na equipa.' },
   { id: 'ALL', label: 'Todos', emptyMessage: 'Ainda não existem timesheets da sua equipa.' },
-];
+], ['label', 'emptyMessage']);
 
 const ALL = '';
 
@@ -103,7 +104,7 @@ export const ApprovalsPage: React.FC = () => {
       setSelectedIds(new Set());
       timesheets.reload();
     } catch (error) {
-      setActionError(getErrorMessage(error, 'Não foi possível aprovar os timesheets selecionados.'));
+      setActionError(getErrorMessage(error, t('Não foi possível aprovar os timesheets selecionados.')));
     } finally {
       setIsBulkRunning(false);
       setIsBulkConfirmOpen(false);
@@ -113,21 +114,21 @@ export const ApprovalsPage: React.FC = () => {
   const columns: DataTableColumn<TimesheetSummary>[] = [
     {
       id: 'employee',
-      header: 'Colaborador',
+      header: t('Colaborador'),
       render: (row) => (
         <span>
           <span className="block font-semibold text-text">{row.employeeName}</span>
-          <span className="block text-xs text-text-muted">{row.departmentName ?? 'Sem departamento'}</span>
+          <span className="block text-xs text-text-muted">{row.departmentName ?? t('Sem departamento')}</span>
         </span>
       ),
     },
-    { id: 'period', header: 'Período', className: 'whitespace-nowrap', render: (row) => formatPeriod(row.periodStart, row.periodEnd) },
-    { id: 'hours', header: 'Horas', render: (row) => `${formatMinutesAsHours(row.totalMinutes)} (${row.entryCount})` },
-    { id: 'status', header: 'Estado', render: (row) => <StatusBadge status={row.status} size="sm" /> },
-    { id: 'submitted', header: 'Submetido em', render: (row) => formatDate(row.submittedAt) },
+    { id: 'period', header: t('Período'), className: 'whitespace-nowrap', render: (row) => formatPeriod(row.periodStart, row.periodEnd) },
+    { id: 'hours', header: t('Horas'), render: (row) => `${formatMinutesAsHours(row.totalMinutes)} (${row.entryCount})` },
+    { id: 'status', header: t('Estado'), render: (row) => <StatusBadge status={row.status} size="sm" /> },
+    { id: 'submitted', header: t('Submetido em'), render: (row) => formatDate(row.submittedAt) },
     {
       id: 'actions',
-      header: 'Ações',
+      header: t('Ações'),
       align: 'right',
       hideLabelOnMobile: true,
       render: (row) => (
@@ -136,12 +137,12 @@ export const ApprovalsPage: React.FC = () => {
             to={`/approvals/${row.id}`}
             className="inline-flex h-8 items-center rounded-md px-2 text-sm font-semibold text-primary-hover hover:bg-surface-muted"
           >
-            Rever
+            {t('Rever')}
           </Link>
           {row.status === 'SUBMITTED' && canApprove && (
             <IconButton
               icon={CheckCircle2}
-              label={`Aprovar timesheet de ${row.employeeName}`}
+              label={t('Aprovar timesheet de {employeeName}', { employeeName: row.employeeName })}
               onClick={() => setDecisionTarget({ timesheet: row, decision: 'APPROVED' })}
             />
           )}
@@ -149,7 +150,7 @@ export const ApprovalsPage: React.FC = () => {
             <IconButton
               icon={XCircle}
               tone="danger"
-              label={`Rejeitar timesheet de ${row.employeeName}`}
+              label={t('Rejeitar timesheet de {employeeName}', { employeeName: row.employeeName })}
               onClick={() => setDecisionTarget({ timesheet: row, decision: 'REJECTED' })}
             />
           )}
@@ -161,13 +162,13 @@ export const ApprovalsPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Aprovações"
-        subtitle="Timesheets dos colaboradores no seu âmbito de gestão."
+        title={t('Aprovações')}
+        subtitle={t('Timesheets dos colaboradores no seu âmbito de gestão.')}
         actions={
           canApprove &&
           activeTab === 'SUBMITTED' && (
             <Button icon={CheckCheck} disabled={selectedIds.size === 0} onClick={() => setIsBulkConfirmOpen(true)}>
-              Aprovar selecionados ({selectedIds.size})
+              {t('Aprovar selecionados ({count})', { count: selectedIds.size })}
             </Button>
           )
         }
@@ -199,7 +200,7 @@ export const ApprovalsPage: React.FC = () => {
         </Alert>
       )}
 
-      <div role="tablist" aria-label="Estado dos timesheets" className="flex gap-1 overflow-x-auto border-b border-border custom-scrollbar">
+      <div role="tablist" aria-label={t('Estado dos timesheets')} className="flex gap-1 overflow-x-auto border-b border-border custom-scrollbar">
         {TABS.map((tab) => (
           <button
             key={tab.id}
@@ -218,16 +219,16 @@ export const ApprovalsPage: React.FC = () => {
 
       <Panel flush>
         <div className="grid grid-cols-1 gap-4 border-b border-border p-4 sm:grid-cols-3">
-          <SelectField label="Colaborador" value={employeeId} onChange={(event) => setEmployeeId(event.target.value)}>
-            <option value={ALL}>Todos</option>
+          <SelectField label={t('Colaborador')} value={employeeId} onChange={(event) => setEmployeeId(event.target.value)}>
+            <option value={ALL}>{t('Todos')}</option>
             {(members.data ?? []).map((member) => (
               <option key={member.id} value={member.id}>
                 {member.full_name}
               </option>
             ))}
           </SelectField>
-          <TextField label="Período a partir de" type="date" value={periodFrom} onChange={(event) => setPeriodFrom(event.target.value)} />
-          <TextField label="Período até" type="date" value={periodTo} onChange={(event) => setPeriodTo(event.target.value)} />
+          <TextField label={t('Período a partir de')} type="date" value={periodFrom} onChange={(event) => setPeriodFrom(event.target.value)} />
+          <TextField label={t('Período até')} type="date" value={periodTo} onChange={(event) => setPeriodTo(event.target.value)} />
         </div>
 
         {timesheets.error && (
@@ -235,18 +236,18 @@ export const ApprovalsPage: React.FC = () => {
             <ErrorState message={timesheets.error} onRetry={timesheets.reload} />
           </div>
         )}
-        {timesheets.isLoading && !timesheets.data && <LoadingState label="A carregar timesheets..." />}
+        {timesheets.isLoading && !timesheets.data && <LoadingState label={t('A carregar timesheets...')} />}
         {timesheets.data && rows.length === 0 && (
           <EmptyState
             bordered={false}
             icon={ClipboardCheck}
-            title={hasFilters ? 'Nenhum timesheet corresponde aos filtros.' : activeTabInfo.emptyMessage}
+            title={hasFilters ? t('Nenhum timesheet corresponde aos filtros.') : activeTabInfo.emptyMessage}
           />
         )}
         {rows.length > 0 && (
           <div className={timesheets.isLoading ? 'opacity-60' : ''} aria-busy={timesheets.isLoading}>
             <DataTable
-              caption={`Timesheets: ${activeTabInfo.label}`}
+              caption={t('Timesheets: {label}', { label: activeTabInfo.label })}
               columns={columns}
               rows={rows}
               getRowKey={(row) => row.id}
@@ -256,7 +257,7 @@ export const ApprovalsPage: React.FC = () => {
                       selectedKeys: selectedIds,
                       onChange: setSelectedIds,
                       isSelectable: (row) => row.status === 'SUBMITTED',
-                      getLabel: (row) => `Selecionar timesheet de ${row.employeeName}, ${formatPeriod(row.periodStart, row.periodEnd)}`,
+                      getLabel: (row) => t('Selecionar timesheet de {employeeName}, {periodEnd}', { employeeName: row.employeeName, periodEnd: formatPeriod(row.periodStart, row.periodEnd) }),
                     }
                   : undefined
               }
@@ -274,17 +275,18 @@ export const ApprovalsPage: React.FC = () => {
 
       <ConfirmDialog
         isOpen={isBulkConfirmOpen}
-        title="Aprovar timesheets selecionados?"
+        title={t('Aprovar timesheets selecionados?')}
         message={
           <>
             <p>
-              Vai aprovar {pluralize(selectedRows.length, 'timesheet', 'timesheets')} (
-              {formatMinutesAsHours(selectedRows.reduce((total, row) => total + row.totalMinutes, 0))}). Cada timesheet é
-              validado no servidor; os que não puderem ser aprovados são indicados no resultado.
+              {t('Vai aprovar {timesheets} ({hours}). Cada timesheet é validado no servidor; os que não puderem ser aprovados são indicados no resultado.', {
+                timesheets: pluralize(selectedRows.length, 'timesheet', 'timesheets'),
+                hours: formatMinutesAsHours(selectedRows.reduce((total, row) => total + row.totalMinutes, 0)),
+              })}
             </p>
           </>
         }
-        confirmLabel="Aprovar"
+        confirmLabel={t('Aprovar')}
         variant="primary"
         isLoading={isBulkRunning}
         onConfirm={handleBulkApprove}

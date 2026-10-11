@@ -4,6 +4,7 @@ import { ServiceError, toServiceError } from '../lib/errors';
 import type { AuditEvent, Profile, RoleCode, TimesheetStatus } from '../types';
 import { isTimesheetStatus } from '../types';
 import { mapProfile, PROFILE_WITH_RELATIONS_SELECT } from './mappers';
+import { t } from '../lib/i18n';
 
 export interface CreateUserInput {
   fullName: string;
@@ -40,7 +41,7 @@ export async function listUsers(): Promise<Profile[]> {
     .from('profiles')
     .select(PROFILE_WITH_RELATIONS_SELECT)
     .order('full_name');
-  if (error) throw toServiceError(error, 'Não foi possível carregar os utilizadores.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar os utilizadores.'));
   return data.map(mapProfile);
 }
 
@@ -50,7 +51,7 @@ export async function getUser(userId: string): Promise<Profile | null> {
     .select(PROFILE_WITH_RELATIONS_SELECT)
     .eq('id', userId)
     .maybeSingle();
-  if (error) throw toServiceError(error, 'Não foi possível carregar o utilizador.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar o utilizador.'));
   return data ? mapProfile(data) : null;
 }
 
@@ -78,11 +79,11 @@ export async function createUser(input: CreateUserInput): Promise<string> {
   if (error) {
     const serverMessage = await readFunctionError(error);
     throw new ServiceError(
-      serverMessage ?? 'Não foi possível contactar o serviço de criação de utilizadores. Verifique se a Edge Function está publicada.'
+      serverMessage ?? t('Não foi possível contactar o serviço de criação de utilizadores. Verifique se a Edge Function está publicada.')
     );
   }
   if (!data?.profileId) {
-    throw new ServiceError('O serviço não confirmou a criação do utilizador.');
+    throw new ServiceError(t('O serviço não confirmou a criação do utilizador.'));
   }
   return data.profileId;
 }
@@ -98,7 +99,7 @@ export async function updateUser(userId: string, input: UpdateUserInput): Promis
       ...(input.jobDescription !== undefined ? { job_description: input.jobDescription } : {}),
     })
     .eq('id', userId);
-  if (error) throw toServiceError(error, 'Não foi possível guardar os dados do utilizador.');
+  if (error) throw toServiceError(error, t('Não foi possível guardar os dados do utilizador.'));
 }
 
 export async function setUserActive(userId: string, isActive: boolean): Promise<void> {
@@ -107,20 +108,43 @@ export async function setUserActive(userId: string, isActive: boolean): Promise<
     .update({ is_active: isActive })
     .eq('id', userId)
     .select('id');
-  if (error) throw toServiceError(error, 'Não foi possível alterar o estado do utilizador.');
-  if (data.length === 0) throw new ServiceError('Não tem permissão para alterar o estado deste utilizador.');
+  if (error) throw toServiceError(error, t('Não foi possível alterar o estado do utilizador.'));
+  if (data.length === 0) throw new ServiceError(t('Não tem permissão para alterar o estado deste utilizador.'));
 }
 
 export async function assignUserRole(userId: string, roleId: string): Promise<void> {
   const { error } = await supabase
     .from('user_roles')
     .upsert({ user_id: userId, role_id: roleId }, { onConflict: 'user_id' });
-  if (error) throw toServiceError(error, 'Não foi possível alterar o perfil de acesso.');
+  if (error) throw toServiceError(error, t('Não foi possível alterar o perfil de acesso.'));
 }
 
 export async function updateOwnPhone(profileId: string, phone: string | null): Promise<void> {
   const { error } = await supabase.from('profiles').update({ phone }).eq('id', profileId);
-  if (error) throw toServiceError(error, 'Não foi possível atualizar o contacto.');
+  if (error) throw toServiceError(error, t('Não foi possível atualizar o contacto.'));
+}
+
+export interface OwnProfileDetails {
+  displayName: string | null;
+  phone: string | null;
+}
+
+/** Dados pessoais que o próprio pode alterar (o servidor recusa os institucionais). */
+export async function updateOwnProfileDetails(profileId: string, details: OwnProfileDetails): Promise<void> {
+  const { error } = await supabase.from('profiles').update({ display_name: details.displayName, phone: details.phone }).eq('id', profileId);
+  if (error) throw toServiceError(error, t('Não foi possível guardar os dados pessoais.'));
+}
+
+/** Preferências de idioma e tema (só o próprio; não afetam permissões). */
+export async function updateOwnPreferences(
+  profileId: string,
+  preferences: { preferredLanguage?: 'pt' | 'en'; themePreference?: 'light' | 'dark' | 'system' }
+): Promise<void> {
+  const changes: { preferred_language?: string; theme_preference?: string } = {};
+  if (preferences.preferredLanguage) changes.preferred_language = preferences.preferredLanguage;
+  if (preferences.themePreference) changes.theme_preference = preferences.themePreference;
+  const { error } = await supabase.from('profiles').update(changes).eq('id', profileId);
+  if (error) throw toServiceError(error, t('Não foi possível guardar as preferências.'));
 }
 
 export async function listUserTimesheets(userId: string): Promise<UserTimesheetSummary[]> {
@@ -129,7 +153,7 @@ export async function listUserTimesheets(userId: string): Promise<UserTimesheetS
     .select('id, period_start, period_end, status, submitted_at, entries:timesheet_entries(total_minutes)')
     .eq('employee_id', userId)
     .order('period_start', { ascending: false });
-  if (error) throw toServiceError(error, 'Não foi possível carregar os timesheets do utilizador.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar os timesheets do utilizador.'));
 
   return data.flatMap((timesheet) =>
     isTimesheetStatus(timesheet.status)
@@ -156,6 +180,6 @@ export async function listUserActivity(userId: string): Promise<AuditEvent[]> {
     .or(`actor_user_id.eq.${userId},entity_id.eq.${userId}`)
     .order('created_at', { ascending: false })
     .limit(USER_ACTIVITY_LIMIT);
-  if (error) throw toServiceError(error, 'Não foi possível carregar a atividade do utilizador.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar a atividade do utilizador.'));
   return data;
 }

@@ -5,6 +5,9 @@
  * Fonte única dos tokens visuais. Os componentes usam apenas as classes semânticas
  * geradas a partir daqui (bg-primary, text-text-secondary, border-border, ...).
  *
+ * Tema escuro: os mesmos tokens são redefinidos em :root[data-theme='dark'] (ver abaixo). Os componentes
+ * nunca usam cores fixas; texto sobre fundos de ação usa on-primary, on-primary-hover e on-danger.
+ *
  * Contraste (WCAG AA):
  *   - text-on-primary (#1A1A1A) sobre primary (#47B255) = 6,4:1
  *   - branco sobre primary-hover (#0B8043) = 5,0:1
@@ -18,6 +21,7 @@
   --color-primary: #47B255;
   --color-primary-hover: #0B8043;
   --color-on-primary: #1A1A1A;
+  --color-on-primary-hover: #FFFFFF;
   --color-primary-soft: #EAF6EC;
 
   /* Estrutura */
@@ -49,6 +53,7 @@
   --color-warning-soft: #FFF4E0;
   --color-danger: #C0392B;
   --color-danger-hover: #A93226;
+  --color-on-danger: #FFFFFF;
   --color-danger-soft: #FDECEA;
   --color-info: #0F7A6B;
   --color-info-soft: #E6F4F2;
@@ -59,9 +64,58 @@
   --color-chart-grid: #E6EAEE;
 }
 
+/*
+ * Tema escuro (contraste verificado sobre surface #171D21):
+ *   text #E8ECEF 13,9:1 · text-secondary #C3CBD1 9,9:1 · text-muted #93A0A8 5,6:1
+ *   primary-hover #74CF7F (ligações) 8,2:1 · danger #F0857A 6,0:1 · warning #F2B054 9,0:1
+ *   on-primary #0B1410 sobre primary #47B255 7,4:1 · on-danger #1A0B09 sobre danger 7,2:1
+ */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-primary: #47B255;
+  --color-primary-hover: #74CF7F;
+  --color-on-primary: #0B1410;
+  --color-on-primary-hover: #0B1410;
+  --color-primary-soft: #183421;
+
+  --color-sidebar: #0A3B33;
+  --color-sidebar-hover: #0F4C42;
+  --color-sidebar-muted: #CFE6E2;
+
+  --color-background: #0F1417;
+  --color-surface: #171D21;
+  --color-surface-muted: #20282D;
+
+  --color-text: #E8ECEF;
+  --color-text-secondary: #C3CBD1;
+  --color-text-muted: #93A0A8;
+
+  --color-border: #2B353B;
+  --color-border-input: #66737B;
+
+  --color-focus: #74CF7F;
+
+  --color-success: #74CF7F;
+  --color-success-soft: #16301D;
+  --color-warning: #F2B054;
+  --color-warning-soft: #3A2B12;
+  --color-danger: #F0857A;
+  --color-danger-hover: #F49D93;
+  --color-on-danger: #1A0B09;
+  --color-danger-soft: #3B1C19;
+  --color-info: #5FCDBB;
+  --color-info-soft: #12302C;
+
+  --color-chart-1: #5E9FEE;
+  --color-chart-2: #F2925F;
+  --color-chart-grid: #2B353B;
+}
+
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
+    color-scheme: light;
   }
 
   body {

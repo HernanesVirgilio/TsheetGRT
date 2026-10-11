@@ -1,6 +1,7 @@
 import React from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { IconButton } from './Button';
+import { t } from '../../lib/i18n';
 
 interface PaginationProps {
   page: number;
@@ -16,7 +17,7 @@ export const Pagination: React.FC<PaginationProps> = ({ page, pageSize, totalIte
 
   return (
     <nav
-      aria-label="Paginação"
+      aria-label={t('Paginação')}
       className="flex items-center justify-between gap-3 border-t border-border px-4 py-3 text-sm text-text-secondary"
     >
       <span>
@@ -25,16 +26,16 @@ export const Pagination: React.FC<PaginationProps> = ({ page, pageSize, totalIte
       <div className="flex items-center gap-1">
         <IconButton
           icon={ChevronLeft}
-          label="Página anterior"
+          label={t('Página anterior')}
           disabled={page <= 1}
           onClick={() => onPageChange(page - 1)}
         />
         <span className="px-2" aria-current="page">
-          Página {page} de {pageCount}
+          {t('Página {page} de {pageCount}', { page, pageCount })}
         </span>
         <IconButton
           icon={ChevronRight}
-          label="Página seguinte"
+          label={t('Página seguinte')}
           disabled={page >= pageCount}
           onClick={() => onPageChange(page + 1)}
         />

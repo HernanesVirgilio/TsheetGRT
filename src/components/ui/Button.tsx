@@ -1,14 +1,15 @@
 import React from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { Spinner } from './Spinner';
+import { t } from '../../lib/i18n';
 
 type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost';
 type ButtonSize = 'sm' | 'md';
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
-  primary: 'bg-primary text-on-primary hover:bg-primary-hover hover:text-white',
+  primary: 'bg-primary text-on-primary hover:bg-primary-hover hover:text-on-primary-hover',
   secondary: 'border border-border-input bg-surface text-text hover:bg-surface-muted',
-  danger: 'bg-danger text-white hover:bg-danger-hover',
+  danger: 'bg-danger text-on-danger hover:bg-danger-hover',
   ghost: 'text-text-secondary hover:bg-surface-muted hover:text-text',
 };
 

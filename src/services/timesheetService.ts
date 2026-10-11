@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabase/client';
 import { ServiceError, toServiceError } from '../lib/errors';
 import type { Activity, ApprovalStatus, TimesheetSummary } from '../types';
 import { isPresent, mapTimesheetSummary, TIMESHEET_SUMMARY_SELECT } from './mappers';
+import { t } from '../lib/i18n';
 
 export interface TimesheetEntryDetail {
   id: string;
@@ -68,14 +69,14 @@ export async function listMyTimesheets(profileId: string): Promise<TimesheetSumm
     .select(TIMESHEET_SUMMARY_SELECT)
     .eq('employee_id', profileId)
     .order('period_start', { ascending: false });
-  if (error) throw toServiceError(error, 'Não foi possível carregar os seus timesheets.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar os seus timesheets.'));
   return data.map(mapTimesheetSummary).filter(isPresent);
 }
 
 /** Histórico de decisões (mais recentes primeiro), com nome, cargo e e-mail de quem decidiu. */
 async function listTimesheetDecisions(timesheetId: string): Promise<TimesheetDecision[]> {
   const { data, error } = await supabase.rpc('get_timesheet_decisions', { p_timesheet_id: timesheetId });
-  if (error) throw toServiceError(error, 'Não foi possível carregar o histórico de decisões.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar o histórico de decisões.'));
   return data.flatMap((decision) =>
     isApprovalStatus(decision.status)
       ? [
@@ -100,7 +101,7 @@ export async function getTimesheetDetail(timesheetId: string): Promise<Timesheet
     listTimesheetDecisions(timesheetId),
   ]);
   const { data, error } = timesheetResult;
-  if (error) throw toServiceError(error, 'Não foi possível carregar o timesheet.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar o timesheet.'));
   if (!data) return null;
 
   const summary = mapTimesheetSummary(data);
@@ -139,7 +140,7 @@ export async function createTimesheet(profileId: string, periodStart: string, pe
     .insert({ employee_id: profileId, period_start: periodStart, period_end: periodEnd })
     .select('id')
     .single();
-  if (error) throw toServiceError(error, 'Não foi possível criar o período.');
+  if (error) throw toServiceError(error, t('Não foi possível criar o período.'));
   return data.id;
 }
 
@@ -161,22 +162,22 @@ export async function saveTimesheetEntry(
   const { error } = entryId
     ? await supabase.from('timesheet_entries').update(payload).eq('id', entryId)
     : await supabase.from('timesheet_entries').insert({ ...payload, timesheet_id: timesheetId, employee_id: profileId });
-  if (error) throw toServiceError(error, 'Não foi possível guardar o registo de horas.');
+  if (error) throw toServiceError(error, t('Não foi possível guardar o registo de horas.'));
 }
 
 export async function deleteTimesheetEntry(entryId: string): Promise<void> {
   const { data, error } = await supabase.from('timesheet_entries').delete().eq('id', entryId).select('id');
-  if (error) throw toServiceError(error, 'Não foi possível eliminar o registo.');
-  if (data.length === 0) throw new ServiceError('O registo não pode ser eliminado: o timesheet já não está editável.');
+  if (error) throw toServiceError(error, t('Não foi possível eliminar o registo.'));
+  if (data.length === 0) throw new ServiceError(t('O registo não pode ser eliminado: o timesheet já não está editável.'));
 }
 
 export async function submitTimesheet(timesheetId: string): Promise<void> {
   const { error } = await supabase.rpc('submit_timesheet', { p_timesheet_id: timesheetId });
-  if (error) throw toServiceError(error, 'Não foi possível submeter o timesheet.');
+  if (error) throw toServiceError(error, t('Não foi possível submeter o timesheet.'));
 }
 
 export async function listActiveActivities(): Promise<Activity[]> {
   const { data, error } = await supabase.from('activities').select('*').eq('active', true).order('name');
-  if (error) throw toServiceError(error, 'Não foi possível carregar as atividades.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar as atividades.'));
   return data;
 }

@@ -10,6 +10,7 @@ import { Button } from '../../components/ui/Button';
 import { StatCard } from '../../components/ui/StatCard';
 import { ErrorState, LoadingState } from '../../components/ui/States';
 import { formatDateTime } from '../../utils/format';
+import { t } from '../../lib/i18n';
 
 interface CheckCardProps {
   title: string;
@@ -33,19 +34,19 @@ const CheckCard: React.FC<CheckCardProps> = ({ title, icon: Icon, check }) => {
           }`}
         >
           <StatusIcon className="h-3.5 w-3.5" aria-hidden="true" />
-          {isOk ? 'Operacional' : 'Com falhas'}
+          {isOk ? 'Operacional' : t('Com falhas')}
         </span>
       </div>
       <p className="mt-3 text-sm text-text-secondary">{check.message}</p>
       <p className="mt-1 text-xs text-text-muted">
-        Latência: {check.latencyMs === null ? 'indisponível' : `${check.latencyMs} ms`}
+        {t('Latência: {latency}', { latency: check.latencyMs === null ? t('indisponível') : `${check.latencyMs} ms` })}
       </p>
     </div>
   );
 };
 
 function formatMetric(value: number | null): string {
-  return value === null ? 'Indisponível' : String(value);
+  return value === null ? t('Indisponível') : String(value);
 }
 
 export const SystemHealthPage: React.FC = () => {
@@ -55,44 +56,44 @@ export const SystemHealthPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Saúde do sistema"
-        subtitle="Verificações em tempo real da ligação ao Supabase e indicadores de utilização."
+        title={t('Saúde do sistema')}
+        subtitle={t('Verificações em tempo real da ligação ao Supabase e indicadores de utilização.')}
         actions={
           <Button variant="secondary" icon={RefreshCw} isLoading={health.isLoading} onClick={health.reload}>
-            Verificar novamente
+            {t('Verificar novamente')}
           </Button>
         }
       />
 
       {health.error && <ErrorState message={health.error} onRetry={health.reload} />}
-      {health.isLoading && !report && <LoadingState label="A executar verificações..." />}
+      {health.isLoading && !report && <LoadingState label={t('A executar verificações...')} />}
 
       {report && (
         <>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <CheckCard title="Base de dados" icon={Database} check={report.database} />
-            <CheckCard title="Autenticação" icon={KeyRound} check={report.authentication} />
-            <CheckCard title="Sessão atual" icon={ShieldCheck} check={report.session} />
+            <CheckCard title={t('Base de dados')} icon={Database} check={report.database} />
+            <CheckCard title={t('Autenticação')} icon={KeyRound} check={report.authentication} />
+            <CheckCard title={t('Sessão atual')} icon={ShieldCheck} check={report.session} />
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <StatCard label="Utilizadores ativos" value={formatMetric(report.activeUsers)} />
-            <StatCard label="Eventos de auditoria (24 h)" value={formatMetric(report.auditEventsLast24h)} />
-            <StatCard label="Inícios de sessão (24 h)" value={formatMetric(report.loginsLast24h)} />
+            <StatCard label={t('Utilizadores ativos')} value={formatMetric(report.activeUsers)} />
+            <StatCard label={t('Eventos de auditoria (24 h)')} value={formatMetric(report.auditEventsLast24h)} />
+            <StatCard label={t('Inícios de sessão (24 h)')} value={formatMetric(report.loginsLast24h)} />
           </div>
 
-          <Panel title="Ambiente">
+          <Panel title={t('Ambiente')}>
             <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
               <div>
-                <dt className="text-text-muted">Projeto Supabase</dt>
+                <dt className="text-text-muted">{t('Projeto Supabase')}</dt>
                 <dd className="mt-0.5 font-mono text-text">{report.projectHost}</dd>
               </div>
               <div>
-                <dt className="text-text-muted">Modo de execução</dt>
+                <dt className="text-text-muted">{t('Modo de execução')}</dt>
                 <dd className="mt-0.5 font-mono text-text">{report.environment}</dd>
               </div>
               <div>
-                <dt className="text-text-muted">Última verificação</dt>
+                <dt className="text-text-muted">{t('Última verificação')}</dt>
                 <dd className="mt-0.5 text-text">{formatDateTime(report.checkedAt)}</dd>
               </div>
             </dl>

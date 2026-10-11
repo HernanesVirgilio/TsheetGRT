@@ -11,6 +11,7 @@ import { ErrorState, LoadingState } from '../ui/States';
 import { TicketNoteModal } from '../it/TicketActionModals';
 import { formatDateTime } from '../../utils/format';
 import { formatFileSize } from '../../utils/work';
+import { t } from '../../lib/i18n';
 
 interface AttachmentsPanelProps {
   entityType: AttachmentEntityType;
@@ -43,7 +44,7 @@ export const AttachmentsPanel: React.FC<AttachmentsPanelProps> = ({ entityType, 
       attachments.reload();
       onChanged?.();
     } catch (error) {
-      setMessage({ variant: 'error', text: getErrorMessage(error, 'Não foi possível anexar o ficheiro.') });
+      setMessage({ variant: 'error', text: getErrorMessage(error, t('Não foi possível anexar o ficheiro.')) });
     } finally {
       setIsUploading(false);
     }
@@ -55,7 +56,7 @@ export const AttachmentsPanel: React.FC<AttachmentsPanelProps> = ({ entityType, 
       const url = await getAttachmentUrl(attachment.storagePath);
       window.open(url, '_blank', 'noopener,noreferrer');
     } catch (error) {
-      setMessage({ variant: 'error', text: getErrorMessage(error, 'Não foi possível abrir o anexo.') });
+      setMessage({ variant: 'error', text: getErrorMessage(error, t('Não foi possível abrir o anexo.')) });
     }
   };
 
@@ -63,8 +64,8 @@ export const AttachmentsPanel: React.FC<AttachmentsPanelProps> = ({ entityType, 
 
   return (
     <Panel
-      title="Anexos"
-      description="Documentos e imagens até 10 MB. Os ficheiros são privados."
+      title={t('Anexos')}
+      description={t('Documentos e imagens até 10 MB. Os ficheiros são privados.')}
       flush
     >
       {message && (
@@ -79,8 +80,8 @@ export const AttachmentsPanel: React.FC<AttachmentsPanelProps> = ({ entityType, 
           <ErrorState message={attachments.error} onRetry={attachments.reload} />
         </div>
       )}
-      {attachments.isLoading && !attachments.data && <LoadingState label="A carregar anexos..." />}
-      {attachments.data && items.length === 0 && <p className="px-5 py-4 text-sm text-text-secondary">Sem anexos.</p>}
+      {attachments.isLoading && !attachments.data && <LoadingState label={t('A carregar anexos...')} />}
+      {attachments.data && items.length === 0 && <p className="px-5 py-4 text-sm text-text-secondary">{t('Sem anexos.')}</p>}
       {items.length > 0 && (
         <ul className="divide-y divide-border">
           {items.map((attachment) => {
@@ -97,9 +98,9 @@ export const AttachmentsPanel: React.FC<AttachmentsPanelProps> = ({ entityType, 
                   </div>
                 </div>
                 <div className="flex shrink-0 gap-1">
-                  <IconButton icon={ExternalLink} label={`Abrir ${attachment.fileName}`} onClick={() => openAttachment(attachment)} />
+                  <IconButton icon={ExternalLink} label={t('Abrir {fileName}', { fileName: attachment.fileName })} onClick={() => openAttachment(attachment)} />
                   {canRemove && (
-                    <IconButton icon={Trash2} tone="danger" label={`Remover ${attachment.fileName}`} onClick={() => setToRemove(attachment)} />
+                    <IconButton icon={Trash2} tone="danger" label={t('Remover {fileName}', { fileName: attachment.fileName })} onClick={() => setToRemove(attachment)} />
                   )}
                 </div>
               </li>
@@ -113,33 +114,33 @@ export const AttachmentsPanel: React.FC<AttachmentsPanelProps> = ({ entityType, 
             ref={fileInput}
             type="file"
             className="sr-only"
-            aria-label="Escolher ficheiro para anexar"
+            aria-label={t('Escolher ficheiro para anexar')}
             accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.pptx,.txt,.csv"
             onChange={handleFile}
           />
           <Button size="sm" variant="secondary" icon={Upload} isLoading={isUploading} onClick={() => fileInput.current?.click()}>
-            Anexar ficheiro
+            {t('Anexar ficheiro')}
           </Button>
         </div>
       )}
 
       <TicketNoteModal
         isOpen={toRemove !== null}
-        title="Remover anexo"
-        description={toRemove ? `"${toRemove.fileName}" deixa de estar acessível. O registo da remoção fica no histórico.` : undefined}
+        title={t('Remover anexo')}
+        description={toRemove ? t('"{fileName}" deixa de estar acessível. O registo da remoção fica no histórico.', { fileName: toRemove.fileName }) : undefined}
         note={
           toRemove && toRemove.uploadedBy !== viewerId
-            ? { label: 'Motivo da remoção', minLength: 5, maxLength: 1000 }
-            : { label: 'Motivo (opcional)', maxLength: 1000 }
+            ? { label: t('Motivo da remoção'), minLength: 5, maxLength: 1000 }
+            : { label: t('Motivo (opcional)'), maxLength: 1000 }
         }
-        confirmLabel="Remover"
+        confirmLabel={t('Remover')}
         variant="danger"
         onClose={() => setToRemove(null)}
         onConfirm={async (reason) => {
           if (!toRemove) return;
           await removeAttachment(toRemove.id, reason);
           setToRemove(null);
-          setMessage({ variant: 'success', text: 'Anexo removido.' });
+          setMessage({ variant: 'success', text: t('Anexo removido.') });
           attachments.reload();
           onChanged?.();
         }}

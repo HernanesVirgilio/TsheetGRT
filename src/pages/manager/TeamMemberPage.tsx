@@ -22,8 +22,9 @@ import { UserAvatar } from '../../components/ui/UserAvatar';
 import { formatCalendarDate, formatDate, formatMinutesAsHours, formatPeriod } from '../../utils/format';
 import { summarizeTimesheets } from '../../utils/timesheets';
 import { isUuid } from '../../utils/validation';
+import { t, translatedFields } from '../../lib/i18n';
 
-const COLUMNS: DataTableColumn<TimesheetSummary>[] = [
+const COLUMNS: DataTableColumn<TimesheetSummary>[] = translatedFields([
   {
     id: 'period',
     header: 'Período',
@@ -41,17 +42,17 @@ const COLUMNS: DataTableColumn<TimesheetSummary>[] = [
     header: 'Decisão',
     render: (timesheet) =>
       timesheet.status === 'APPROVED'
-        ? `Aprovado em ${formatDate(timesheet.approvedAt)}`
+        ? t('Aprovado em {approvedAt}', { approvedAt: formatDate(timesheet.approvedAt) })
         : timesheet.status === 'REJECTED'
-          ? `Rejeitado em ${formatDate(timesheet.rejectedAt)}`
+          ? t('Rejeitado em {rejectedAt}', { rejectedAt: formatDate(timesheet.rejectedAt) })
           : '—',
   },
-];
+], ['header']);
 
 const BackLink: React.FC = () => (
   <Link to="/team" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary-hover hover:underline">
     <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-    Voltar à equipa
+    {t('Voltar à equipa')}
   </Link>
 );
 
@@ -84,7 +85,7 @@ export const TeamMemberPage: React.FC = () => {
     [id]
   );
 
-  if (member.isLoading && !member.data) return <LoadingState label="A carregar colaborador..." />;
+  if (member.isLoading && !member.data) return <LoadingState label={t('A carregar colaborador...')} />;
   if (member.error) {
     return (
       <div className="space-y-4">
@@ -97,7 +98,7 @@ export const TeamMemberPage: React.FC = () => {
     return (
       <div className="space-y-4">
         <BackLink />
-        <EmptyState title="Colaborador não encontrado." message="O colaborador não existe ou não pertence ao seu âmbito de gestão." />
+        <EmptyState title={t('Colaborador não encontrado.')} message={t('O colaborador não existe ou não pertence ao seu âmbito de gestão.')} />
       </div>
     );
   }
@@ -109,7 +110,7 @@ export const TeamMemberPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <BackLink />
-      <PageHeader title={profile.full_name} subtitle={`${profile.employee_number ?? ''} · ${profile.job_title ?? 'Sem cargo definido'}`} />
+      <PageHeader title={profile.full_name} subtitle={`${profile.employee_number ?? ''} · ${profile.job_title ?? t('Sem cargo definido')}`} />
       {message && (
         <Alert variant="success" onDismiss={() => setMessage(null)}>
           {message}
@@ -128,16 +129,16 @@ export const TeamMemberPage: React.FC = () => {
           </div>
         </div>
         <dl className="grid grid-cols-1 gap-4 border-t border-border pt-5 sm:grid-cols-2 lg:grid-cols-4">
-          <DetailItem label="Departamento">{profile.department?.name ?? 'Sem departamento'}</DetailItem>
-          <DetailItem label="Cargo">{profile.job_title ?? '—'}</DetailItem>
-          <DetailItem label="Telefone">{profile.phone ?? '—'}</DetailItem>
-          <DetailItem label="Nº de colaborador">{profile.employee_number ?? '—'}</DetailItem>
+          <DetailItem label={t('Departamento')}>{profile.department?.name ?? t('Sem departamento')}</DetailItem>
+          <DetailItem label={t('Cargo')}>{profile.job_title ?? '—'}</DetailItem>
+          <DetailItem label={t('Telefone')}>{profile.phone ?? '—'}</DetailItem>
+          <DetailItem label={t('Nº de colaborador')}>{profile.employee_number ?? '—'}</DetailItem>
         </dl>
       </Panel>
 
       <Panel
-        title="Descrição da função"
-        description="O que esta pessoa faz e que responsabilidades pode receber. Não altera o perfil de acesso."
+        title={t('Descrição da função')}
+        description={t('O que esta pessoa faz e que responsabilidades pode receber. Não altera o perfil de acesso.')}
         actions={
           canEditDescription && (
             <Button size="sm" variant="secondary" icon={Pencil} onClick={() => setIsEditing(true)}>
@@ -146,34 +147,34 @@ export const TeamMemberPage: React.FC = () => {
           )
         }
       >
-        <p className="whitespace-pre-line text-sm text-text-secondary">{profile.job_description ?? 'Descrição da função por preencher.'}</p>
+        <p className="whitespace-pre-line text-sm text-text-secondary">{profile.job_description ?? t('Descrição da função por preencher.')}</p>
       </Panel>
 
       {work && (
-        <Panel title="Trabalho em mãos">
+        <Panel title={t('Trabalho em mãos')}>
           <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-            <DetailItem label="Tarefas em aberto">{work.tasksOpen}</DetailItem>
-            <DetailItem label="Em curso">{work.tasksInProgress}</DetailItem>
-            <DetailItem label="Bloqueadas">{work.tasksBlocked}</DetailItem>
-            <DetailItem label="Atrasadas">{work.tasksOverdue > 0 ? <OverdueBadge label={String(work.tasksOverdue)} /> : 0}</DetailItem>
-            <DetailItem label="Oportunidades ativas">{work.opportunitiesActive}</DetailItem>
-            <DetailItem label="Concluídas (30 dias)">{work.tasksCompleted30Days}</DetailItem>
+            <DetailItem label={t('Tarefas em aberto')}>{work.tasksOpen}</DetailItem>
+            <DetailItem label={t('Em curso')}>{work.tasksInProgress}</DetailItem>
+            <DetailItem label={t('Bloqueadas')}>{work.tasksBlocked}</DetailItem>
+            <DetailItem label={t('Atrasadas')}>{work.tasksOverdue > 0 ? <OverdueBadge label={String(work.tasksOverdue)} /> : 0}</DetailItem>
+            <DetailItem label={t('Oportunidades ativas')}>{work.opportunitiesActive}</DetailItem>
+            <DetailItem label={t('Concluídas (30 dias)')}>{work.tasksCompleted30Days}</DetailItem>
           </dl>
           <p className="mt-4 text-xs text-text-muted">
-            {work.leadNames ? `Gestor da equipa: ${work.leadNames} · ` : ''}
-            {work.absenceToday ? `Ausente hoje (${work.absenceToday}) · ` : 'Presente hoje · '}
+            {work.leadNames ? t('Gestor da equipa: {leadNames} · ', { leadNames: work.leadNames }) : ''}
+            {work.absenceToday ? t('Ausente hoje ({absenceToday}) · ', { absenceToday: work.absenceToday }) : t('Presente hoje · ')}
             Último registo de tempo: {work.lastActivityDate ? formatCalendarDate(work.lastActivityDate) : 'sem registos'} · {formatMinutesAsHours(work.minutesThisWeek)} esta semana
           </p>
         </Panel>
       )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatCard label="Horas aprovadas" value={formatMinutesAsHours(totals.approvedMinutes)} />
-        <StatCard label="Horas por aprovar" value={formatMinutesAsHours(totals.pendingMinutes)} />
-        <StatCard label="Timesheets rejeitados" value={totals.rejectedCount} />
+        <StatCard label={t('Horas aprovadas')} value={formatMinutesAsHours(totals.approvedMinutes)} />
+        <StatCard label={t('Horas por aprovar')} value={formatMinutesAsHours(totals.pendingMinutes)} />
+        <StatCard label={t('Timesheets rejeitados')} value={totals.rejectedCount} />
       </div>
 
-      <Panel title="Timesheets" description="Histórico de submissões e decisões deste colaborador." flush>
+      <Panel title={t('Timesheets')} description={t('Histórico de submissões e decisões deste colaborador.')} flush>
         {timesheets.error && (
           <div className="p-4">
             <ErrorState message={timesheets.error} onRetry={timesheets.reload} />
@@ -181,10 +182,10 @@ export const TeamMemberPage: React.FC = () => {
         )}
         {timesheets.isLoading && !timesheets.data && <LoadingState />}
         {timesheets.data?.length === 0 && (
-          <EmptyState bordered={false} icon={Clock3} title="Este colaborador ainda não tem timesheets." />
+          <EmptyState bordered={false} icon={Clock3} title={t('Este colaborador ainda não tem timesheets.')} />
         )}
         {timesheets.data && timesheets.data.length > 0 && (
-          <DataTable caption={`Timesheets de ${profile.full_name}`} columns={COLUMNS} rows={timesheets.data} getRowKey={(row) => row.id} />
+          <DataTable caption={t('Timesheets de {full_name}', { full_name: profile.full_name })} columns={COLUMNS} rows={timesheets.data} getRowKey={(row) => row.id} />
         )}
       </Panel>
 
@@ -196,7 +197,7 @@ export const TeamMemberPage: React.FC = () => {
         onClose={() => setIsEditing(false)}
         onSaved={() => {
           setIsEditing(false);
-          setMessage('Descrição da função atualizada. A alteração ficou registada na auditoria.');
+          setMessage(t('Descrição da função atualizada. A alteração ficou registada na auditoria.'));
           member.reload();
           workload.reload();
         }}

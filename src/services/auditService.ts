@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabase/client';
 import { toServiceError } from '../lib/errors';
 import type { AuditEvent } from '../types';
 import { toIlikePattern } from '../utils/validation';
+import { t } from '../lib/i18n';
 
 export interface AuditActor {
   id: string;
@@ -33,7 +34,7 @@ async function findActorIds(search: string): Promise<string[]> {
     .from('profiles')
     .select('id')
     .or(`full_name.ilike.${pattern},email.ilike.${pattern}`);
-  if (error) throw toServiceError(error, 'Não foi possível pesquisar utilizadores.');
+  if (error) throw toServiceError(error, t('Não foi possível pesquisar utilizadores.'));
   return data.map((profile) => profile.id);
 }
 
@@ -60,7 +61,7 @@ export async function listAuditEvents(query: AuditQuery): Promise<AuditPage> {
   }
 
   const { data, error, count } = await request;
-  if (error) throw toServiceError(error, 'Não foi possível carregar o trilho de auditoria.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar o trilho de auditoria.'));
   return { items: data, total: count ?? data.length };
 }
 
@@ -70,6 +71,6 @@ export async function listRecentAuditEvents(limit: number): Promise<AuditEventWi
     .select(AUDIT_SELECT)
     .order('created_at', { ascending: false })
     .limit(limit);
-  if (error) throw toServiceError(error, 'Não foi possível carregar a auditoria recente.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar a auditoria recente.'));
   return data;
 }

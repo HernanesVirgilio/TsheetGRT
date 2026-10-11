@@ -5,6 +5,7 @@ import { Alert } from '../ui/Alert';
 import { getErrorMessage } from '../../lib/errors';
 import { assignUserRole } from '../../services/userService';
 import type { Profile, Role } from '../../types';
+import { t } from '../../lib/i18n';
 
 interface RoleAssignModalProps {
   user: Profile | null;
@@ -29,7 +30,7 @@ export const RoleAssignModal: React.FC<RoleAssignModalProps> = ({ user, roles, c
     if (!user) return;
     const selectedRole = roles.find((role) => role.id === selectedRoleId);
     if (!selectedRole) {
-      setErrorMessage('Selecione um perfil de acesso.');
+      setErrorMessage(t('Selecione um perfil de acesso.'));
       return;
     }
     if (selectedRole.id === user.role?.id) {
@@ -41,9 +42,9 @@ export const RoleAssignModal: React.FC<RoleAssignModalProps> = ({ user, roles, c
     setErrorMessage(null);
     try {
       await assignUserRole(user.id, selectedRole.id);
-      onSaved(`Perfil de acesso de ${user.full_name} alterado para ${selectedRole.name}.`);
+      onSaved(t('Perfil de acesso de {full_name} alterado para {name}.', { full_name: user.full_name, name: selectedRole.name }));
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Não foi possível alterar o perfil de acesso.'));
+      setErrorMessage(getErrorMessage(error, t('Não foi possível alterar o perfil de acesso.')));
     } finally {
       setIsSubmitting(false);
     }
@@ -54,18 +55,18 @@ export const RoleAssignModal: React.FC<RoleAssignModalProps> = ({ user, roles, c
   return (
     <Modal
       isOpen={Boolean(user)}
-      title="Alterar perfil de acesso"
-      description={user ? `Defina as permissões de ${user.full_name}.` : undefined}
+      title={t('Alterar perfil de acesso')}
+      description={user ? t('Defina as permissões de {full_name}.', { full_name: user.full_name }) : undefined}
       size="sm"
       isBusy={isSubmitting}
       onClose={onClose}
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
-            Cancelar
+            {t('Cancelar')}
           </Button>
           <Button type="submit" form={formId} isLoading={isSubmitting}>
-            Guardar
+            {t('Guardar')}
           </Button>
         </>
       }
@@ -73,7 +74,7 @@ export const RoleAssignModal: React.FC<RoleAssignModalProps> = ({ user, roles, c
       <form id={formId} onSubmit={handleSubmit} className="space-y-3">
         {errorMessage && <Alert variant="error">{errorMessage}</Alert>}
         <fieldset className="space-y-2">
-          <legend className="sr-only">Perfil de acesso</legend>
+          <legend className="sr-only">{t('Perfil de acesso')}</legend>
           {roles.map((role) => {
             const isDisabled = role.code === 'ADMIN' && !canAssignAdmin;
             const isSelected = selectedRoleId === role.id;
@@ -96,11 +97,11 @@ export const RoleAssignModal: React.FC<RoleAssignModalProps> = ({ user, roles, c
                 <span>
                   <span className="block text-sm font-semibold text-text">
                     {role.name}
-                    {user?.role?.id === role.id && <span className="font-normal text-text-muted"> (atual)</span>}
+                    {user?.role?.id === role.id && <span className="font-normal text-text-muted"> {t('(atual)')}</span>}
                   </span>
                   <span className="block text-sm text-text-secondary">{role.description}</span>
                   {isDisabled && (
-                    <span className="block text-xs text-text-muted">Apenas administradores podem atribuir este perfil.</span>
+                    <span className="block text-xs text-text-muted">{t('Apenas administradores podem atribuir este perfil.')}</span>
                   )}
                 </span>
               </label>

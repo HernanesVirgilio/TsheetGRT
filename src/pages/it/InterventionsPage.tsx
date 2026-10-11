@@ -12,6 +12,7 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState, LoadingState } from '../../components/ui/States';
 import { InterventionsTable } from '../../components/it/InterventionsTable';
 import { INTERVENTION_OUTCOME_LABELS } from '../../utils/it';
+import { t } from '../../lib/i18n';
 
 const PAGE_SIZE = 20;
 const ALL = 'ALL';
@@ -39,14 +40,14 @@ export const InterventionsPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Intervenções"
-        subtitle="Trabalho técnico realizado em pedidos e equipamentos. Para registar, abra o pedido ou o equipamento."
+        title={t('Intervenções')}
+        subtitle={t('Trabalho técnico realizado em pedidos e equipamentos. Para registar, abra o pedido ou o equipamento.')}
       />
 
       <Panel flush>
         <div className="grid grid-cols-1 gap-3 border-b border-border p-4 sm:grid-cols-3">
-          <FilterSelect label="Filtrar por resultado" value={outcome} onChange={(event) => setOutcome(event.target.value)}>
-            <option value={ALL}>Todos os resultados</option>
+          <FilterSelect label={t('Filtrar por resultado')} value={outcome} onChange={(event) => setOutcome(event.target.value)}>
+            <option value={ALL}>{t('Todos os resultados')}</option>
             {INTERVENTION_OUTCOMES.map((value) => (
               <option key={value} value={value}>
                 {INTERVENTION_OUTCOME_LABELS[value]}
@@ -60,13 +61,13 @@ export const InterventionsPage: React.FC = () => {
             <ErrorState message={interventions.error} onRetry={interventions.reload} />
           </div>
         )}
-        {interventions.isLoading && !interventions.data && <LoadingState label="A carregar intervenções..." />}
+        {interventions.isLoading && !interventions.data && <LoadingState label={t('A carregar intervenções...')} />}
 
         {interventions.data && interventions.data.items.length === 0 && (
           <EmptyState
             bordered={false}
             icon={Wrench}
-            title={outcome === ALL ? 'Ainda não foram registadas intervenções.' : 'Nenhuma intervenção com este resultado.'}
+            title={outcome === ALL ? t('Ainda não foram registadas intervenções.') : t('Nenhuma intervenção com este resultado.')}
           />
         )}
 

@@ -1,4 +1,5 @@
 import type { TimesheetStatus, TimesheetSummary } from '../types';
+import { compareText } from './format';
 
 /** Mantido como alias: os relatórios trabalham sobre o resumo comum de timesheets. */
 export type ReportTimesheet = TimesheetSummary;
@@ -42,7 +43,7 @@ export function groupTimesheets(
     groups.set(key, group);
   }
 
-  return [...groups.values()].sort((first, second) => first.label.localeCompare(second.label, 'pt-PT'));
+  return [...groups.values()].sort((first, second) => compareText(first.label, second.label));
 }
 
 export const NO_DEPARTMENT_LABEL = 'Sem departamento';

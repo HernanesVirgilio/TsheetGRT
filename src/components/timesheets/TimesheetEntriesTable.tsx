@@ -8,6 +8,7 @@ import type { TimesheetEntryDetail } from '../../services/timesheetService';
 import { formatCalendarDate, formatMinutesAsHours } from '../../utils/format';
 import { isEntryKind } from '../../types/work';
 import { ENTRY_KIND_LABELS } from '../../utils/work';
+import { t } from '../../lib/i18n';
 
 function contextCell(entry: TimesheetEntryDetail): React.ReactNode {
   const kindLabel = isEntryKind(entry.kind) ? ENTRY_KIND_LABELS[entry.kind] : entry.kind;
@@ -35,31 +36,31 @@ interface TimesheetEntriesTableProps {
 
 export const TimesheetEntriesTable: React.FC<TimesheetEntriesTableProps> = ({ entries, renderActions, emptyMessage }) => {
   if (entries.length === 0) {
-    return <EmptyState bordered={false} icon={Clock3} title="Sem registos de horas." message={emptyMessage} />;
+    return <EmptyState bordered={false} icon={Clock3} title={t('Sem registos de horas.')} message={emptyMessage} />;
   }
 
   const columns: DataTableColumn<TimesheetEntryDetail>[] = [
-    { id: 'date', header: 'Data', className: 'whitespace-nowrap', render: (entry) => formatCalendarDate(entry.workDate) },
-    { id: 'activity', header: 'Atividade', render: (entry) => entry.activityName ?? '—' },
-    { id: 'context', header: 'Contexto', className: 'min-w-40', render: contextCell },
+    { id: 'date', header: t('Data'), className: 'whitespace-nowrap', render: (entry) => formatCalendarDate(entry.workDate) },
+    { id: 'activity', header: t('Atividade'), render: (entry) => entry.activityName ?? '—' },
+    { id: 'context', header: t('Contexto'), className: 'min-w-40', render: contextCell },
     {
       id: 'time',
-      header: 'Horário',
+      header: t('Horário'),
       className: 'whitespace-nowrap',
       render: (entry) => <span className="font-mono">{entry.startTime}–{entry.endTime}</span>,
     },
-    { id: 'break', header: 'Pausa', render: (entry) => `${entry.breakMinutes} min` },
+    { id: 'break', header: t('Pausa'), render: (entry) => `${entry.breakMinutes} min` },
     {
       id: 'hours',
-      header: 'Horas',
+      header: t('Horas'),
       render: (entry) => <span className="font-semibold text-text">{formatMinutesAsHours(entry.totalMinutes)}</span>,
     },
-    { id: 'description', header: 'Descrição', className: 'max-w-md', render: (entry) => entry.description },
+    { id: 'description', header: t('Descrição'), className: 'max-w-md', render: (entry) => entry.description },
   ];
 
   if (renderActions) {
-    columns.push({ id: 'actions', header: 'Ações', align: 'right', hideLabelOnMobile: true, render: renderActions });
+    columns.push({ id: 'actions', header: t('Ações'), align: 'right', hideLabelOnMobile: true, render: renderActions });
   }
 
-  return <DataTable caption="Registos de horas" columns={columns} rows={entries} getRowKey={(entry) => entry.id} />;
+  return <DataTable caption={t('Registos de horas')} columns={columns} rows={entries} getRowKey={(entry) => entry.id} />;
 };

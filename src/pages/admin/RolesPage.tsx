@@ -18,8 +18,9 @@ import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
 import { ErrorState, LoadingState } from '../../components/ui/States';
 import { pluralize } from '../../utils/format';
+import { t, translated } from '../../lib/i18n';
 
-const MODULE_LABELS: Record<string, string> = {
+const MODULE_LABELS: Record<string, string> = translated({
   core: 'Geral',
   profile: 'Perfil do utilizador',
   timesheet: 'Registo de horas',
@@ -36,7 +37,7 @@ const MODULE_LABELS: Record<string, string> = {
   work: 'Trabalho (Timesheet Core)',
   reports: 'Relatórios',
   admin: 'Administração global',
-};
+});
 
 function groupByModule(permissions: Permission[]): [string, Permission[]][] {
   const groups = new Map<string, Permission[]>();
@@ -79,9 +80,9 @@ const PermissionEditor: React.FC<PermissionEditorProps> = ({ role, permissions, 
     setErrorMessage(null);
     try {
       await setRolePermissions(role.code, [...selectedCodes]);
-      onSaved(`Permissões do perfil ${role.name} atualizadas com sucesso.`);
+      onSaved(t('Permissões do perfil {name} atualizadas com sucesso.', { name: role.name }));
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Não foi possível guardar as permissões.'));
+      setErrorMessage(getErrorMessage(error, t('Não foi possível guardar as permissões.')));
     } finally {
       setIsSubmitting(false);
     }
@@ -90,18 +91,20 @@ const PermissionEditor: React.FC<PermissionEditorProps> = ({ role, permissions, 
   return (
     <Modal
       isOpen={Boolean(role)}
-      title={`Permissões do perfil ${role?.name ?? ''}`}
-      description={`${pluralize(selectedCodes.size, 'permissão selecionada', 'permissões selecionadas')}. As alterações aplicam-se a todos os utilizadores com este perfil.`}
+      title={t('Permissões do perfil {name}', { name: role?.name ?? '' })}
+      description={t('{permissions}. As alterações aplicam-se a todos os utilizadores com este perfil.', {
+        permissions: pluralize(selectedCodes.size, 'permissão selecionada', 'permissões selecionadas'),
+      })}
       size="lg"
       isBusy={isSubmitting}
       onClose={onClose}
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
-            Cancelar
+            {t('Cancelar')}
           </Button>
           <Button onClick={handleSave} isLoading={isSubmitting}>
-            Guardar permissões
+            {t('Guardar permissões')}
           </Button>
         </>
       }
@@ -131,7 +134,7 @@ const PermissionEditor: React.FC<PermissionEditorProps> = ({ role, permissions, 
                     <span>
                       <span className="block text-sm font-medium text-text">{permission.name}</span>
                       <span className="block font-mono text-xs text-text-muted">{permission.code}</span>
-                      {isAdminOnly && <span className="block text-xs text-text-muted">Exclusiva do perfil ADMIN.</span>}
+                      {isAdminOnly && <span className="block text-xs text-text-muted">{t('Exclusiva do perfil ADMIN.')}</span>}
                     </span>
                   </label>
                 );
@@ -162,7 +165,7 @@ export const RolesPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Roles e permissões" subtitle="Perfis de acesso e respetivas permissões no sistema." />
+      <PageHeader title={t('Roles e permissões')} subtitle={t('Perfis de acesso e respetivas permissões no sistema.')} />
 
       {successMessage && (
         <Alert variant="success" onDismiss={() => setSuccessMessage(null)}>
@@ -170,7 +173,7 @@ export const RolesPage: React.FC = () => {
         </Alert>
       )}
       {data.error && <ErrorState message={data.error} onRetry={data.reload} />}
-      {data.isLoading && !data.data && <LoadingState label="A carregar perfis de acesso..." />}
+      {data.isLoading && !data.data && <LoadingState label={t('A carregar perfis de acesso...')} />}
 
       <ul className="space-y-3">
         {roles.map((role) => {
@@ -197,12 +200,12 @@ export const RolesPage: React.FC = () => {
                   {isLocked ? (
                     <span className="inline-flex items-center gap-1.5 text-xs text-text-muted">
                       <Lock className="h-3.5 w-3.5" aria-hidden="true" />
-                      Todas as permissões (não editável)
+                      {t('Todas as permissões (não editável)')}
                     </span>
                   ) : (
                     canManage && (
                       <Button variant="secondary" size="sm" icon={SlidersHorizontal} onClick={() => setRoleToEdit(role)}>
-                        Gerir permissões
+                        {t('Gerir permissões')}
                       </Button>
                     )
                   )}
@@ -214,14 +217,14 @@ export const RolesPage: React.FC = () => {
                     aria-controls={panelId}
                     onClick={() => setExpandedRoleId(isExpanded ? null : role.id)}
                   >
-                    {isExpanded ? 'Ocultar' : 'Ver permissões'}
+                    {isExpanded ? 'Ocultar' : t('Ver permissões')}
                   </Button>
                 </div>
               </div>
               {isExpanded && (
                 <div id={panelId} className="border-t border-border bg-background p-4">
                   {role.permissions.length === 0 ? (
-                    <p className="text-sm text-text-secondary">Este perfil não tem permissões atribuídas.</p>
+                    <p className="text-sm text-text-secondary">{t('Este perfil não tem permissões atribuídas.')}</p>
                   ) : (
                     <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                       {role.permissions.map((permission) => (

@@ -8,9 +8,10 @@ import { decideAbsence, saveAbsence, validateAbsence } from '../../services/work
 import type { AbsenceDecision, AbsenceRequest, AbsenceType, AbsenceValidation } from '../../types/work';
 import type { AbsenceFormField, AbsenceFormValues } from '../../utils/work';
 import { daysBetween, validateAbsenceForm, validateReason } from '../../utils/work';
-import { formatDate } from '../../utils/format';
+import { formatDate, pluralize } from '../../utils/format';
 import type { FieldErrors } from '../../utils/validation';
 import { hasErrors } from '../../utils/validation';
+import { t, translatedFields } from '../../lib/i18n';
 
 interface AbsenceFormModalProps {
   isOpen: boolean;
@@ -63,7 +64,7 @@ export const AbsenceFormModal: React.FC<AbsenceFormModalProps> = ({ isOpen, requ
       });
       onSaved(requestId);
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Não foi possível guardar o pedido.'));
+      setErrorMessage(getErrorMessage(error, t('Não foi possível guardar o pedido.')));
     } finally {
       setIsSubmitting(false);
     }
@@ -73,17 +74,17 @@ export const AbsenceFormModal: React.FC<AbsenceFormModalProps> = ({ isOpen, requ
   return (
     <Modal
       isOpen={isOpen}
-      title={request ? `Corrigir ${request.reference}` : 'Novo pedido de ausência'}
-      description="O pedido fica em rascunho até o submeter. Segue para o gestor da equipa (validação) e depois para o Manager (decisão)."
+      title={request ? t('Corrigir {reference}', { reference: request.reference }) : t('Novo pedido de ausência')}
+      description={t('O pedido fica em rascunho até o submeter. Segue para o gestor da equipa (validação) e depois para o Manager (decisão).')}
       isBusy={isSubmitting}
       onClose={onClose}
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
-            Cancelar
+            {t('Cancelar')}
           </Button>
           <Button type="submit" form={formId} isLoading={isSubmitting}>
-            Guardar rascunho
+            {t('Guardar rascunho')}
           </Button>
         </>
       }
@@ -91,11 +92,11 @@ export const AbsenceFormModal: React.FC<AbsenceFormModalProps> = ({ isOpen, requ
       <form id={formId} onSubmit={handleSubmit} className="space-y-4" noValidate>
         {errorMessage && <Alert variant="error">{errorMessage}</Alert>}
         {request?.decisionComment && (
-          <Alert variant="warning" title="Correção pedida">
+          <Alert variant="warning" title={t('Correção pedida')}>
             {request.decisionComment}
           </Alert>
         )}
-        <SelectField label="Tipo de ausência" required value={values.absenceTypeId} error={fieldErrors.absenceTypeId} onChange={(event) => updateValue('absenceTypeId', event.target.value)}>
+        <SelectField label={t('Tipo de ausência')} required value={values.absenceTypeId} error={fieldErrors.absenceTypeId} onChange={(event) => updateValue('absenceTypeId', event.target.value)}>
           {types.map((type) => (
             <option key={type.id} value={type.id}>
               {type.name}
@@ -103,24 +104,24 @@ export const AbsenceFormModal: React.FC<AbsenceFormModalProps> = ({ isOpen, requ
           ))}
         </SelectField>
         {selectedType && !selectedType.requiresManagerApproval && (
-          <Alert variant="info">Este tipo de ausência fica aprovado com a validação do gestor da equipa.</Alert>
+          <Alert variant="info">{t('Este tipo de ausência fica aprovado com a validação do gestor da equipa.')}</Alert>
         )}
         {selectedType?.requiresAttachment && (
-          <Alert variant="info">Este tipo exige um comprovativo: anexe-o ao pedido antes de o submeter.</Alert>
+          <Alert variant="info">{t('Este tipo exige um comprovativo: anexe-o ao pedido antes de o submeter.')}</Alert>
         )}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <TextField label="Data inicial" type="date" required value={values.startDate} error={fieldErrors.startDate} onChange={(event) => updateValue('startDate', event.target.value)} />
+          <TextField label={t('Data inicial')} type="date" required value={values.startDate} error={fieldErrors.startDate} onChange={(event) => updateValue('startDate', event.target.value)} />
           <TextField
-            label="Data final"
+            label={t('Data final')}
             type="date"
             required
             value={values.endDate}
             error={fieldErrors.endDate}
-            hint={days > 0 ? `${days} dia${days === 1 ? '' : 's'} de calendário` : undefined}
+            hint={days > 0 ? t('{days} de calendário', { days: pluralize(days, 'dia', 'dias') }) : undefined}
             onChange={(event) => updateValue('endDate', event.target.value)}
           />
         </div>
-        <TextAreaField label="Motivo / observações" rows={3} maxLength={2000} value={values.reason} error={fieldErrors.reason} onChange={(event) => updateValue('reason', event.target.value)} />
+        <TextAreaField label={t('Motivo / observações')} rows={3} maxLength={2000} value={values.reason} error={fieldErrors.reason} onChange={(event) => updateValue('reason', event.target.value)} />
       </form>
     </Modal>
   );
@@ -133,7 +134,7 @@ interface AbsenceDecisionModalProps {
   onDecided: (message: string) => void;
 }
 
-const DECISION_COPY: Record<AbsenceDecision, { title: string; confirm: string; label: string; variant: 'primary' | 'danger'; success: string }> = {
+const DECISION_COPY: Record<AbsenceDecision, { title: string; confirm: string; label: string; variant: 'primary' | 'danger'; success: string }> = translatedFields({
   APPROVED: { title: 'Aprovar ausência', confirm: 'Aprovar', label: 'Comentário (opcional)', variant: 'primary', success: 'Ausência aprovada.' },
   REJECTED: { title: 'Rejeitar ausência', confirm: 'Rejeitar', label: 'Motivo da rejeição', variant: 'danger', success: 'Pedido rejeitado.' },
   CHANGES_REQUESTED: {
@@ -143,7 +144,7 @@ const DECISION_COPY: Record<AbsenceDecision, { title: string; confirm: string; l
     variant: 'primary',
     success: 'Pedido devolvido para correção.',
   },
-};
+}, ['title', 'confirm', 'label', 'success']);
 
 /** Decisão final (Manager ou administração): validada no servidor (permissão, âmbito, estado, sem autoaprovação). */
 export const AbsenceDecisionModal: React.FC<AbsenceDecisionModalProps> = ({ request, decision, onClose, onDecided }) => {
@@ -173,7 +174,7 @@ export const AbsenceDecisionModal: React.FC<AbsenceDecisionModalProps> = ({ requ
       await decideAbsence(request.id, decision, comment.trim() || null);
       onDecided(copy.success);
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Não foi possível registar a decisão.'));
+      setErrorMessage(getErrorMessage(error, t('Não foi possível registar a decisão.')));
     } finally {
       setIsSubmitting(false);
     }
@@ -191,7 +192,7 @@ export const AbsenceDecisionModal: React.FC<AbsenceDecisionModalProps> = ({ requ
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
-            Cancelar
+            {t('Cancelar')}
           </Button>
           <Button type="submit" form={formId} variant={copy.variant} isLoading={isSubmitting}>
             {copy.confirm}
@@ -244,16 +245,16 @@ export const AbsenceValidationModal: React.FC<AbsenceValidationModalProps> = ({ 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!request) return;
-    const check = isForward ? null : validateReason(comment, 'Indique o que deve ser corrigido');
+    const check = isForward ? null : validateReason(comment, t('Indique o que deve ser corrigido'));
     setCommentError(check);
     if (check) return;
     setIsSubmitting(true);
     setErrorMessage(null);
     try {
       await validateAbsence(request.id, validation, comment.trim() || null);
-      onValidated(isForward ? `Pedido ${request.reference} validado e encaminhado.` : 'Pedido devolvido para correção.');
+      onValidated(isForward ? t('Pedido {reference} validado e encaminhado.', { reference: request.reference }) : t('Pedido devolvido para correção.'));
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Não foi possível registar a validação.'));
+      setErrorMessage(getErrorMessage(error, t('Não foi possível registar a validação.')));
     } finally {
       setIsSubmitting(false);
     }
@@ -263,7 +264,7 @@ export const AbsenceValidationModal: React.FC<AbsenceValidationModalProps> = ({ 
   return (
     <Modal
       isOpen={request !== null}
-      title={isForward ? 'Validar e encaminhar' : 'Pedir correção'}
+      title={isForward ? t('Validar e encaminhar') : t('Pedir correção')}
       description={request ? `${request.employeeName ?? 'Colaborador'} · ${request.absenceTypeName} · ${formatDate(request.startDate)} a ${formatDate(request.endDate)}` : undefined}
       size="sm"
       isBusy={isSubmitting}
@@ -271,10 +272,10 @@ export const AbsenceValidationModal: React.FC<AbsenceValidationModalProps> = ({ 
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
-            Cancelar
+            {t('Cancelar')}
           </Button>
           <Button type="submit" form={formId} isLoading={isSubmitting}>
-            {isForward ? 'Validar' : 'Devolver ao colaborador'}
+            {isForward ? 'Validar' : t('Devolver ao colaborador')}
           </Button>
         </>
       }
@@ -283,11 +284,11 @@ export const AbsenceValidationModal: React.FC<AbsenceValidationModalProps> = ({ 
         {errorMessage && <Alert variant="error">{errorMessage}</Alert>}
         {isForward && (
           <p className="text-sm text-text-secondary">
-            A decisão final é do Manager, exceto nos tipos que a empresa definiu como aprovados na validação.
+            {t('A decisão final é do Manager, exceto nos tipos que a empresa definiu como aprovados na validação.')}
           </p>
         )}
         <TextAreaField
-          label={isForward ? 'Parecer para o Manager (opcional)' : 'O que deve ser corrigido'}
+          label={isForward ? t('Parecer para o Manager (opcional)') : t('O que deve ser corrigido')}
           required={!isForward}
           rows={3}
           maxLength={1000}

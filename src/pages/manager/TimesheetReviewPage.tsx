@@ -20,11 +20,12 @@ import { DecisionHistory } from '../../components/timesheets/DecisionHistory';
 import { ReviewDecisionModal } from '../../components/manager/ReviewDecisionModal';
 import { formatMinutesAsHours, formatPeriod } from '../../utils/format';
 import { isUuid } from '../../utils/validation';
+import { t } from '../../lib/i18n';
 
 const BackLink: React.FC = () => (
   <Link to="/approvals" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary-hover hover:underline">
     <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-    Voltar às aprovações
+    {t('Voltar às aprovações')}
   </Link>
 );
 
@@ -36,7 +37,7 @@ export const TimesheetReviewPage: React.FC = () => {
   const [decision, setDecision] = useState<ReviewDecision | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  if (detail.isLoading && !detail.data) return <LoadingState label="A carregar timesheet..." />;
+  if (detail.isLoading && !detail.data) return <LoadingState label={t('A carregar timesheet...')} />;
   if (detail.error) {
     return (
       <div className="space-y-4">
@@ -49,7 +50,7 @@ export const TimesheetReviewPage: React.FC = () => {
     return (
       <div className="space-y-4">
         <BackLink />
-        <EmptyState title="Timesheet não encontrado." message="O timesheet não existe ou está fora do seu âmbito de gestão." />
+        <EmptyState title={t('Timesheet não encontrado.')} message={t('O timesheet não existe ou está fora do seu âmbito de gestão.')} />
       </div>
     );
   }
@@ -65,18 +66,18 @@ export const TimesheetReviewPage: React.FC = () => {
       <BackLink />
       <PageHeader
         title={summary.employeeName}
-        subtitle={`${formatPeriod(summary.periodStart, summary.periodEnd)} · ${summary.departmentName ?? 'Sem departamento'}`}
+        subtitle={`${formatPeriod(summary.periodStart, summary.periodEnd)} · ${summary.departmentName ?? t('Sem departamento')}`}
         actions={
           <>
             <StatusBadge status={summary.status} />
             {canDecide && hasPermission('TEAM_TIMESHEET_REJECT') && (
               <Button variant="danger" icon={XCircle} onClick={() => setDecision('REJECTED')}>
-                Rejeitar
+                {t('Rejeitar')}
               </Button>
             )}
             {canDecide && hasPermission('TEAM_TIMESHEET_APPROVE') && (
               <Button icon={CheckCircle2} onClick={() => setDecision('APPROVED')}>
-                Aprovar
+                {t('Aprovar')}
               </Button>
             )}
           </>
@@ -90,9 +91,9 @@ export const TimesheetReviewPage: React.FC = () => {
       )}
       {isOwnTimesheet && (
         <Alert variant="info">
-          Este é o seu próprio timesheet e não pode ser decidido por si.{' '}
+          {t('Este é o seu próprio timesheet e não pode ser decidido por si.')}{' '}
           <Link to={`/timesheets/${summary.id}`} className="font-semibold underline">
-            Abrir em Meu Timesheet
+            {t('Abrir em Meu Timesheet')}
           </Link>
         </Alert>
       )}
@@ -100,13 +101,13 @@ export const TimesheetReviewPage: React.FC = () => {
       <PeriodAbsencesNotice employeeId={summary.employeeId} from={summary.periodStart} to={summary.periodEnd} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatCard label="Horas registadas" value={formatMinutesAsHours(summary.totalMinutes)} />
-        <StatCard label="Dias com registos" value={workedDays} />
-        <StatCard label="Registos" value={entries.length} />
+        <StatCard label={t('Horas registadas')} value={formatMinutesAsHours(summary.totalMinutes)} />
+        <StatCard label={t('Dias com registos')} value={workedDays} />
+        <StatCard label={t('Registos')} value={entries.length} />
       </div>
 
-      <Panel title="Registos de horas" flush>
-        <TimesheetEntriesTable entries={entries} emptyMessage="Este timesheet não tem registos." />
+      <Panel title={t('Registos de horas')} flush>
+        <TimesheetEntriesTable entries={entries} emptyMessage={t('Este timesheet não tem registos.')} />
       </Panel>
 
       <DecisionHistory decisions={decisions} />

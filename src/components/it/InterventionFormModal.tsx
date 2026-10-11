@@ -10,6 +10,7 @@ import type { InterventionFormField, InterventionFormValues } from '../../utils/
 import { INTERVENTION_OUTCOME_LABELS, toLocalDateTimeInput, validateInterventionForm } from '../../utils/it';
 import type { FieldErrors } from '../../utils/validation';
 import { hasErrors } from '../../utils/validation';
+import { t } from '../../lib/i18n';
 
 function emptyForm(): InterventionFormValues {
   return {
@@ -78,7 +79,7 @@ export const InterventionFormModal: React.FC<InterventionFormModalProps> = ({
       });
       onSaved();
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Não foi possível registar a intervenção.'));
+      setErrorMessage(getErrorMessage(error, t('Não foi possível registar a intervenção.')));
     } finally {
       setIsSubmitting(false);
     }
@@ -89,7 +90,7 @@ export const InterventionFormModal: React.FC<InterventionFormModalProps> = ({
   return (
     <Modal
       isOpen={isOpen}
-      title="Registar intervenção técnica"
+      title={t('Registar intervenção técnica')}
       description={targetLabel}
       size="lg"
       isBusy={isSubmitting}
@@ -97,10 +98,10 @@ export const InterventionFormModal: React.FC<InterventionFormModalProps> = ({
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
-            Cancelar
+            {t('Cancelar')}
           </Button>
           <Button type="submit" form={formId} isLoading={isSubmitting}>
-            Registar intervenção
+            {t('Registar intervenção')}
           </Button>
         </>
       }
@@ -109,7 +110,7 @@ export const InterventionFormModal: React.FC<InterventionFormModalProps> = ({
         {errorMessage && <Alert variant="error">{errorMessage}</Alert>}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <TextField
-            label="Data e hora"
+            label={t('Data e hora')}
             type="datetime-local"
             required
             value={values.performedAt}
@@ -117,13 +118,13 @@ export const InterventionFormModal: React.FC<InterventionFormModalProps> = ({
             onChange={(event) => updateValue('performedAt', event.target.value)}
           />
           <SelectField
-            label="Resultado"
+            label={t('Resultado')}
             required
             value={values.outcome}
             error={fieldErrors.outcome}
             onChange={(event) => updateValue('outcome', event.target.value)}
           >
-            <option value="">Selecione…</option>
+            <option value="">{t('Selecione…')}</option>
             {INTERVENTION_OUTCOMES.map((outcome) => (
               <option key={outcome} value={outcome}>
                 {INTERVENTION_OUTCOME_LABELS[outcome]}
@@ -132,7 +133,7 @@ export const InterventionFormModal: React.FC<InterventionFormModalProps> = ({
           </SelectField>
         </div>
         <TextAreaField
-          label="Problema identificado"
+          label={t('Problema identificado')}
           required
           rows={3}
           maxLength={2000}
@@ -141,7 +142,7 @@ export const InterventionFormModal: React.FC<InterventionFormModalProps> = ({
           onChange={(event) => updateValue('problemDescription', event.target.value)}
         />
         <TextAreaField
-          label="Trabalho realizado"
+          label={t('Trabalho realizado')}
           required
           rows={4}
           maxLength={4000}
@@ -150,7 +151,7 @@ export const InterventionFormModal: React.FC<InterventionFormModalProps> = ({
           onChange={(event) => updateValue('workPerformed', event.target.value)}
         />
         <TextAreaField
-          label="Observações"
+          label={t('Observações')}
           rows={2}
           maxLength={2000}
           value={values.notes}

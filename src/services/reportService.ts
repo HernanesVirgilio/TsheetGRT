@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabase/client';
 import { toServiceError } from '../lib/errors';
 import type { TimesheetStatus, TimesheetSummary } from '../types';
 import { isPresent, mapTimesheetSummary, TIMESHEET_SUMMARY_SELECT } from './mappers';
+import { t } from '../lib/i18n';
 
 export interface ReportFilters {
   status: TimesheetStatus | null;
@@ -27,7 +28,7 @@ export async function listReportTimesheets(filters: ReportFilters): Promise<Time
   if (filters.periodTo) request = request.lte('period_end', filters.periodTo);
 
   const { data, error } = await request;
-  if (error) throw toServiceError(error, 'Não foi possível gerar o relatório.');
+  if (error) throw toServiceError(error, t('Não foi possível gerar o relatório.'));
 
   return data
     .map(mapTimesheetSummary)

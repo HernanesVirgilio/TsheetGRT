@@ -55,6 +55,7 @@ import { MeetingFormModal } from '../../components/work/MeetingFormModal';
 import { isTaskOverdue, taskActions } from '../../utils/work';
 import { formatDate, formatDateTime, formatMinutesAsHours } from '../../utils/format';
 import { isUuid } from '../../utils/validation';
+import { t } from '../../lib/i18n';
 
 type ModalKind = 'edit' | 'assign' | 'block' | 'cancel' | 'reopen' | 'followUp' | 'logTime' | 'meeting' | 'review' | null;
 
@@ -100,11 +101,11 @@ export const TaskDetailPage: React.FC = () => {
   const backLink = (
     <Link to="/timesheet/tasks" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary-hover hover:underline">
       <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-      Voltar às tarefas
+      {t('Voltar às tarefas')}
     </Link>
   );
 
-  if (detail.isLoading && !detail.data) return <LoadingState label="A carregar tarefa..." />;
+  if (detail.isLoading && !detail.data) return <LoadingState label={t('A carregar tarefa...')} />;
   if (detail.error && !detail.data) {
     return (
       <div className="space-y-4">
@@ -117,7 +118,7 @@ export const TaskDetailPage: React.FC = () => {
     return (
       <div className="space-y-4">
         {backLink}
-        <EmptyState title="Tarefa não encontrada." message="A tarefa não existe ou não tem acesso a ela." />
+        <EmptyState title={t('Tarefa não encontrada.')} message={t('A tarefa não existe ou não tem acesso a ela.')} />
       </div>
     );
   }
@@ -159,69 +160,69 @@ export const TaskDetailPage: React.FC = () => {
       await action();
       afterAction(message);
     } catch (error) {
-      setActionError(getErrorMessage(error, 'Não foi possível concluir a ação.'));
+      setActionError(getErrorMessage(error, t('Não foi possível concluir a ação.')));
     } finally {
       setIsPending(false);
     }
   };
 
   const entryColumns: DataTableColumn<WorkLogEntry>[] = [
-    { id: 'date', header: 'Data', render: (entry) => formatDate(entry.workDate) },
-    { id: 'time', header: 'Horário', render: (entry) => `${entry.startTime}–${entry.endTime}` },
-    { id: 'duration', header: 'Duração', render: (entry) => formatMinutesAsHours(entry.totalMinutes) },
-    { id: 'activity', header: 'Atividade', render: (entry) => entry.activityName ?? '—' },
-    { id: 'description', header: 'O que foi feito', className: 'min-w-56', render: (entry) => entry.description },
+    { id: 'date', header: t('Data'), render: (entry) => formatDate(entry.workDate) },
+    { id: 'time', header: t('Horário'), render: (entry) => `${entry.startTime}–${entry.endTime}` },
+    { id: 'duration', header: t('Duração'), render: (entry) => formatMinutesAsHours(entry.totalMinutes) },
+    { id: 'activity', header: t('Atividade'), render: (entry) => entry.activityName ?? '—' },
+    { id: 'description', header: t('O que foi feito'), className: 'min-w-56', render: (entry) => entry.description },
   ];
   const relatedColumns: DataTableColumn<TaskSummary>[] = [
     {
       id: 'task',
-      header: 'Tarefa adicional',
+      header: t('Tarefa adicional'),
       render: (item) => (
         <Link to={`/timesheet/tasks/${item.id}`} className="font-semibold text-text hover:underline">
           {item.reference} · {item.title}
         </Link>
       ),
     },
-    { id: 'assignee', header: 'Responsável', render: (item) => item.assigneeName ?? '—' },
-    { id: 'status', header: 'Estado', render: (item) => <WorkStatusBadge kind="task" status={item.status} /> },
-    { id: 'due', header: 'Prazo', render: (item) => formatDateTime(item.dueAt, 'Sem prazo') },
+    { id: 'assignee', header: t('Responsável'), render: (item) => item.assigneeName ?? '—' },
+    { id: 'status', header: t('Estado'), render: (item) => <WorkStatusBadge kind="task" status={item.status} /> },
+    { id: 'due', header: t('Prazo'), render: (item) => formatDateTime(item.dueAt, t('Sem prazo')) },
   ];
 
   return (
     <div className="space-y-6">
-      <nav aria-label="Caminho" className="text-sm text-text-muted">
+      <nav aria-label={t('Caminho')} className="text-sm text-text-muted">
         <Link to="/timesheet" className="hover:underline">
-          Trabalho
+          {t('Trabalho')}
         </Link>{' '}
         /{' '}
         <Link to="/timesheet/tasks" className="hover:underline">
-          Tarefas
+          {t('Tarefas')}
         </Link>{' '}
         / <span className="text-text">{task.reference}</span>
       </nav>
       <PageHeader
         title={`${task.reference} · ${task.title}`}
-        subtitle={`Criada por ${creatorName} em ${formatDateTime(task.createdAt)}`}
+        subtitle={t('Criada por {creatorName} em {createdAt}', { creatorName, createdAt: formatDateTime(task.createdAt) })}
         actions={
           <>
             {actions.canStart && (
-              <Button icon={Play} isLoading={isPending} disabled={isStale} onClick={() => runImmediate(() => startTask(task.id), 'Tarefa iniciada.')}>
-                Iniciar
+              <Button icon={Play} isLoading={isPending} disabled={isStale} onClick={() => runImmediate(() => startTask(task.id), t('Tarefa iniciada.'))}>
+                {t('Iniciar')}
               </Button>
             )}
             {actions.canComplete && (
               <Button icon={CheckCircle2} disabled={isStale} onClick={() => setCompleting(task)}>
-                Concluir
+                {t('Concluir')}
               </Button>
             )}
             {actions.canLogTime && (
               <Button variant="secondary" icon={Clock3} disabled={isStale} onClick={() => setModal('logTime')}>
-                Registar tempo
+                {t('Registar tempo')}
               </Button>
             )}
             {actions.canReview && (
               <Button icon={BadgeCheck} disabled={isStale} onClick={() => setModal('review')}>
-                Validar conclusão
+                {t('Validar conclusão')}
               </Button>
             )}
           </>
@@ -239,30 +240,30 @@ export const TaskDetailPage: React.FC = () => {
         </Alert>
       )}
       {task.status === 'BLOCKED' && task.blockedReason && (
-        <Alert variant="error" title="Tarefa bloqueada">
+        <Alert variant="error" title={t('Tarefa bloqueada')}>
           {task.blockedReason}
         </Alert>
       )}
       {task.status === 'CANCELLED' && task.cancelReason && (
-        <Alert variant="info" title="Tarefa cancelada">
+        <Alert variant="info" title={t('Tarefa cancelada')}>
           {task.cancelReason}
         </Alert>
       )}
       {task.requiresManagerReview && task.status !== 'CANCELLED' && (
-        <Alert variant="info" title="Exige acompanhamento do Manager">
+        <Alert variant="info" title={t('Exige acompanhamento do Manager')}>
           {task.reviewedAt
-            ? `Conclusão validada em ${formatDateTime(task.reviewedAt)}${task.reviewNote ? `: ${task.reviewNote}` : '.'}`
-            : 'Quando for concluída, quem supervisiona o gestor é notificado para validar a conclusão.'}
+            ? task.reviewNote ? t('Conclusão validada em {date}: {note}', { date: formatDateTime(task.reviewedAt), note: task.reviewNote }) : t('Conclusão validada em {date}.', { date: formatDateTime(task.reviewedAt) })
+            : t('Quando for concluída, quem supervisiona o gestor é notificado para validar a conclusão.')}
         </Alert>
       )}
       {!task.requiresManagerReview && task.status === 'COMPLETED' && task.reviewedAt && (
-        <Alert variant="success" title="Conclusão validada">
-          {`Validada em ${formatDateTime(task.reviewedAt)}${task.reviewNote ? `: ${task.reviewNote}` : '.'}`}
+        <Alert variant="success" title={t('Conclusão validada')}>
+          {task.reviewNote ? t('Validada em {date}: {note}', { date: formatDateTime(task.reviewedAt), note: task.reviewNote }) : t('Validada em {date}.', { date: formatDateTime(task.reviewedAt) })}
         </Alert>
       )}
       {task.status === 'COMPLETED' && task.lateReason && (
-        <Alert variant="warning" title="Concluída depois do prazo">
-          Motivo do atraso: {task.lateReason}
+        <Alert variant="warning" title={t('Concluída depois do prazo')}>
+          {t('Motivo do atraso: {reason}', { reason: task.lateReason })}
         </Alert>
       )}
 
@@ -274,38 +275,38 @@ export const TaskDetailPage: React.FC = () => {
               <PriorityBadge priority={task.priority} />
               {overdue && <OverdueBadge />}
             </div>
-            <p className="whitespace-pre-line text-sm text-text-secondary">{task.description || 'Sem descrição.'}</p>
+            <p className="whitespace-pre-line text-sm text-text-secondary">{task.description || t('Sem descrição.')}</p>
             {task.completionNote && (
               <div className="mt-4 rounded-md border border-success/30 bg-success-soft px-4 py-3">
-                <p className="text-sm font-semibold text-text">Resultado</p>
+                <p className="text-sm font-semibold text-text">{t('Resultado')}</p>
                 <p className="mt-0.5 whitespace-pre-line text-sm text-text-secondary">{task.completionNote}</p>
               </div>
             )}
             <dl className="mt-5 grid grid-cols-1 gap-4 border-t border-border pt-5 sm:grid-cols-2 lg:grid-cols-3">
-              <DetailItem label="Responsável">{task.assigneeName ?? 'Sem responsável'}</DetailItem>
-              <DetailItem label="Departamento">{task.departmentName ?? '—'}</DetailItem>
-              <DetailItem label="Prazo">{formatDateTime(task.dueAt, 'Sem prazo')}</DetailItem>
-              <DetailItem label="Início planeado">{formatDate(task.startDate, '—')}</DetailItem>
-              <DetailItem label="Iniciada em">{formatDateTime(task.startedAt)}</DetailItem>
-              <DetailItem label="Concluída em">{formatDateTime(task.completedAt)}</DetailItem>
-              <DetailItem label="Estimativa">{task.estimatedMinutes ? formatMinutesAsHours(task.estimatedMinutes) : '—'}</DetailItem>
-              <DetailItem label="Tempo registado">{formatMinutesAsHours(totalMinutes)}</DetailItem>
+              <DetailItem label={t('Responsável')}>{task.assigneeName ?? t('Sem responsável')}</DetailItem>
+              <DetailItem label={t('Departamento')}>{task.departmentName ?? '—'}</DetailItem>
+              <DetailItem label={t('Prazo')}>{formatDateTime(task.dueAt, t('Sem prazo'))}</DetailItem>
+              <DetailItem label={t('Início planeado')}>{formatDate(task.startDate, '—')}</DetailItem>
+              <DetailItem label={t('Iniciada em')}>{formatDateTime(task.startedAt)}</DetailItem>
+              <DetailItem label={t('Concluída em')}>{formatDateTime(task.completedAt)}</DetailItem>
+              <DetailItem label={t('Estimativa')}>{task.estimatedMinutes ? formatMinutesAsHours(task.estimatedMinutes) : '—'}</DetailItem>
+              <DetailItem label={t('Tempo registado')}>{formatMinutesAsHours(totalMinutes)}</DetailItem>
               {task.parentTask && (
-                <DetailItem label="Tarefa de origem">
+                <DetailItem label={t('Tarefa de origem')}>
                   <Link to={`/timesheet/tasks/${task.parentTask.id}`} className="text-primary-hover hover:underline">
                     {task.parentTask.reference} · {task.parentTask.title}
                   </Link>
                 </DetailItem>
               )}
               {task.opportunity && (
-                <DetailItem label="Oportunidade">
+                <DetailItem label={t('Oportunidade')}>
                   <Link to={`/timesheet/opportunities/${task.opportunity.id}`} className="text-primary-hover hover:underline">
                     {task.opportunity.reference} · {task.opportunity.title}
                   </Link>
                 </DetailItem>
               )}
               {task.meeting && (
-                <DetailItem label="Reunião de origem">
+                <DetailItem label={t('Reunião de origem')}>
                   <Link to={`/timesheet/meetings/${task.meeting.id}`} className="text-primary-hover hover:underline">
                     {task.meeting.title}
                   </Link>
@@ -314,44 +315,44 @@ export const TaskDetailPage: React.FC = () => {
             </dl>
           </Panel>
 
-          <Panel title="Tempo registado" description={totals.length > 0 ? totals.map((row) => `${row.fullName}: ${formatMinutesAsHours(row.totalMinutes)}`).join(' · ') : undefined} flush>
+          <Panel title={t('Tempo registado')} description={totals.length > 0 ? totals.map((row) => `${row.fullName}: ${formatMinutesAsHours(row.totalMinutes)}`).join(' · ') : undefined} flush>
             {entries.length === 0 ? (
-              <p className="px-5 py-4 text-sm text-text-secondary">Ainda não foi registado tempo nesta tarefa.</p>
+              <p className="px-5 py-4 text-sm text-text-secondary">{t('Ainda não foi registado tempo nesta tarefa.')}</p>
             ) : (
-              <DataTable caption="Tempo registado na tarefa" columns={entryColumns} rows={entries} getRowKey={(entry) => entry.id} />
+              <DataTable caption={t('Tempo registado na tarefa')} columns={entryColumns} rows={entries} getRowKey={(entry) => entry.id} />
             )}
           </Panel>
 
           {(children.length > 0 || actions.canCreateFollowUp) && (
             <Panel
-              title="Tarefas adicionais"
-              description="Trabalho acrescentado depois: cada uma é uma nova tarefa, sem alterar esta."
+              title={t('Tarefas adicionais')}
+              description={t('Trabalho acrescentado depois: cada uma é uma nova tarefa, sem alterar esta.')}
               actions={
                 actions.canCreateFollowUp && (
                   <Button size="sm" variant="secondary" icon={ListPlus} onClick={() => setModal('followUp')}>
-                    Tarefa adicional
+                    {t('Tarefa adicional')}
                   </Button>
                 )
               }
               flush
             >
               {children.length === 0 ? (
-                <p className="px-5 py-4 text-sm text-text-secondary">Sem tarefas adicionais.</p>
+                <p className="px-5 py-4 text-sm text-text-secondary">{t('Sem tarefas adicionais.')}</p>
               ) : (
-                <DataTable caption="Tarefas adicionais" columns={relatedColumns} rows={children} getRowKey={(item) => item.id} />
+                <DataTable caption={t('Tarefas adicionais')} columns={relatedColumns} rows={children} getRowKey={(item) => item.id} />
               )}
             </Panel>
           )}
 
-          <Panel title="Histórico e comentários" description="Registo só de leitura: quem alterou, quando, o quê e porquê." flush>
+          <Panel title={t('Histórico e comentários')} description={t('Registo só de leitura: quem alterou, quando, o quê e porquê.')} flush>
             <WorkTimeline events={events} />
             {actions.canComment && (
               <TicketCommentForm
-                label="Novo comentário"
+                label={t('Novo comentário')}
                 allowInternal={false}
                 onSubmit={async (body) => {
                   await addTaskComment(task.id, body);
-                  afterAction('Comentário registado.');
+                  afterAction(t('Comentário registado.'));
                 }}
               />
             )}
@@ -359,11 +360,11 @@ export const TaskDetailPage: React.FC = () => {
         </div>
 
         <div className="order-first space-y-6 lg:order-none">
-          <Panel title="Ações">
+          <Panel title={t('Ações')}>
             <div className="flex flex-col gap-2">
               {actions.canBlock && (
                 <Button variant="secondary" icon={PauseCircle} className="justify-start" onClick={() => setModal('block')}>
-                  Registar bloqueio
+                  {t('Registar bloqueio')}
                 </Button>
               )}
               {actions.canUnblock && (
@@ -372,42 +373,42 @@ export const TaskDetailPage: React.FC = () => {
                   icon={Play}
                   className="justify-start"
                   isLoading={isPending}
-                  onClick={() => runImmediate(() => unblockTask(task.id, null), 'Tarefa desbloqueada.')}
+                  onClick={() => runImmediate(() => unblockTask(task.id, null), t('Tarefa desbloqueada.'))}
                 >
-                  Desbloquear
+                  {t('Desbloquear')}
                 </Button>
               )}
               {actions.canEdit && (
                 <Button variant="secondary" icon={Pencil} className="justify-start" onClick={() => setModal('edit')}>
-                  Editar planeamento
+                  {t('Editar planeamento')}
                 </Button>
               )}
               {actions.canAssign && (
                 <Button variant="secondary" icon={UserPlus} className="justify-start" disabled={!people.data} onClick={() => setModal('assign')}>
-                  {task.assigneeId ? 'Alterar responsável' : 'Atribuir'}
+                  {task.assigneeId ? t('Alterar responsável') : 'Atribuir'}
                 </Button>
               )}
               {hasPermission('TIMESHEET_MEETING_CREATE') && task.status !== 'CANCELLED' && (
                 <Button variant="secondary" icon={CalendarPlus} className="justify-start" disabled={!participants.data} onClick={() => setModal('meeting')}>
-                  Marcar reunião
+                  {t('Marcar reunião')}
                 </Button>
               )}
               {actions.canReopen && (
                 <Button variant="secondary" icon={RotateCcw} className="justify-start" onClick={() => setModal('reopen')}>
-                  Reabrir
+                  {t('Reabrir')}
                 </Button>
               )}
               {actions.canCancel && (
                 <Button variant="ghost" icon={Ban} className="justify-start text-danger" onClick={() => setModal('cancel')}>
-                  Cancelar tarefa
+                  {t('Cancelar tarefa')}
                 </Button>
               )}
-              {!Object.values(actions).some(Boolean) && <p className="text-sm text-text-secondary">Sem ações disponíveis para si nesta tarefa.</p>}
+              {!Object.values(actions).some(Boolean) && <p className="text-sm text-text-secondary">{t('Sem ações disponíveis para si nesta tarefa.')}</p>}
             </div>
           </Panel>
 
           {meetings.length > 0 && (
-            <Panel title="Reuniões" flush>
+            <Panel title={t('Reuniões')} flush>
               <ul className="divide-y divide-border">
                 {meetings.map((meeting) => (
                   <li key={meeting.id} className="px-5 py-3">
@@ -439,7 +440,7 @@ export const TaskDetailPage: React.FC = () => {
         assignees={people.data ?? []}
         links={{ parentTaskId: task.id, opportunityId: task.opportunity?.id ?? null }}
         canRequestManagerReview={hasPermission('TIMESHEET_TASK_ASSIGN') && !hasPermission('TEAM_SUPERVISE')}
-        contextLabel={`Tarefa adicional de ${task.reference}. A tarefa original não é alterada.`}
+        contextLabel={t('Tarefa adicional de {reference}. A tarefa original não é alterada.', { reference: task.reference })}
         onClose={() => setModal(null)}
         onSaved={(taskId) => {
           setModal(null);
@@ -448,75 +449,75 @@ export const TaskDetailPage: React.FC = () => {
       />
       <TicketSelectModal
         isOpen={modal === 'assign'}
-        title={task.assigneeId ? 'Alterar responsável' : 'Atribuir tarefa'}
-        fieldLabel="Responsável"
+        title={task.assigneeId ? t('Alterar responsável') : t('Atribuir tarefa')}
+        fieldLabel={t('Responsável')}
         options={(people.data ?? []).map((person) => ({ value: person.profileId, label: person.departmentName ? `${person.fullName} · ${person.departmentName}` : person.fullName }))}
         initialValue={task.assigneeId ?? ''}
-        emptyOptionLabel={task.status === 'ASSIGNED' ? 'Sem responsável (volta a planeada)' : undefined}
-        optionalNote={{ label: task.status === 'COMPLETED' ? 'Motivo (obrigatório numa tarefa concluída)' : 'Nota (opcional)', maxLength: 1000 }}
-        confirmLabel="Guardar"
+        emptyOptionLabel={task.status === 'ASSIGNED' ? t('Sem responsável (volta a planeada)') : undefined}
+        optionalNote={{ label: task.status === 'COMPLETED' ? t('Motivo (obrigatório numa tarefa concluída)') : t('Nota (opcional)'), maxLength: 1000 }}
+        confirmLabel={t('Guardar')}
         onClose={() => setModal(null)}
         onConfirm={async (assigneeId, note) => {
           await assignTask(task.id, assigneeId, note);
-          afterAction(assigneeId ? 'Responsável atualizado. O colaborador foi notificado.' : 'Responsável retirado.');
+          afterAction(assigneeId ? t('Responsável atualizado. O colaborador foi notificado.') : t('Responsável retirado.'));
         }}
       />
       <TicketNoteModal
         isOpen={modal === 'block'}
-        title="Registar bloqueio"
-        description="Quem gere a tarefa é notificado."
-        note={{ label: 'O que está a bloquear a tarefa', minLength: 5, maxLength: 1000 }}
-        confirmLabel="Registar bloqueio"
+        title={t('Registar bloqueio')}
+        description={t('Quem gere a tarefa é notificado.')}
+        note={{ label: t('O que está a bloquear a tarefa'), minLength: 5, maxLength: 1000 }}
+        confirmLabel={t('Registar bloqueio')}
         onClose={() => setModal(null)}
         onConfirm={async (reason) => {
           await blockTask(task.id, reason ?? '');
-          afterAction('Bloqueio registado.');
+          afterAction(t('Bloqueio registado.'));
         }}
       />
       <TicketNoteModal
         isOpen={modal === 'cancel'}
-        title={`Cancelar ${task.reference}`}
-        description="Uma tarefa cancelada não volta a estar em curso. O motivo fica no histórico."
-        note={{ label: 'Motivo do cancelamento', minLength: 5, maxLength: 1000 }}
-        confirmLabel="Cancelar tarefa"
+        title={t('Cancelar {reference}', { reference: task.reference })}
+        description={t('Uma tarefa cancelada não volta a estar em curso. O motivo fica no histórico.')}
+        note={{ label: t('Motivo do cancelamento'), minLength: 5, maxLength: 1000 }}
+        confirmLabel={t('Cancelar tarefa')}
         variant="danger"
         onClose={() => setModal(null)}
         onConfirm={async (reason) => {
           await cancelTask(task.id, reason ?? '');
-          afterAction('Tarefa cancelada.');
+          afterAction(t('Tarefa cancelada.'));
         }}
       />
       <TicketNoteModal
         isOpen={modal === 'reopen'}
-        title={`Reabrir ${task.reference}`}
-        description="A conclusão anterior fica no histórico. Reveja o prazo depois de reabrir."
-        note={{ label: 'Motivo da reabertura', minLength: 5, maxLength: 1000 }}
-        confirmLabel="Reabrir tarefa"
+        title={t('Reabrir {reference}', { reference: task.reference })}
+        description={t('A conclusão anterior fica no histórico. Reveja o prazo depois de reabrir.')}
+        note={{ label: t('Motivo da reabertura'), minLength: 5, maxLength: 1000 }}
+        confirmLabel={t('Reabrir tarefa')}
         onClose={() => setModal(null)}
         onConfirm={async (reason) => {
           await reopenTask(task.id, reason ?? '', null);
-          afterAction('Tarefa reaberta.');
+          afterAction(t('Tarefa reaberta.'));
         }}
       />
       <TicketNoteModal
         isOpen={modal === 'review'}
-        title={`Validar a conclusão de ${task.reference}`}
-        description="Confirma que o resultado foi verificado. O responsável é notificado e a validação fica no histórico."
-        note={{ label: 'Nota (opcional)', maxLength: 1000 }}
-        confirmLabel="Validar conclusão"
+        title={t('Validar a conclusão de {reference}', { reference: task.reference })}
+        description={t('Confirma que o resultado foi verificado. O responsável é notificado e a validação fica no histórico.')}
+        note={{ label: t('Nota (opcional)'), maxLength: 1000 }}
+        confirmLabel={t('Validar conclusão')}
         onClose={() => setModal(null)}
         onConfirm={async (note) => {
           await reviewTask(task.id, note);
-          afterAction('Conclusão validada.');
+          afterAction(t('Conclusão validada.'));
         }}
       />
-      <CompleteTaskModal task={completing} onClose={() => setCompleting(null)} onCompleted={() => afterAction('Tarefa concluída.')} />
+      <CompleteTaskModal task={completing} onClose={() => setCompleting(null)} onCompleted={() => afterAction(t('Tarefa concluída.'))} />
       <WorkLogFormModal
         isOpen={modal === 'logTime'}
         employeeId={viewerId}
         preset={{ kind: 'TASK', contextId: task.id, contextLabel: `${task.reference} · ${task.title}` }}
         onClose={() => setModal(null)}
-        onSaved={() => afterAction('Tempo registado na tarefa.')}
+        onSaved={() => afterAction(t('Tempo registado na tarefa.'))}
       />
       <MeetingFormModal
         isOpen={modal === 'meeting'}
@@ -524,7 +525,7 @@ export const TaskDetailPage: React.FC = () => {
         participantIds={task.assigneeId && task.assigneeId !== viewerId ? [task.assigneeId] : []}
         people={participants.data ?? []}
         links={{ taskId: task.id, opportunityId: task.opportunity?.id ?? null }}
-        contextLabel={`Reunião relacionada com ${task.reference}.`}
+        contextLabel={t('Reunião relacionada com {reference}.', { reference: task.reference })}
         onClose={() => setModal(null)}
         onSaved={(meetingId) => {
           setModal(null);

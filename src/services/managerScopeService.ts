@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase/client';
 import { ServiceError, toServiceError } from '../lib/errors';
+import { t } from '../lib/i18n';
 
 /** Gestão dos âmbitos de gestão pela administração (USERS_UPDATE; validado e auditado no servidor). */
 
@@ -27,7 +28,7 @@ export interface ProfileLead {
 
 export async function getProfileLeads(profileId: string): Promise<ProfileLead[]> {
   const { data, error } = await supabase.rpc('get_profile_leads', { p_profile_id: profileId });
-  if (error) throw toServiceError(error, 'Não foi possível carregar os responsáveis.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar os responsáveis.'));
   return data.map((row) => ({
     managerId: row.manager_id,
     fullName: row.full_name,
@@ -44,7 +45,7 @@ export async function listManagerScopes(managerProfileId: string): Promise<Manag
     .select('id, department_id, employee_id, created_at, department:departments(name), employee:profiles!manager_scopes_employee_id_fkey(full_name)')
     .eq('manager_id', managerProfileId)
     .order('created_at');
-  if (error) throw toServiceError(error, 'Não foi possível carregar o âmbito de gestão.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar o âmbito de gestão.'));
   return data.map((scope) => ({
     id: scope.id,
     departmentId: scope.department_id,
@@ -62,13 +63,13 @@ export async function addManagerScope(managerProfileId: string, target: ScopeTar
       : { manager_id: managerProfileId, employee_id: target.employeeId }
   );
   if (error) {
-    if (error.code === '23505') throw new ServiceError('Este âmbito já está atribuído ao gestor.', error.code);
-    throw toServiceError(error, 'Não foi possível atribuir o âmbito.');
+    if (error.code === '23505') throw new ServiceError(t('Este âmbito já está atribuído ao gestor.'), error.code);
+    throw toServiceError(error, t('Não foi possível atribuir o âmbito.'));
   }
 }
 
 export async function removeManagerScope(scopeId: string): Promise<void> {
   const { data, error } = await supabase.from('manager_scopes').delete().eq('id', scopeId).select('id');
-  if (error) throw toServiceError(error, 'Não foi possível remover o âmbito.');
-  if (data.length === 0) throw new ServiceError('Não tem permissão para remover este âmbito.');
+  if (error) throw toServiceError(error, t('Não foi possível remover o âmbito.'));
+  if (data.length === 0) throw new ServiceError(t('Não tem permissão para remover este âmbito.'));
 }

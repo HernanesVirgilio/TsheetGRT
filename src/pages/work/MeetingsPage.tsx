@@ -20,11 +20,12 @@ import { ErrorState, LoadingState } from '../../components/ui/States';
 import { WorkStatusBadge } from '../../components/work/WorkStatusBadge';
 import { MeetingFormModal } from '../../components/work/MeetingFormModal';
 import { MEETING_STATUS_LABELS } from '../../utils/work';
-import { formatDateTime } from '../../utils/format';
+import { formatDateTime, dateTimeFormatter } from '../../utils/format';
+import { t } from '../../lib/i18n';
 
 const PAGE_SIZE = 20;
 const ALL = 'ALL';
-const timeFormatter = new Intl.DateTimeFormat('pt-PT', { hour: '2-digit', minute: '2-digit' });
+const timeFormatter = () => dateTimeFormatter({ hour: '2-digit', minute: '2-digit' });
 
 export const MeetingsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -51,7 +52,7 @@ export const MeetingsPage: React.FC = () => {
   const columns: DataTableColumn<MeetingSummary>[] = [
     {
       id: 'title',
-      header: 'Reunião',
+      header: t('Reunião'),
       render: (meeting) => (
         <Link to={`/timesheet/meetings/${meeting.id}`} className="font-semibold text-text hover:underline">
           {meeting.title}
@@ -60,47 +61,47 @@ export const MeetingsPage: React.FC = () => {
     },
     {
       id: 'when',
-      header: 'Quando',
+      header: t('Quando'),
       render: (meeting) => (
         <span className="whitespace-nowrap">
-          {formatDateTime(meeting.startsAt)}–{timeFormatter.format(new Date(meeting.endsAt))}
+          {formatDateTime(meeting.startsAt)}–{timeFormatter().format(new Date(meeting.endsAt))}
         </span>
       ),
     },
-    { id: 'location', header: 'Local', render: (meeting) => meeting.location ?? '—' },
-    { id: 'organizer', header: 'Organização', render: (meeting) => (meeting.organizerId === viewerId ? 'Eu' : (meeting.organizerName ?? '—')) },
-    { id: 'status', header: 'Estado', render: (meeting) => <WorkStatusBadge kind="meeting" status={meeting.status} /> },
+    { id: 'location', header: t('Local'), render: (meeting) => meeting.location ?? '—' },
+    { id: 'organizer', header: t('Organização'), render: (meeting) => (meeting.organizerId === viewerId ? 'Eu' : (meeting.organizerName ?? '—')) },
+    { id: 'status', header: t('Estado'), render: (meeting) => <WorkStatusBadge kind="meeting" status={meeting.status} /> },
   ];
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Reuniões"
-        subtitle="Reuniões em que participa, com objetivo, resultado, decisões e próximos passos."
+        title={t('Reuniões')}
+        subtitle={t('Reuniões em que participa, com objetivo, resultado, decisões e próximos passos.')}
         actions={
           canCreate && (
             <Button icon={Plus} onClick={() => setIsCreateOpen(true)} disabled={!people.data}>
-              Nova reunião
+              {t('Nova reunião')}
             </Button>
           )
         }
       />
       <div className="flex flex-wrap gap-2">
-        <div role="group" aria-label="Período" className="flex gap-1">
+        <div role="group" aria-label={t('Período')} className="flex gap-1">
           <Button size="sm" variant={when === 'UPCOMING' ? 'primary' : 'secondary'} aria-pressed={when === 'UPCOMING'} onClick={() => setWhen('UPCOMING')}>
-            Próximas
+            {t('Próximas')}
           </Button>
           <Button size="sm" variant={when === 'PAST' ? 'primary' : 'secondary'} aria-pressed={when === 'PAST'} onClick={() => setWhen('PAST')}>
-            Anteriores
+            {t('Anteriores')}
           </Button>
         </div>
         {canSeeTeam && (
-          <div role="group" aria-label="Âmbito" className="flex gap-1">
+          <div role="group" aria-label={t('Âmbito')} className="flex gap-1">
             <Button size="sm" variant={scope === 'MINE' ? 'primary' : 'secondary'} aria-pressed={scope === 'MINE'} onClick={() => setScope('MINE')}>
-              As minhas
+              {t('As minhas')}
             </Button>
             <Button size="sm" variant={scope === 'TEAM' ? 'primary' : 'secondary'} aria-pressed={scope === 'TEAM'} onClick={() => setScope('TEAM')}>
-              Equipa
+              {t('Equipa')}
             </Button>
           </div>
         )}
@@ -108,9 +109,9 @@ export const MeetingsPage: React.FC = () => {
 
       <Panel flush>
         <div className="grid grid-cols-1 gap-3 border-b border-border p-4 sm:grid-cols-2">
-          <SearchInput label="Pesquisar pelo título" value={search} onChange={(event) => setSearch(event.target.value)} />
-          <FilterSelect label="Filtrar por estado" value={status} onChange={(event) => setStatus(event.target.value)}>
-            <option value={ALL}>Todos os estados</option>
+          <SearchInput label={t('Pesquisar pelo título')} value={search} onChange={(event) => setSearch(event.target.value)} />
+          <FilterSelect label={t('Filtrar por estado')} value={status} onChange={(event) => setStatus(event.target.value)}>
+            <option value={ALL}>{t('Todos os estados')}</option>
             {MEETING_STATUSES.map((value) => (
               <option key={value} value={value}>
                 {MEETING_STATUS_LABELS[value]}
@@ -123,13 +124,13 @@ export const MeetingsPage: React.FC = () => {
             <ErrorState message={meetings.error} onRetry={meetings.reload} />
           </div>
         )}
-        {meetings.isLoading && !meetings.data && <LoadingState label="A carregar reuniões..." />}
+        {meetings.isLoading && !meetings.data && <LoadingState label={t('A carregar reuniões...')} />}
         {meetings.data && meetings.data.items.length === 0 && (
-          <EmptyState bordered={false} icon={CalendarDays} title={when === 'UPCOMING' ? 'Não existem reuniões agendadas.' : 'Não existem reuniões anteriores com estes filtros.'} />
+          <EmptyState bordered={false} icon={CalendarDays} title={when === 'UPCOMING' ? t('Não existem reuniões agendadas.') : t('Não existem reuniões anteriores com estes filtros.')} />
         )}
         {meetings.data && meetings.data.items.length > 0 && (
           <>
-            <DataTable caption="Reuniões" columns={columns} rows={meetings.data.items} getRowKey={(meeting) => meeting.id} />
+            <DataTable caption={t('Reuniões')} columns={columns} rows={meetings.data.items} getRowKey={(meeting) => meeting.id} />
             <Pagination page={page} pageSize={PAGE_SIZE} totalItems={meetings.data.total} onPageChange={setPage} />
           </>
         )}

@@ -24,8 +24,9 @@ import { TaskFormModal } from '../../components/work/TaskFormModal';
 import { WorkLogFormModal } from '../../components/work/WorkLogFormModal';
 import type { MeetingDetail } from '../../types/work';
 import { toDateInput, toTimeInput } from '../../utils/work';
-import { formatDateTime, formatMinutesAsHours } from '../../utils/format';
+import { formatDateTime, formatMinutesAsHours, dateTimeFormatter } from '../../utils/format';
 import { isUuid } from '../../utils/validation';
+import { t } from '../../lib/i18n';
 
 type ModalKind = 'edit' | 'cancel' | 'task' | 'logTime' | null;
 
@@ -42,7 +43,7 @@ async function loadMeeting(meetingId: string) {
   return { meeting, people, events, tasks, totals };
 }
 
-const timeFormatter = new Intl.DateTimeFormat('pt-PT', { hour: '2-digit', minute: '2-digit' });
+const timeFormatter = () => dateTimeFormatter({ hour: '2-digit', minute: '2-digit' });
 
 export const MeetingDetailPage: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
@@ -61,10 +62,10 @@ export const MeetingDetailPage: React.FC = () => {
   const backLink = (
     <Link to="/timesheet/meetings" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary-hover hover:underline">
       <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-      Voltar às reuniões
+      {t('Voltar às reuniões')}
     </Link>
   );
-  if (detail.isLoading && !detail.data) return <LoadingState label="A carregar reunião..." />;
+  if (detail.isLoading && !detail.data) return <LoadingState label={t('A carregar reunião...')} />;
   if (detail.error && !detail.data) {
     return (
       <div className="space-y-4">
@@ -77,7 +78,7 @@ export const MeetingDetailPage: React.FC = () => {
     return (
       <div className="space-y-4">
         {backLink}
-        <EmptyState title="Reunião não encontrada." message="A reunião não existe ou não participa nela." />
+        <EmptyState title={t('Reunião não encontrada.')} message={t('A reunião não existe ou não participa nela.')} />
       </div>
     );
   }
@@ -105,9 +106,9 @@ export const MeetingDetailPage: React.FC = () => {
     setActionError(null);
     try {
       await confirmMeeting(meeting.id);
-      afterAction('Reunião confirmada.');
+      afterAction(t('Reunião confirmada.'));
     } catch (error) {
-      setActionError(getErrorMessage(error, 'Não foi possível confirmar a reunião.'));
+      setActionError(getErrorMessage(error, t('Não foi possível confirmar a reunião.')));
     } finally {
       setIsPending(false);
     }
@@ -118,22 +119,22 @@ export const MeetingDetailPage: React.FC = () => {
       {backLink}
       <PageHeader
         title={meeting.title}
-        subtitle={`${formatDateTime(meeting.startsAt)}–${timeFormatter.format(new Date(meeting.endsAt))} · ${formatMinutesAsHours(durationMinutes)}`}
+        subtitle={`${formatDateTime(meeting.startsAt)}–${timeFormatter().format(new Date(meeting.endsAt))} · ${formatMinutesAsHours(durationMinutes)}`}
         actions={
           <>
             {managesMeeting && meeting.status === 'PLANNED' && (
               <Button variant="secondary" icon={CheckCircle2} isLoading={isPending} onClick={runConfirm}>
-                Confirmar
+                {t('Confirmar')}
               </Button>
             )}
             {managesMeeting && isOpen && hasStarted && (
               <Button icon={ClipboardCheck} onClick={() => setOutcomeFor(meeting)}>
-                Registar resultado
+                {t('Registar resultado')}
               </Button>
             )}
             {canLogTime && (
               <Button variant="secondary" icon={Clock3} onClick={() => setModal('logTime')}>
-                Registar tempo
+                {t('Registar tempo')}
               </Button>
             )}
           </>
@@ -150,7 +151,7 @@ export const MeetingDetailPage: React.FC = () => {
         </Alert>
       )}
       {meeting.status === 'CANCELLED' && meeting.cancelReason && (
-        <Alert variant="info" title="Reunião cancelada">
+        <Alert variant="info" title={t('Reunião cancelada')}>
           {meeting.cancelReason}
         </Alert>
       )}
@@ -163,15 +164,15 @@ export const MeetingDetailPage: React.FC = () => {
             </div>
             <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <dt className="text-sm text-text-muted">Local</dt>
+                <dt className="text-sm text-text-muted">{t('Local')}</dt>
                 <dd className="text-sm font-medium text-text">{meeting.location ?? '—'}</dd>
               </div>
               <div>
-                <dt className="text-sm text-text-muted">Ligação</dt>
+                <dt className="text-sm text-text-muted">{t('Ligação')}</dt>
                 <dd className="text-sm font-medium text-text">
                   {meeting.meetingUrl ? (
                     <a href={meeting.meetingUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary-hover hover:underline">
-                      Abrir ligação <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                      {t('Abrir ligação')} <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
                     </a>
                   ) : (
                     '—'
@@ -180,7 +181,7 @@ export const MeetingDetailPage: React.FC = () => {
               </div>
               {meeting.task && (
                 <div>
-                  <dt className="text-sm text-text-muted">Tarefa</dt>
+                  <dt className="text-sm text-text-muted">{t('Tarefa')}</dt>
                   <dd className="text-sm font-medium">
                     <Link to={`/timesheet/tasks/${meeting.task.id}`} className="text-primary-hover hover:underline">
                       {meeting.task.reference} · {meeting.task.title}
@@ -190,7 +191,7 @@ export const MeetingDetailPage: React.FC = () => {
               )}
               {meeting.opportunity && (
                 <div>
-                  <dt className="text-sm text-text-muted">Oportunidade</dt>
+                  <dt className="text-sm text-text-muted">{t('Oportunidade')}</dt>
                   <dd className="text-sm font-medium">
                     <Link to={`/timesheet/opportunities/${meeting.opportunity.id}`} className="text-primary-hover hover:underline">
                       {meeting.opportunity.reference} · {meeting.opportunity.title}
@@ -201,13 +202,13 @@ export const MeetingDetailPage: React.FC = () => {
             </dl>
             {meeting.objective && (
               <div className="mt-4 border-t border-border pt-4">
-                <p className="text-sm font-semibold text-text">Objetivo</p>
+                <p className="text-sm font-semibold text-text">{t('Objetivo')}</p>
                 <p className="mt-0.5 whitespace-pre-line text-sm text-text-secondary">{meeting.objective}</p>
               </div>
             )}
             {meeting.description && (
               <div className="mt-4">
-                <p className="text-sm font-semibold text-text">Agenda</p>
+                <p className="text-sm font-semibold text-text">{t('Agenda')}</p>
                 <p className="mt-0.5 whitespace-pre-line text-sm text-text-secondary">{meeting.description}</p>
               </div>
             )}
@@ -215,26 +216,26 @@ export const MeetingDetailPage: React.FC = () => {
 
           {meeting.status === 'COMPLETED' && (
             <Panel
-              title="Resultado"
+              title={t('Resultado')}
               actions={
                 managesMeeting && (
                   <Button size="sm" variant="secondary" icon={Pencil} onClick={() => setOutcomeFor(meeting)}>
-                    Corrigir
+                    {t('Corrigir')}
                   </Button>
                 )
               }
             >
               <dl className="space-y-3 text-sm">
                 <div>
-                  <dt className="font-semibold text-text">Resultado</dt>
+                  <dt className="font-semibold text-text">{t('Resultado')}</dt>
                   <dd className="whitespace-pre-line text-text-secondary">{meeting.outcome}</dd>
                 </div>
                 <div>
-                  <dt className="font-semibold text-text">Decisões</dt>
+                  <dt className="font-semibold text-text">{t('Decisões')}</dt>
                   <dd className="whitespace-pre-line text-text-secondary">{meeting.decisions ?? '—'}</dd>
                 </div>
                 <div>
-                  <dt className="font-semibold text-text">Próximos passos</dt>
+                  <dt className="font-semibold text-text">{t('Próximos passos')}</dt>
                   <dd className="whitespace-pre-line text-text-secondary">{meeting.nextSteps ?? '—'}</dd>
                 </div>
               </dl>
@@ -242,19 +243,19 @@ export const MeetingDetailPage: React.FC = () => {
           )}
 
           <Panel
-            title="Tarefas geradas"
+            title={t('Tarefas geradas')}
             actions={
               hasPermission('TIMESHEET_TASK_CREATE') &&
               meeting.status !== 'CANCELLED' && (
                 <Button size="sm" variant="secondary" icon={ListPlus} onClick={() => setModal('task')}>
-                  Criar tarefa
+                  {t('Criar tarefa')}
                 </Button>
               )
             }
             flush
           >
             {tasks.length === 0 ? (
-              <p className="px-5 py-4 text-sm text-text-secondary">Nenhuma tarefa criada a partir desta reunião.</p>
+              <p className="px-5 py-4 text-sm text-text-secondary">{t('Nenhuma tarefa criada a partir desta reunião.')}</p>
             ) : (
               <ul className="divide-y divide-border">
                 {tasks.map((task) => (
@@ -269,19 +270,19 @@ export const MeetingDetailPage: React.FC = () => {
             )}
           </Panel>
 
-          <Panel title="Histórico" flush>
+          <Panel title={t('Histórico')} flush>
             <WorkTimeline events={events} />
           </Panel>
         </div>
 
         <div className="space-y-6">
           <Panel
-            title="Participantes"
+            title={t('Participantes')}
             actions={
               managesMeeting &&
               isOpen && (
                 <Button size="sm" variant="secondary" icon={Pencil} onClick={() => setModal('edit')} disabled={!participants.data}>
-                  Editar
+                  {t('Editar')}
                 </Button>
               )
             }
@@ -291,7 +292,7 @@ export const MeetingDetailPage: React.FC = () => {
               {people.map((person) => (
                 <li key={person.profileId} className="px-5 py-3 text-sm">
                   <p className="font-medium text-text">
-                    {person.fullName} {person.isOrganizer && <span className="text-xs font-normal text-text-muted">(organização)</span>}
+                    {person.fullName} {person.isOrganizer && <span className="text-xs font-normal text-text-muted">{t('(organização)')}</span>}
                   </p>
                   {person.jobTitle && <p className="text-xs text-text-muted">{person.jobTitle}</p>}
                 </li>
@@ -299,7 +300,7 @@ export const MeetingDetailPage: React.FC = () => {
             </ul>
           </Panel>
           {totals.length > 0 && (
-            <Panel title="Tempo registado">
+            <Panel title={t('Tempo registado')}>
               <ul className="space-y-1 text-sm">
                 {totals.map((row) => (
                   <li key={row.profileId} className="flex justify-between gap-3">
@@ -320,7 +321,7 @@ export const MeetingDetailPage: React.FC = () => {
           />
           {managesMeeting && isOpen && (
             <Button variant="ghost" icon={Ban} className="w-full justify-start text-danger" onClick={() => setModal('cancel')}>
-              Cancelar reunião
+              {t('Cancelar reunião')}
             </Button>
           )}
         </div>
@@ -343,15 +344,15 @@ export const MeetingDetailPage: React.FC = () => {
       <MeetingOutcomeModal meeting={outcomeFor} onClose={() => setOutcomeFor(null)} onSaved={afterAction} />
       <TicketNoteModal
         isOpen={modal === 'cancel'}
-        title="Cancelar reunião"
-        description="Os participantes são notificados."
-        note={{ label: 'Motivo do cancelamento', minLength: 5, maxLength: 1000 }}
-        confirmLabel="Cancelar reunião"
+        title={t('Cancelar reunião')}
+        description={t('Os participantes são notificados.')}
+        note={{ label: t('Motivo do cancelamento'), minLength: 5, maxLength: 1000 }}
+        confirmLabel={t('Cancelar reunião')}
         variant="danger"
         onClose={() => setModal(null)}
         onConfirm={async (reason) => {
           await cancelMeeting(meeting.id, reason ?? '');
-          afterAction('Reunião cancelada.');
+          afterAction(t('Reunião cancelada.'));
         }}
       />
       <TaskFormModal
@@ -359,7 +360,7 @@ export const MeetingDetailPage: React.FC = () => {
         task={null}
         assignees={assignees.data ?? []}
         links={{ meetingId: meeting.id, opportunityId: meeting.opportunity?.id ?? null }}
-        contextLabel={`Tarefa gerada a partir da reunião "${meeting.title}".`}
+        contextLabel={t('Tarefa gerada a partir da reunião "{title}".', { title: meeting.title })}
         onClose={() => setModal(null)}
         onSaved={(taskId) => {
           setModal(null);
@@ -376,10 +377,10 @@ export const MeetingDetailPage: React.FC = () => {
           workDate: toDateInput(new Date(meeting.startsAt)),
           startTime: toTimeInput(new Date(meeting.startsAt)),
           endTime: toTimeInput(new Date(meeting.endsAt)),
-          description: `Reunião: ${meeting.title}`,
+          description: t('Reunião: {title}', { title: meeting.title }),
         }}
         onClose={() => setModal(null)}
-        onSaved={() => afterAction('Tempo da reunião registado.')}
+        onSaved={() => afterAction(t('Tempo da reunião registado.'))}
       />
     </div>
   );

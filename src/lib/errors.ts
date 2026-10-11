@@ -1,3 +1,5 @@
+import { t, tIfKnown, translated } from './i18n';
+
 export class ServiceError extends Error {
   readonly code: string | null;
 
@@ -18,7 +20,7 @@ export interface ErrorLike {
 const PERMISSION_DENIED_MESSAGE = 'Não tem permissão para realizar esta operação.';
 const NETWORK_ERROR_MESSAGE = 'Não foi possível contactar o servidor. Verifique a ligação à internet e tente novamente.';
 
-const UNIQUE_CONSTRAINT_MESSAGES: Record<string, string> = {
+const UNIQUE_CONSTRAINT_MESSAGES: Record<string, string> = translated({
   profiles_email_key: 'Já existe um utilizador com este e-mail.',
   profiles_employee_number_key: 'Já existe um utilizador com este número de colaborador.',
   departments_code_key: 'Já existe um departamento com este código.',
@@ -29,9 +31,9 @@ const UNIQUE_CONSTRAINT_MESSAGES: Record<string, string> = {
   companies_nuit_key: 'Já existe uma empresa com este NUIT.',
   absence_types_code_key: 'Já existe um tipo de ausência com este código.',
   approval_requests_one_pending: 'Já existe um pedido de aprovação pendente para esta oportunidade.',
-};
+});
 
-const CHECK_CONSTRAINT_MESSAGES: Record<string, string> = {
+const CHECK_CONSTRAINT_MESSAGES: Record<string, string> = translated({
   departments_code_format: 'O código deve ter entre 2 e 20 carateres (letras maiúsculas, números, "-" ou "_").',
   departments_name_not_blank: 'O nome do departamento é obrigatório.',
   profiles_full_name_not_blank: 'O nome completo deve ter pelo menos 2 carateres.',
@@ -73,7 +75,7 @@ const CHECK_CONSTRAINT_MESSAGES: Record<string, string> = {
   approval_requests_rejection_reason: 'A rejeição exige um motivo (mínimo 5 carateres).',
   tasks_review_consistency: 'Só é possível validar tarefas concluídas.',
   tasks_review_note_length: 'A nota não pode exceder 1000 carateres.',
-};
+});
 
 function findConstraintMessage(error: ErrorLike, messages: Record<string, string>): string | null {
   const haystack = `${error.message} ${error.details ?? ''}`;
@@ -90,24 +92,25 @@ function isNativePermissionMessage(message: string): boolean {
 export function describeSupabaseError(error: ErrorLike, fallback: string): string {
   switch (error.code) {
     case '23505':
-      return findConstraintMessage(error, UNIQUE_CONSTRAINT_MESSAGES) ?? 'Já existe um registo com estes dados.';
+      return findConstraintMessage(error, UNIQUE_CONSTRAINT_MESSAGES) ?? t('Já existe um registo com estes dados.');
     case '23514':
-      return findConstraintMessage(error, CHECK_CONSTRAINT_MESSAGES) ?? 'Os dados indicados não são válidos.';
+      return findConstraintMessage(error, CHECK_CONSTRAINT_MESSAGES) ?? t('Os dados indicados não são válidos.');
     case '23503':
-      return 'O registo associado não existe ou não pode ser utilizado.';
+      return t('O registo associado não existe ou não pode ser utilizado.');
     case '42501':
-      return isNativePermissionMessage(error.message) ? PERMISSION_DENIED_MESSAGE : error.message;
+      return isNativePermissionMessage(error.message) ? t(PERMISSION_DENIED_MESSAGE) : tIfKnown(error.message);
     case 'P0001':
-      // Mensagens de validação definidas nas funções e triggers do servidor (já em pt-PT).
-      return error.message;
+      // Mensagens de validação definidas nas funções e triggers do servidor (em pt-PT): traduzidas
+      // quando existe entrada no dicionário; as que incluem dados variáveis ficam em português.
+      return tIfKnown(error.message);
     case 'PGRST116':
-      return 'O registo pedido não foi encontrado.';
+      return t('O registo pedido não foi encontrado.');
     default:
       break;
   }
 
   if (error.message.toLowerCase().includes('failed to fetch')) {
-    return NETWORK_ERROR_MESSAGE;
+    return t(NETWORK_ERROR_MESSAGE);
   }
   return fallback;
 }
@@ -119,7 +122,7 @@ export function toServiceError(error: ErrorLike, fallback: string): ServiceError
 /** Mensagem segura para apresentar a partir de qualquer valor apanhado num catch. */
 export function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof ServiceError) return error.message;
-  if (error instanceof TypeError && error.message.toLowerCase().includes('fetch')) return NETWORK_ERROR_MESSAGE;
+  if (error instanceof TypeError && error.message.toLowerCase().includes('fetch')) return t(NETWORK_ERROR_MESSAGE);
   if (error instanceof Error && error.message) return error.message;
   return fallback;
 }

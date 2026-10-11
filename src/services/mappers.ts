@@ -1,6 +1,7 @@
 import type { DepartmentRow, PermissionRow, ProfileRow, RoleRow } from '../types/database';
 import type { Department, Permission, Profile, Role, TimesheetSummary } from '../types';
 import { isPermissionCode, isRoleCode, isTimesheetStatus } from '../types';
+import { t } from '../lib/i18n';
 
 /** Seleção usada sempre que um perfil é lido com departamento e perfil de acesso. */
 export const PROFILE_WITH_RELATIONS_SELECT =
@@ -62,7 +63,7 @@ export function mapTimesheetSummary(row: TimesheetSummaryRow): TimesheetSummary 
   return {
     id: row.id,
     employeeId: row.employee_id,
-    employeeName: row.employee?.full_name ?? 'Colaborador sem acesso visível',
+    employeeName: row.employee?.full_name ?? t('Colaborador sem acesso visível'),
     employeeNumber: row.employee?.employee_number ?? null,
     departmentId: row.employee?.department?.id ?? null,
     departmentName: row.employee?.department?.name ?? null,

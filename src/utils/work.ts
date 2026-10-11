@@ -18,42 +18,43 @@ import type {
 import { ACTIVE_OPPORTUNITY_STATUSES } from '../types/work';
 import type { FieldErrors } from './validation';
 import { isValidEmail } from './validation';
+import { intlLocale, t, translated } from '../lib/i18n';
 
 // ---------------------------------------------------------------------------- etiquetas
 
-export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
+export const TASK_STATUS_LABELS: Record<TaskStatus, string> = translated({
   PLANNED: 'Planeada',
   ASSIGNED: 'Atribuída',
   IN_PROGRESS: 'Em curso',
   BLOCKED: 'Bloqueada',
   COMPLETED: 'Concluída',
   CANCELLED: 'Cancelada',
-};
+});
 
-export const WORK_PRIORITY_LABELS: Record<WorkPriority, string> = {
+export const WORK_PRIORITY_LABELS: Record<WorkPriority, string> = translated({
   LOW: 'Baixa',
   MEDIUM: 'Média',
   HIGH: 'Alta',
   CRITICAL: 'Crítica',
-};
+});
 
-export const MEETING_STATUS_LABELS: Record<MeetingStatus, string> = {
+export const MEETING_STATUS_LABELS: Record<MeetingStatus, string> = translated({
   PLANNED: 'Planeada',
   CONFIRMED: 'Confirmada',
   COMPLETED: 'Realizada',
   CANCELLED: 'Cancelada',
-};
+});
 
-export const ABSENCE_STATUS_LABELS: Record<AbsenceStatus, string> = {
+export const ABSENCE_STATUS_LABELS: Record<AbsenceStatus, string> = translated({
   DRAFT: 'Rascunho',
   SUBMITTED: 'A aguardar validação do gestor',
   PENDING_APPROVAL: 'A aguardar decisão do Manager',
   APPROVED: 'Aprovada',
   REJECTED: 'Rejeitada',
   CANCELLED: 'Cancelada',
-};
+});
 
-export const OPPORTUNITY_STATUS_LABELS: Record<OpportunityStatus, string> = {
+export const OPPORTUNITY_STATUS_LABELS: Record<OpportunityStatus, string> = translated({
   NEW: 'Nova',
   QUALIFICATION: 'Qualificação',
   PROPOSAL: 'Proposta',
@@ -61,32 +62,32 @@ export const OPPORTUNITY_STATUS_LABELS: Record<OpportunityStatus, string> = {
   WON: 'Ganha',
   LOST: 'Perdida',
   CANCELLED: 'Cancelada',
-};
+});
 
-export const OPPORTUNITY_APPROVAL_LABELS: Record<OpportunityApprovalStatus, string> = {
+export const OPPORTUNITY_APPROVAL_LABELS: Record<OpportunityApprovalStatus, string> = translated({
   NOT_REQUIRED: 'Não exige aprovação',
   NOT_SUBMITTED: 'Aprovação por pedir',
   PENDING: 'Aprovação pendente',
   APPROVED: 'Aprovada pelo Manager',
   REJECTED: 'Aprovação recusada',
-};
+});
 
-export const APPROVAL_REQUEST_STATUS_LABELS: Record<ApprovalRequestStatus, string> = {
+export const APPROVAL_REQUEST_STATUS_LABELS: Record<ApprovalRequestStatus, string> = translated({
   PENDING: 'Pendente',
   APPROVED: 'Aprovado',
   REJECTED: 'Rejeitado',
   CANCELLED: 'Anulado',
-};
+});
 
-export const ENTRY_KIND_LABELS: Record<EntryKind, string> = {
+export const ENTRY_KIND_LABELS: Record<EntryKind, string> = translated({
   GENERAL: 'Geral',
   TASK: 'Tarefa',
   MEETING: 'Reunião',
   OPPORTUNITY: 'Oportunidade',
   UNPLANNED: 'Extraordinária',
-};
+});
 
-export const CALENDAR_ITEM_LABELS: Record<CalendarItemType, string> = {
+export const CALENDAR_ITEM_LABELS: Record<CalendarItemType, string> = translated({
   DEADLINE: 'Prazo',
   TASK: 'Tarefa',
   MEETING: 'Reunião',
@@ -94,10 +95,10 @@ export const CALENDAR_ITEM_LABELS: Record<CalendarItemType, string> = {
   ACTIVITY: 'Atividade',
   INTERNAL_EVENT: 'Evento interno',
   OPPORTUNITY_ACTIVITY: 'Oportunidade',
-};
+});
 
 /** Nomes legíveis dos campos registados no histórico. */
-const FIELD_LABELS: Record<string, string> = {
+const FIELD_LABELS: Record<string, string> = translated({
   title: 'Título',
   description: 'Descrição',
   priority: 'Prioridade',
@@ -138,9 +139,9 @@ const FIELD_LABELS: Record<string, string> = {
   member: 'Membro',
   approval: 'Aprovação',
   review: 'Acompanhamento',
-};
+});
 
-const EVENT_LABELS: Record<string, string> = {
+const EVENT_LABELS: Record<string, string> = translated({
   TASK_CREATED: 'Tarefa criada',
   TASK_ASSIGNED: 'Tarefa atribuída',
   TASK_REASSIGNED: 'Responsável alterado',
@@ -198,7 +199,7 @@ const EVENT_LABELS: Record<string, string> = {
   OPPORTUNITY_APPROVAL_REJECTED: 'Aprovação recusada',
   OPPORTUNITY_APPROVAL_CANCELLED: 'Pedido de aprovação anulado',
   OPPORTUNITY_EXECUTION_LEAD_CHANGED: 'Gestor de execução alterado',
-};
+});
 
 export function describeWorkEvent(event: Pick<WorkEvent, 'eventType' | 'field'>): string {
   const base = EVENT_LABELS[event.eventType] ?? event.eventType;
@@ -362,21 +363,21 @@ export type TaskFormField = keyof TaskFormValues;
 export function validateTaskForm(values: TaskFormValues, now: Date, options: { isCompleted: boolean; dueChanged: boolean }): FieldErrors<TaskFormField> {
   const errors: FieldErrors<TaskFormField> = {};
   const title = values.title.trim();
-  if (title.length < 3) errors.title = 'Indique um título com pelo menos 3 carateres.';
-  else if (title.length > 200) errors.title = 'O título não pode exceder 200 carateres.';
-  if (values.description.length > 5000) errors.description = 'A descrição não pode exceder 5000 carateres.';
-  if (!values.priority) errors.priority = 'Selecione a prioridade.';
-  if (values.dueTime && !values.dueDate) errors.dueDate = 'Indique a data do prazo.';
+  if (title.length < 3) errors.title = t('Indique um título com pelo menos 3 carateres.');
+  else if (title.length > 200) errors.title = t('O título não pode exceder 200 carateres.');
+  if (values.description.length > 5000) errors.description = t('A descrição não pode exceder 5000 carateres.');
+  if (!values.priority) errors.priority = t('Selecione a prioridade.');
+  if (values.dueTime && !values.dueDate) errors.dueDate = t('Indique a data do prazo.');
   const due = combineDateTime(values.dueDate, values.dueTime || '17:00');
   if (due && options.dueChanged && !options.isCompleted && due.getTime() <= now.getTime()) {
-    errors.dueDate = 'O prazo tem de ser uma data futura.';
+    errors.dueDate = t('O prazo tem de ser uma data futura.');
   }
   if (values.startDate && values.dueDate && values.startDate > values.dueDate) {
-    errors.startDate = 'A data de início não pode ser posterior ao prazo.';
+    errors.startDate = t('A data de início não pode ser posterior ao prazo.');
   }
   if (values.estimatedHours) {
     const hours = Number(values.estimatedHours.replace(',', '.'));
-    if (!Number.isFinite(hours) || hours <= 0 || hours > 1000) errors.estimatedHours = 'Indique uma estimativa entre 0,25 e 1000 horas.';
+    if (!Number.isFinite(hours) || hours <= 0 || hours > 1000) errors.estimatedHours = t('Indique uma estimativa entre 0,25 e 1000 horas.');
   }
   return errors;
 }
@@ -398,8 +399,8 @@ export function estimatedMinutesFromHours(value: string): number | null {
 /** Texto obrigatório das ações (motivos, justificações). Espelha private.required_text. */
 export function validateReason(value: string, label: string, minLength = 5, maxLength = 1000): string | null {
   const trimmed = value.trim();
-  if (trimmed.length < minLength) return `${label} (mínimo ${minLength} carateres).`;
-  if (trimmed.length > maxLength) return `Máximo de ${maxLength} carateres.`;
+  if (trimmed.length < minLength) return t('{label} (mínimo {minLength} carateres).', { label, minLength });
+  if (trimmed.length > maxLength) return t('Máximo de {maxLength} carateres.', { maxLength });
   return null;
 }
 
@@ -417,14 +418,14 @@ export type MeetingFormField = keyof MeetingFormValues;
 
 export function validateMeetingForm(values: MeetingFormValues): FieldErrors<MeetingFormField> {
   const errors: FieldErrors<MeetingFormField> = {};
-  if (values.title.trim().length < 3) errors.title = 'Indique um título com pelo menos 3 carateres.';
-  if (!values.date) errors.date = 'Indique a data.';
-  if (!values.startTime) errors.startTime = 'Indique a hora de início.';
-  if (!values.endTime) errors.endTime = 'Indique a hora de fim.';
-  else if (values.startTime && values.endTime <= values.startTime) errors.endTime = 'A reunião tem de terminar depois de começar.';
+  if (values.title.trim().length < 3) errors.title = t('Indique um título com pelo menos 3 carateres.');
+  if (!values.date) errors.date = t('Indique a data.');
+  if (!values.startTime) errors.startTime = t('Indique a hora de início.');
+  if (!values.endTime) errors.endTime = t('Indique a hora de fim.');
+  else if (values.startTime && values.endTime <= values.startTime) errors.endTime = t('A reunião tem de terminar depois de começar.');
   const url = values.meetingUrl.trim();
-  if (url && !/^https?:\/\//i.test(url)) errors.meetingUrl = 'A ligação tem de começar por http:// ou https://.';
-  if (values.location.trim().length > 200) errors.location = 'Máximo de 200 carateres.';
+  if (url && !/^https?:\/\//i.test(url)) errors.meetingUrl = t('A ligação tem de começar por http:// ou https://.');
+  if (values.location.trim().length > 200) errors.location = t('Máximo de 200 carateres.');
   return errors;
 }
 
@@ -444,10 +445,10 @@ export function describeConflict(conflict: ScheduleConflict): string {
   if (conflict.kind === 'ABSENCE') {
     // A ausência termina no início do dia seguinte ao último dia ausente.
     const lastDay = new Date(end.getTime() - 1);
-    return isSameDay(start, lastDay) ? `Ausência aprovada (${shortDate(start)})` : `Ausência aprovada (${shortDate(start)} a ${shortDate(lastDay)})`;
+    return isSameDay(start, lastDay) ? t('Ausência aprovada ({start})', { start: shortDate(start) }) : t('Ausência aprovada ({start} a {lastDay})', { start: shortDate(start), lastDay: shortDate(lastDay) });
   }
-  const period = isSameDay(start, end) ? `${toTimeInput(start)}–${toTimeInput(end)}` : `${toTimeInput(start)} até ${shortDate(end)} ${toTimeInput(end)}`;
-  return `${conflict.title ?? 'Ocupado noutra reunião'} · ${period}`;
+  const period = isSameDay(start, end) ? `${toTimeInput(start)}–${toTimeInput(end)}` : t('{start} até {end} {end2}', { start: toTimeInput(start), end: shortDate(end), end2: toTimeInput(end) });
+  return `${conflict.title ?? t('Ocupado noutra reunião')} · ${period}`;
 }
 
 /** Valores iniciais do formulário de reunião: a reunião existente, o intervalo escolhido no calendário ou o dia em vista. */
@@ -476,12 +477,12 @@ export type AbsenceFormField = keyof AbsenceFormValues;
 
 export function validateAbsenceForm(values: AbsenceFormValues): FieldErrors<AbsenceFormField> {
   const errors: FieldErrors<AbsenceFormField> = {};
-  if (!values.absenceTypeId) errors.absenceTypeId = 'Selecione o tipo de ausência.';
-  if (!values.startDate) errors.startDate = 'Indique a data inicial.';
-  if (!values.endDate) errors.endDate = 'Indique a data final.';
-  else if (values.startDate && values.endDate < values.startDate) errors.endDate = 'A data final não pode ser anterior à data inicial.';
-  else if (values.startDate && daysBetween(values.startDate, values.endDate) > 366) errors.endDate = 'Um pedido não pode exceder um ano.';
-  if (values.reason.length > 2000) errors.reason = 'O motivo não pode exceder 2000 carateres.';
+  if (!values.absenceTypeId) errors.absenceTypeId = t('Selecione o tipo de ausência.');
+  if (!values.startDate) errors.startDate = t('Indique a data inicial.');
+  if (!values.endDate) errors.endDate = t('Indique a data final.');
+  else if (values.startDate && values.endDate < values.startDate) errors.endDate = t('A data final não pode ser anterior à data inicial.');
+  else if (values.startDate && daysBetween(values.startDate, values.endDate) > 366) errors.endDate = t('Um pedido não pode exceder um ano.');
+  if (values.reason.length > 2000) errors.reason = t('O motivo não pode exceder 2000 carateres.');
   return errors;
 }
 
@@ -499,10 +500,10 @@ export type CompanyFormField = keyof CompanyFormValues;
 
 export function validateCompanyForm(values: CompanyFormValues): FieldErrors<CompanyFormField> {
   const errors: FieldErrors<CompanyFormField> = {};
-  if (values.name.trim().length < 2) errors.name = 'Indique o nome da empresa.';
-  if (values.nuit.trim() && !/^\d{9}$/.test(values.nuit.trim())) errors.nuit = 'O NUIT tem 9 dígitos.';
-  if (values.email.trim() && !isValidEmail(values.email.trim())) errors.email = 'Indique um e-mail válido.';
-  if (values.website.trim() && !/^https?:\/\//i.test(values.website.trim())) errors.website = 'O site tem de começar por http:// ou https://.';
+  if (values.name.trim().length < 2) errors.name = t('Indique o nome da empresa.');
+  if (values.nuit.trim() && !/^\d{9}$/.test(values.nuit.trim())) errors.nuit = t('O NUIT tem 9 dígitos.');
+  if (values.email.trim() && !isValidEmail(values.email.trim())) errors.email = t('Indique um e-mail válido.');
+  if (values.website.trim() && !/^https?:\/\//i.test(values.website.trim())) errors.website = t('O site tem de começar por http:// ou https://.');
   return errors;
 }
 
@@ -536,18 +537,18 @@ export function parseAmount(value: string): number | null {
 
 export function validateOpportunityForm(values: OpportunityFormValues): FieldErrors<OpportunityFormField> {
   const errors: FieldErrors<OpportunityFormField> = {};
-  if (values.title.trim().length < 3) errors.title = 'Indique um título com pelo menos 3 carateres.';
-  if (!values.companyId) errors.companyId = 'Selecione a empresa.';
-  if (values.contactEmail.trim() && !isValidEmail(values.contactEmail.trim())) errors.contactEmail = 'Indique um e-mail válido.';
+  if (values.title.trim().length < 3) errors.title = t('Indique um título com pelo menos 3 carateres.');
+  if (!values.companyId) errors.companyId = t('Selecione a empresa.');
+  if (values.contactEmail.trim() && !isValidEmail(values.contactEmail.trim())) errors.contactEmail = t('Indique um e-mail válido.');
   for (const field of ['initialValue', 'estimatedValue'] as const) {
     const amount = parseAmount(values[field]);
-    if (amount !== null && (Number.isNaN(amount) || amount < 0)) errors[field] = 'Indique um valor positivo.';
+    if (amount !== null && (Number.isNaN(amount) || amount < 0)) errors[field] = t('Indique um valor positivo.');
   }
   if (values.probability.trim()) {
     const probability = Number(values.probability);
-    if (!Number.isInteger(probability) || probability < 0 || probability > 100) errors.probability = 'Entre 0 e 100.';
+    if (!Number.isInteger(probability) || probability < 0 || probability > 100) errors.probability = t('Entre 0 e 100.');
   }
-  if (!/^[A-Za-z]{3}$/.test(values.currency.trim())) errors.currency = 'Código de 3 letras (ex.: MZN).';
+  if (!/^[A-Za-z]{3}$/.test(values.currency.trim())) errors.currency = t('Código de 3 letras (ex.: MZN).');
   return errors;
 }
 
@@ -565,25 +566,25 @@ export type WorkLogFormField = keyof WorkLogFormValues;
 
 export function validateWorkLogForm(values: WorkLogFormValues, today: string): FieldErrors<WorkLogFormField> {
   const errors: FieldErrors<WorkLogFormField> = {};
-  if (!values.workDate) errors.workDate = 'Indique a data.';
-  else if (values.workDate > today) errors.workDate = 'Não é possível registar tempo em datas futuras.';
-  if (!values.startTime) errors.startTime = 'Indique a hora de início.';
-  if (!values.endTime) errors.endTime = 'Indique a hora de fim.';
+  if (!values.workDate) errors.workDate = t('Indique a data.');
+  else if (values.workDate > today) errors.workDate = t('Não é possível registar tempo em datas futuras.');
+  if (!values.startTime) errors.startTime = t('Indique a hora de início.');
+  if (!values.endTime) errors.endTime = t('Indique a hora de fim.');
   const breakMinutes = Number(values.breakMinutes || '0');
-  if (!Number.isInteger(breakMinutes) || breakMinutes < 0) errors.breakMinutes = 'A pausa tem de ser um número inteiro de minutos.';
+  if (!Number.isInteger(breakMinutes) || breakMinutes < 0) errors.breakMinutes = t('A pausa tem de ser um número inteiro de minutos.');
   if (values.startTime && values.endTime) {
     const minutes = minutesBetween(values.startTime, values.endTime) - (Number.isFinite(breakMinutes) ? breakMinutes : 0);
-    if (values.endTime <= values.startTime) errors.endTime = 'A hora de fim tem de ser posterior à de início.';
-    else if (minutes <= 0) errors.breakMinutes = 'A pausa não pode ser igual ou superior ao tempo registado.';
+    if (values.endTime <= values.startTime) errors.endTime = t('A hora de fim tem de ser posterior à de início.');
+    else if (minutes <= 0) errors.breakMinutes = t('A pausa não pode ser igual ou superior ao tempo registado.');
   }
-  if (!values.activityId) errors.activityId = 'Selecione o tipo de atividade.';
+  if (!values.activityId) errors.activityId = t('Selecione o tipo de atividade.');
   if (['TASK', 'MEETING', 'OPPORTUNITY'].includes(values.kind) && !values.contextId) {
-    errors.contextId = 'Selecione o registo a que o tempo se refere.';
+    errors.contextId = t('Selecione o registo a que o tempo se refere.');
   }
   const description = values.description.trim();
-  if (!description) errors.description = 'Descreva o trabalho realizado.';
-  else if (values.kind === 'UNPLANNED' && description.length < 5) errors.description = 'Descreva a atividade extraordinária (mínimo 5 carateres).';
-  else if (description.length > 2000) errors.description = 'Máximo de 2000 carateres.';
+  if (!description) errors.description = t('Descreva o trabalho realizado.');
+  else if (values.kind === 'UNPLANNED' && description.length < 5) errors.description = t('Descreva a atividade extraordinária (mínimo 5 carateres).');
+  else if (description.length > 2000) errors.description = t('Máximo de 2000 carateres.');
   return errors;
 }
 
@@ -734,7 +735,7 @@ export function recentPeriod(days: number, today: Date): { from: string; to: str
 
 export function formatMoney(value: number | null, currency: string): string {
   if (value === null) return '—';
-  return `${new Intl.NumberFormat('pt-PT', { maximumFractionDigits: 2 }).format(value)} ${currency}`;
+  return `${new Intl.NumberFormat(intlLocale(), { maximumFractionDigits: 2 }).format(value)} ${currency}`;
 }
 
 export function formatFileSize(bytes: number): string {

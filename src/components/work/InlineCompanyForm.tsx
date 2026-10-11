@@ -10,6 +10,7 @@ import type { CompanyFormField, CompanyFormValues } from '../../utils/work';
 import { validateCompanyForm } from '../../utils/work';
 import type { FieldErrors } from '../../utils/validation';
 import { hasErrors, optionalText } from '../../utils/validation';
+import { t } from '../../lib/i18n';
 
 interface InlineCompanyFormProps {
   /** Empresa criada ou existente escolhida: fica selecionada na oportunidade. */
@@ -56,9 +57,9 @@ export const InlineCompanyForm: React.FC<InlineCompanyFormProps> = ({ onSelected
         status: 'ACTIVE' as const,
       };
       const companyId = await createCompany(input);
-      onSelected({ id: companyId, ...input }, `Empresa ${input.name} registada e selecionada.`);
+      onSelected({ id: companyId, ...input }, t('Empresa {name} registada e selecionada.', { name: input.name }));
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Não foi possível registar a empresa.'));
+      setErrorMessage(getErrorMessage(error, t('Não foi possível registar a empresa.')));
     } finally {
       setIsSaving(false);
     }
@@ -82,7 +83,7 @@ export const InlineCompanyForm: React.FC<InlineCompanyFormProps> = ({ onSelected
         return;
       }
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Não foi possível verificar empresas semelhantes.'));
+      setErrorMessage(getErrorMessage(error, t('Não foi possível verificar empresas semelhantes.')));
       return;
     } finally {
       setIsSaving(false);
@@ -99,28 +100,28 @@ export const InlineCompanyForm: React.FC<InlineCompanyFormProps> = ({ onSelected
   };
 
   return (
-    <section className="space-y-3 rounded-md border border-border bg-background p-4" aria-label="Nova empresa" onKeyDown={onKeyDown}>
+    <section className="space-y-3 rounded-md border border-border bg-background p-4" aria-label={t('Nova empresa')} onKeyDown={onKeyDown}>
       <h3 className="flex items-center gap-2 text-sm font-semibold text-text">
         <Building2 className="h-4 w-4 text-sidebar" aria-hidden="true" />
-        Nova empresa
+        {t('Nova empresa')}
       </h3>
       {errorMessage && <Alert variant="error">{errorMessage}</Alert>}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <TextField label="Nome da empresa" required maxLength={200} value={values.name} error={fieldErrors.name} onChange={(event) => updateValue('name', event.target.value)} />
-        <TextField label="NUIT" inputMode="numeric" maxLength={9} value={values.nuit} error={fieldErrors.nuit} hint="9 dígitos, quando aplicável" onChange={(event) => updateValue('nuit', event.target.value)} />
-        <TextField label="Contacto principal" maxLength={150} value={values.contactName} onChange={(event) => updateValue('contactName', event.target.value)} />
-        <TextField label="Telefone" type="tel" maxLength={30} value={values.phone} onChange={(event) => updateValue('phone', event.target.value)} />
-        <TextField label="E-mail" type="email" maxLength={255} value={values.email} error={fieldErrors.email} onChange={(event) => updateValue('email', event.target.value)} />
-        <TextField label="Website" type="url" maxLength={255} value={values.website} error={fieldErrors.website} placeholder="https://" onChange={(event) => updateValue('website', event.target.value)} />
+        <TextField label={t('Nome da empresa')} required maxLength={200} value={values.name} error={fieldErrors.name} onChange={(event) => updateValue('name', event.target.value)} />
+        <TextField label="NUIT" inputMode="numeric" maxLength={9} value={values.nuit} error={fieldErrors.nuit} hint={t('9 dígitos, quando aplicável')} onChange={(event) => updateValue('nuit', event.target.value)} />
+        <TextField label={t('Contacto principal')} maxLength={150} value={values.contactName} onChange={(event) => updateValue('contactName', event.target.value)} />
+        <TextField label={t('Telefone')} type="tel" maxLength={30} value={values.phone} onChange={(event) => updateValue('phone', event.target.value)} />
+        <TextField label={t('E-mail')} type="email" maxLength={255} value={values.email} error={fieldErrors.email} onChange={(event) => updateValue('email', event.target.value)} />
+        <TextField label={t('Website')} type="url" maxLength={255} value={values.website} error={fieldErrors.website} placeholder="https://" onChange={(event) => updateValue('website', event.target.value)} />
       </div>
-      <TextField label="Endereço" maxLength={500} value={values.address} onChange={(event) => updateValue('address', event.target.value)} />
-      <TextAreaField label="Observações" rows={2} maxLength={5000} value={values.notes} onChange={(event) => updateValue('notes', event.target.value)} />
-      <p className="text-xs text-text-muted">Estado: ativa (pode ser inativada mais tarde em Empresas).</p>
+      <TextField label={t('Endereço')} maxLength={500} value={values.address} onChange={(event) => updateValue('address', event.target.value)} />
+      <TextAreaField label={t('Observações')} rows={2} maxLength={5000} value={values.notes} onChange={(event) => updateValue('notes', event.target.value)} />
+      <p className="text-xs text-text-muted">{t('Estado: ativa (pode ser inativada mais tarde em Empresas).')}</p>
 
       {similar !== null && (
         <div role="status" className="space-y-2 rounded-md border border-warning/30 bg-warning-soft p-3">
           <p className="text-sm font-medium text-warning">
-            {sameNuit ? 'Já existe uma empresa com este NUIT.' : 'Encontrámos empresas parecidas. Confirme se não é uma delas.'}
+            {sameNuit ? t('Já existe uma empresa com este NUIT.') : t('Encontrámos empresas parecidas. Confirme se não é uma delas.')}
           </p>
           <ul className="space-y-1">
             {similar.map((company) => (
@@ -131,8 +132,8 @@ export const InlineCompanyForm: React.FC<InlineCompanyFormProps> = ({ onSelected
                   {company.status === 'INACTIVE' ? ' · inativa' : ''}
                 </span>
                 {company.status === 'ACTIVE' && (
-                  <Button size="sm" variant="secondary" onClick={() => onSelected(company, `Empresa ${company.name} selecionada.`)}>
-                    Usar esta
+                  <Button size="sm" variant="secondary" onClick={() => onSelected(company, t('Empresa {name} selecionada.', { name: company.name }))}>
+                    {t('Usar esta')}
                   </Button>
                 )}
               </li>
@@ -143,11 +144,11 @@ export const InlineCompanyForm: React.FC<InlineCompanyFormProps> = ({ onSelected
 
       <div className="flex flex-wrap justify-end gap-2">
         <Button variant="secondary" onClick={onCancel} disabled={isSaving}>
-          Cancelar
+          {t('Cancelar')}
         </Button>
         {!sameNuit && (
           <Button onClick={handleSave} isLoading={isSaving}>
-            {similar !== null ? 'Criar mesmo assim' : 'Guardar empresa'}
+            {similar !== null ? t('Criar mesmo assim') : t('Guardar empresa')}
           </Button>
         )}
       </div>

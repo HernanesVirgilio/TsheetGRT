@@ -56,6 +56,7 @@ import {
   TICKET_PRIORITY_LABELS,
 } from '../../utils/it';
 import { isUuid } from '../../utils/validation';
+import { t } from '../../lib/i18n';
 
 type ModalKind = 'resolve' | 'wait' | 'close' | 'reopen' | 'assign' | 'priority' | 'category' | 'asset' | 'intervention';
 
@@ -113,7 +114,7 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({ context }) =
   const [actionError, setActionError] = useState<string | null>(null);
   const [isActionPending, setIsActionPending] = useState(false);
 
-  const backLink = isItView ? { to: '/it/tickets', label: 'Voltar às solicitações' } : { to: '/support', label: 'Voltar aos meus pedidos' };
+  const backLink = isItView ? { to: '/it/tickets', label: t('Voltar às solicitações') } : { to: '/support', label: t('Voltar aos meus pedidos') };
   const BackLink = (
     <Link to={backLink.to} className="inline-flex items-center gap-1.5 text-sm font-medium text-primary-hover hover:underline">
       <ArrowLeft className="h-4 w-4" aria-hidden="true" />
@@ -121,7 +122,7 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({ context }) =
     </Link>
   );
 
-  if (detail.isLoading && !detail.data) return <LoadingState label="A carregar pedido..." />;
+  if (detail.isLoading && !detail.data) return <LoadingState label={t('A carregar pedido...')} />;
   if (detail.error && !detail.data) {
     return (
       <div className="space-y-4">
@@ -134,7 +135,7 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({ context }) =
     return (
       <div className="space-y-4">
         {BackLink}
-        <EmptyState title="Pedido não encontrado." message="O pedido não existe ou não tem acesso a ele." />
+        <EmptyState title={t('Pedido não encontrado.')} message={t('O pedido não existe ou não tem acesso a ele.')} />
       </div>
     );
   }
@@ -169,7 +170,7 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({ context }) =
       await action();
       afterAction(message);
     } catch (error) {
-      setActionError(getErrorMessage(error, 'Não foi possível concluir a ação.'));
+      setActionError(getErrorMessage(error, t('Não foi possível concluir a ação.')));
     } finally {
       setIsActionPending(false);
     }
@@ -200,7 +201,7 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({ context }) =
 
   // take_it_ticket atribui ao técnico e, se o pedido estiver aberto, inicia o atendimento.
   const takeLabel =
-    ticket.status !== 'OPEN' ? 'Assumir pedido' : ticket.assignedTo === viewerId ? 'Iniciar atendimento' : 'Assumir e iniciar';
+    ticket.status !== 'OPEN' ? t('Assumir pedido') : ticket.assignedTo === viewerId ? t('Iniciar atendimento') : t('Assumir e iniciar');
   const commentAllowed = isItView ? tech.canComment : requesterCanAct && requester.canReply;
 
   return (
@@ -208,22 +209,22 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({ context }) =
       {BackLink}
       <PageHeader
         title={`${ticket.reference} · ${ticket.title}`}
-        subtitle={isItView ? `Aberto por ${ticket.requesterName ?? '—'}` : 'O seu pedido de suporte à equipa de IT.'}
+        subtitle={isItView ? t('Aberto por {requesterName}', { requesterName: ticket.requesterName ?? '—' }) : t('O seu pedido de suporte à equipa de IT.')}
         actions={
           <>
             {requesterCanAct && requester.canConfirmResolution && (
               <Button icon={CheckCircle2} onClick={() => setActiveModal('close')}>
-                Confirmar resolução
+                {t('Confirmar resolução')}
               </Button>
             )}
             {requesterCanAct && requester.canReopen && (
               <Button variant="secondary" icon={RotateCcw} onClick={() => setActiveModal('reopen')}>
-                Reabrir
+                {t('Reabrir')}
               </Button>
             )}
             {!isItView && hasPermission('IT_TICKETS_READ') && (
               <Link to={`/it/tickets/${ticket.id}`} className="text-sm font-medium text-primary-hover hover:underline">
-                Abrir na fila do IT
+                {t('Abrir na fila do IT')}
               </Link>
             )}
           </>
@@ -244,13 +245,13 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({ context }) =
       {referenceData.error && <ErrorState message={referenceData.error} onRetry={referenceData.reload} />}
       {assetChoices.error && <ErrorState message={assetChoices.error} onRetry={assetChoices.reload} />}
       {!isItView && ticket.status === 'WAITING_USER' && (
-        <Alert variant="warning" title="A equipa de IT aguarda a sua resposta">
-          Responda no histórico abaixo. Ao responder, o pedido volta para a equipa de IT.
+        <Alert variant="warning" title={t('A equipa de IT aguarda a sua resposta')}>
+          {t('Responda no histórico abaixo. Ao responder, o pedido volta para a equipa de IT.')}
         </Alert>
       )}
       {!isItView && ticket.status === 'RESOLVED' && (
         <Alert variant="info">
-          A equipa de IT deu este pedido como resolvido. Confirme a resolução para o fechar ou reabra-o se o problema persistir.
+          {t('A equipa de IT deu este pedido como resolvido. Confirme a resolução para o fechar ou reabra-o se o problema persistir.')}
         </Alert>
       )}
 
@@ -262,40 +263,40 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({ context }) =
             assetLink={canReadAssets && ticket.assetId ? `/it/assets/${ticket.assetId}` : undefined}
           />
 
-          <Panel title="Histórico" description="Mensagens, alterações de estado e responsáveis (registo só de leitura)." flush>
+          <Panel title={t('Histórico')} description={t('Mensagens, alterações de estado e responsáveis (registo só de leitura).')} flush>
             <TicketTimeline comments={timeline.comments} events={timeline.events} />
             {commentAllowed && (
               <TicketCommentForm
-                label={isItView ? 'Nova mensagem' : 'Responder à equipa de IT'}
+                label={isItView ? t('Nova mensagem') : t('Responder à equipa de IT')}
                 hint={
                   !isItView && ticket.status === 'WAITING_USER'
-                    ? 'A sua resposta devolve o pedido à equipa de IT.'
+                    ? t('A sua resposta devolve o pedido à equipa de IT.')
                     : isItView
-                      ? 'As mensagens sem a opção de nota interna são visíveis para o colaborador.'
+                      ? t('As mensagens sem a opção de nota interna são visíveis para o colaborador.')
                       : undefined
                 }
                 allowInternal={isItView}
                 onSubmit={async (body, isInternal) => {
                   await addTicketComment(ticket.id, body, isInternal);
-                  afterAction(isInternal ? 'Nota interna registada.' : 'Mensagem enviada.');
+                  afterAction(isInternal ? t('Nota interna registada.') : t('Mensagem enviada.'));
                 }}
               />
             )}
             {ticket.status === 'CLOSED' && (
               <p className="flex items-center gap-2 border-t border-border px-5 py-3 text-sm text-text-muted">
                 <Lock className="h-4 w-4" aria-hidden="true" />
-                Pedido fechado: já não aceita mensagens.
+                {t('Pedido fechado: já não aceita mensagens.')}
               </p>
             )}
           </Panel>
 
           {isItView && (
             <Panel
-              title="Intervenções técnicas"
+              title={t('Intervenções técnicas')}
               actions={
                 canManage && (
                   <Button size="sm" variant="secondary" icon={Wrench} onClick={() => setActiveModal('intervention')}>
-                    Registar intervenção
+                    {t('Registar intervenção')}
                   </Button>
                 )
               }
@@ -306,9 +307,9 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({ context }) =
                   <ErrorState message={interventions.error} onRetry={interventions.reload} />
                 </div>
               )}
-              {interventions.isLoading && !interventions.data && <LoadingState label="A carregar intervenções..." />}
+              {interventions.isLoading && !interventions.data && <LoadingState label={t('A carregar intervenções...')} />}
               {interventions.data && interventions.data.items.length === 0 && (
-                <p className="px-5 py-4 text-sm text-text-secondary">Ainda não foram registadas intervenções.</p>
+                <p className="px-5 py-4 text-sm text-text-secondary">{t('Ainda não foram registadas intervenções.')}</p>
               )}
               {interventions.data && interventions.data.items.length > 0 && (
                 <InterventionsTable
@@ -325,10 +326,10 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({ context }) =
         {canManage && (
           // No telemóvel as ações aparecem antes do histórico.
           <div className="order-first lg:order-none">
-            <Panel title="Ações do técnico">
+            <Panel title={t('Ações do técnico')}>
               <div className="flex flex-col gap-2">
                 {tech.canTake && (
-                  <Button icon={Hand} isLoading={isActionPending} onClick={() => runImmediate(() => takeTicket(ticket.id), 'Pedido atribuído a si.')}>
+                  <Button icon={Hand} isLoading={isActionPending} onClick={() => runImmediate(() => takeTicket(ticket.id), t('Pedido atribuído a si.'))}>
                     {takeLabel}
                   </Button>
                 )}
@@ -337,46 +338,46 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({ context }) =
                     variant="secondary"
                     icon={Play}
                     isLoading={isActionPending}
-                    onClick={() => runImmediate(() => changeTicketStatus(ticket.id, 'IN_PROGRESS', null), 'Pedido em atendimento.')}
+                    onClick={() => runImmediate(() => changeTicketStatus(ticket.id, 'IN_PROGRESS', null), t('Pedido em atendimento.'))}
                   >
-                    Retomar atendimento
+                    {t('Retomar atendimento')}
                   </Button>
                 )}
                 {tech.canWaitForUser && (
                   <Button variant="secondary" icon={PauseCircle} onClick={() => setActiveModal('wait')}>
-                    Pedir informação ao colaborador
+                    {t('Pedir informação ao colaborador')}
                   </Button>
                 )}
                 {tech.canResolve && (
                   <Button icon={CheckCircle2} onClick={() => setActiveModal('resolve')}>
-                    Resolver
+                    {t('Resolver')}
                   </Button>
                 )}
                 {tech.canClose && (
                   <Button variant="secondary" icon={Lock} onClick={() => setActiveModal('close')}>
-                    Fechar
+                    {t('Fechar')}
                   </Button>
                 )}
                 {tech.canReopen && (
                   <Button variant="secondary" icon={RotateCcw} onClick={() => setActiveModal('reopen')}>
-                    Reabrir
+                    {t('Reabrir')}
                   </Button>
                 )}
               </div>
 
               {tech.canEditClassification && (
                 <div className="mt-5 flex flex-col gap-2 border-t border-border pt-5">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Classificação</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">{t('Classificação')}</p>
                   {tech.canAssign && (
                     <Button variant="ghost" icon={UserPlus} className="justify-start" disabled={!referenceData.data} onClick={() => setActiveModal('assign')}>
-                      Atribuir técnico
+                      {t('Atribuir técnico')}
                     </Button>
                   )}
                   <Button variant="ghost" icon={Gauge} className="justify-start" onClick={() => setActiveModal('priority')}>
-                    Alterar prioridade
+                    {t('Alterar prioridade')}
                   </Button>
                   <Button variant="ghost" icon={FolderTree} className="justify-start" disabled={!referenceData.data} onClick={() => setActiveModal('category')}>
-                    Alterar categoria
+                    {t('Alterar categoria')}
                   </Button>
                   {canReadAssets && (
                     <Button
@@ -388,7 +389,7 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({ context }) =
                         setActiveModal('asset');
                       }}
                     >
-                      {ticket.assetId ? 'Alterar equipamento' : 'Associar equipamento'}
+                      {ticket.assetId ? t('Alterar equipamento') : t('Associar equipamento')}
                     </Button>
                   )}
                 </div>
@@ -400,111 +401,111 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({ context }) =
 
       <TicketNoteModal
         isOpen={activeModal === 'resolve'}
-        title={`Resolver ${ticket.reference}`}
-        description="O colaborador é notificado e pode confirmar a resolução ou reabrir o pedido."
-        note={{ label: 'Resolução', minLength: 5, maxLength: 2000, hint: 'Visível para o colaborador.' }}
-        confirmLabel="Marcar como resolvido"
+        title={t('Resolver {reference}', { reference: ticket.reference })}
+        description={t('O colaborador é notificado e pode confirmar a resolução ou reabrir o pedido.')}
+        note={{ label: t('Resolução'), minLength: 5, maxLength: 2000, hint: t('Visível para o colaborador.') }}
+        confirmLabel={t('Marcar como resolvido')}
         onClose={() => setActiveModal(null)}
         onConfirm={async (note) => {
           await resolveTicket(ticket.id, note ?? '');
-          afterAction('Pedido marcado como resolvido.');
+          afterAction(t('Pedido marcado como resolvido.'));
         }}
       />
       <TicketNoteModal
         isOpen={activeModal === 'wait'}
-        title="Pedir informação ao colaborador"
-        description="O pedido fica a aguardar o colaborador, que é notificado com esta mensagem."
-        note={{ label: 'Informação pedida', minLength: 5, maxLength: 2000 }}
-        confirmLabel="Aguardar colaborador"
+        title={t('Pedir informação ao colaborador')}
+        description={t('O pedido fica a aguardar o colaborador, que é notificado com esta mensagem.')}
+        note={{ label: t('Informação pedida'), minLength: 5, maxLength: 2000 }}
+        confirmLabel={t('Aguardar colaborador')}
         onClose={() => setActiveModal(null)}
         onConfirm={async (note) => {
           await changeTicketStatus(ticket.id, 'WAITING_USER', note);
-          afterAction('O pedido aguarda resposta do colaborador.');
+          afterAction(t('O pedido aguarda resposta do colaborador.'));
         }}
       />
       <TicketNoteModal
         isOpen={activeModal === 'close'}
-        title={isItView ? `Fechar ${ticket.reference}` : 'Confirmar resolução'}
+        title={isItView ? t('Fechar {reference}', { reference: ticket.reference }) : t('Confirmar resolução')}
         description={
           isItView
-            ? 'Um pedido fechado só pode ser reaberto pela equipa de IT.'
-            : 'O pedido é fechado. Se o problema voltar a acontecer, abra um novo pedido.'
+            ? t('Um pedido fechado só pode ser reaberto pela equipa de IT.')
+            : t('O pedido é fechado. Se o problema voltar a acontecer, abra um novo pedido.')
         }
-        note={{ label: 'Comentário (opcional)', maxLength: 1000 }}
-        confirmLabel={isItView ? 'Fechar pedido' : 'Confirmar e fechar'}
+        note={{ label: t('Comentário (opcional)'), maxLength: 1000 }}
+        confirmLabel={isItView ? t('Fechar pedido') : t('Confirmar e fechar')}
         onClose={() => setActiveModal(null)}
         onConfirm={async (note) => {
           await closeTicket(ticket.id, note);
-          afterAction('Pedido fechado.');
+          afterAction(t('Pedido fechado.'));
         }}
       />
       <TicketNoteModal
         isOpen={activeModal === 'reopen'}
-        title={`Reabrir ${ticket.reference}`}
-        description="O pedido volta à equipa de IT com um novo prazo de resolução."
-        note={{ label: 'Motivo da reabertura', minLength: 5, maxLength: 1000 }}
-        confirmLabel="Reabrir pedido"
+        title={t('Reabrir {reference}', { reference: ticket.reference })}
+        description={t('O pedido volta à equipa de IT com um novo prazo de resolução.')}
+        note={{ label: t('Motivo da reabertura'), minLength: 5, maxLength: 1000 }}
+        confirmLabel={t('Reabrir pedido')}
         onClose={() => setActiveModal(null)}
         onConfirm={async (note) => {
           await reopenTicket(ticket.id, note ?? '');
-          afterAction('Pedido reaberto.');
+          afterAction(t('Pedido reaberto.'));
         }}
       />
       <TicketSelectModal
         isOpen={activeModal === 'assign'}
-        title="Atribuir técnico"
-        fieldLabel="Técnico responsável"
+        title={t('Atribuir técnico')}
+        fieldLabel={t('Técnico responsável')}
         options={referenceData.data ? technicianOptions : NO_OPTIONS}
         initialValue={ticket.assignedTo ?? ''}
-        confirmLabel="Atribuir"
+        confirmLabel={t('Atribuir')}
         onClose={() => setActiveModal(null)}
         onConfirm={async (technicianId) => {
           if (!technicianId) return;
           await assignTicket(ticket.id, technicianId);
-          afterAction('Técnico atribuído.');
+          afterAction(t('Técnico atribuído.'));
         }}
       />
       <TicketSelectModal
         isOpen={activeModal === 'priority'}
-        title="Alterar prioridade"
-        fieldLabel="Prioridade"
+        title={t('Alterar prioridade')}
+        fieldLabel={t('Prioridade')}
         options={priorityOptions}
         initialValue={ticket.priority}
-        optionalNote={{ label: 'Motivo (opcional)', maxLength: 1000 }}
-        confirmLabel="Alterar prioridade"
+        optionalNote={{ label: t('Motivo (opcional)'), maxLength: 1000 }}
+        confirmLabel={t('Alterar prioridade')}
         onClose={() => setActiveModal(null)}
         onConfirm={async (priority, reason) => {
           if (!priority || !isTicketPriority(priority)) return;
           await updateTicketPriority(ticket.id, priority, reason);
-          afterAction('Prioridade alterada. O prazo de resolução foi recalculado.');
+          afterAction(t('Prioridade alterada. O prazo de resolução foi recalculado.'));
         }}
       />
       <TicketSelectModal
         isOpen={activeModal === 'category'}
-        title="Alterar categoria"
-        fieldLabel="Categoria"
+        title={t('Alterar categoria')}
+        fieldLabel={t('Categoria')}
         options={categoryOptions}
         initialValue={ticket.categoryId}
-        confirmLabel="Alterar categoria"
+        confirmLabel={t('Alterar categoria')}
         onClose={() => setActiveModal(null)}
         onConfirm={async (categoryId) => {
           if (!categoryId) return;
           await updateTicketCategory(ticket.id, categoryId);
-          afterAction('Categoria alterada.');
+          afterAction(t('Categoria alterada.'));
         }}
       />
       <TicketSelectModal
         isOpen={activeModal === 'asset'}
-        title="Equipamento associado"
-        fieldLabel="Equipamento"
+        title={t('Equipamento associado')}
+        fieldLabel={t('Equipamento')}
         options={assetOptions}
         initialValue={ticket.assetId ?? ''}
-        emptyOptionLabel="Sem equipamento"
-        confirmLabel="Guardar"
+        emptyOptionLabel={t('Sem equipamento')}
+        confirmLabel={t('Guardar')}
         onClose={() => setActiveModal(null)}
         onConfirm={async (assetId) => {
           await setTicketAsset(ticket.id, assetId);
-          afterAction(assetId ? 'Equipamento associado.' : 'Equipamento removido do pedido.');
+          afterAction(assetId ? t('Equipamento associado.') : t('Equipamento removido do pedido.'));
         }}
       />
       <InterventionFormModal
@@ -513,7 +514,7 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({ context }) =
         assetId={ticket.assetId}
         targetLabel={ticket.assetTag ? `${ticket.reference} · ${ticket.assetTag}` : ticket.reference}
         onClose={() => setActiveModal(null)}
-        onSaved={() => afterAction('Intervenção registada.')}
+        onSaved={() => afterAction(t('Intervenção registada.'))}
       />
     </div>
   );

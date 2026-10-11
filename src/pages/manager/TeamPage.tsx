@@ -14,8 +14,9 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState, LoadingState } from '../../components/ui/States';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { UserAvatar } from '../../components/ui/UserAvatar';
-import { formatDateTime, formatPeriod } from '../../utils/format';
+import { compareText, formatDateTime, formatPeriod } from '../../utils/format';
 import { lastActivityAt, latestTimesheetByEmployee } from '../../utils/timesheets';
+import { t } from '../../lib/i18n';
 
 const ALL = '';
 const NO_TIMESHEET = 'NONE';
@@ -50,7 +51,7 @@ export const TeamPage: React.FC = () => {
   const departments = useMemo(() => {
     const byId = new Map<string, string>();
     for (const { member } of rows) if (member.department) byId.set(member.department.id, member.department.name);
-    return [...byId.entries()].sort((first, second) => first[1].localeCompare(second[1], 'pt-PT'));
+    return [...byId.entries()].sort((first, second) => compareText(first[1], second[1]));
   }, [rows]);
 
   const term = search.trim().toLowerCase();
@@ -69,7 +70,7 @@ export const TeamPage: React.FC = () => {
     })
     .sort((first, second) => {
       const direction = sort.direction === 'asc' ? 1 : -1;
-      if (sort.key === 'name') return first.member.full_name.localeCompare(second.member.full_name, 'pt-PT') * direction;
+      if (sort.key === 'name') return compareText(first.member.full_name, second.member.full_name) * direction;
       return (first.lastActivity ?? '').localeCompare(second.lastActivity ?? '') * direction;
     });
 
@@ -78,7 +79,7 @@ export const TeamPage: React.FC = () => {
   const columns: DataTableColumn<TeamRow, TeamSortKey>[] = [
     {
       id: 'name',
-      header: 'Colaborador',
+      header: t('Colaborador'),
       sortKey: 'name',
       render: ({ member }) => (
         <Link to={`/team/${member.id}`} className="flex items-center gap-3 hover:underline">
@@ -90,27 +91,27 @@ export const TeamPage: React.FC = () => {
         </Link>
       ),
     },
-    { id: 'department', header: 'Departamento', render: ({ member }) => member.department?.name ?? 'Sem departamento' },
+    { id: 'department', header: t('Departamento'), render: ({ member }) => member.department?.name ?? t('Sem departamento') },
     {
       id: 'job',
-      header: 'Cargo e função',
+      header: t('Cargo e função'),
       className: 'min-w-48',
       render: ({ member }) => (
         <span>
           <span className="block">{member.job_title ?? '—'}</span>
-          <span className="line-clamp-2 block text-xs text-text-muted">{member.job_description ?? 'Descrição por preencher'}</span>
+          <span className="line-clamp-2 block text-xs text-text-muted">{member.job_description ?? t('Descrição por preencher')}</span>
         </span>
       ),
     },
-    { id: 'contact', header: 'Contacto', render: ({ member }) => member.phone ?? member.email },
+    { id: 'contact', header: t('Contacto'), render: ({ member }) => member.phone ?? member.email },
     {
       id: 'account',
-      header: 'Conta',
+      header: t('Conta'),
       render: ({ member }) => <StatusBadge status={member.is_active ? 'ACTIVE' : 'INACTIVE'} size="sm" />,
     },
     {
       id: 'timesheet',
-      header: 'Último timesheet',
+      header: t('Último timesheet'),
       render: ({ latestTimesheet }) =>
         latestTimesheet ? (
           <span className="flex flex-col items-end gap-1 md:items-start">
@@ -118,26 +119,26 @@ export const TeamPage: React.FC = () => {
             <span className="text-xs text-text-muted">{formatPeriod(latestTimesheet.periodStart, latestTimesheet.periodEnd)}</span>
           </span>
         ) : (
-          'Sem timesheets'
+          t('Sem timesheets')
         ),
     },
     {
       id: 'activity',
-      header: 'Última atividade',
+      header: t('Última atividade'),
       sortKey: 'activity',
-      render: ({ lastActivity }) => formatDateTime(lastActivity, 'Sem submissões'),
+      render: ({ lastActivity }) => formatDateTime(lastActivity, t('Sem submissões')),
     },
   ];
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Minha Equipa" subtitle="Colaboradores no seu âmbito de gestão e o estado dos respetivos timesheets." />
+      <PageHeader title={t('Minha Equipa')} subtitle={t('Colaboradores no seu âmbito de gestão e o estado dos respetivos timesheets.')} />
 
       <Panel flush>
         <div className="grid grid-cols-1 gap-3 border-b border-border p-4 sm:grid-cols-3">
-          <SearchInput label="Pesquisar nome, e-mail ou nº" value={search} onChange={(event) => setSearch(event.target.value)} />
-          <FilterSelect label="Filtrar por departamento" value={departmentId} onChange={(event) => setDepartmentId(event.target.value)}>
-            <option value={ALL}>Todos os departamentos</option>
+          <SearchInput label={t('Pesquisar nome, e-mail ou nº')} value={search} onChange={(event) => setSearch(event.target.value)} />
+          <FilterSelect label={t('Filtrar por departamento')} value={departmentId} onChange={(event) => setDepartmentId(event.target.value)}>
+            <option value={ALL}>{t('Todos os departamentos')}</option>
             {departments.map(([id, name]) => (
               <option key={id} value={id}>
                 {name}
@@ -145,16 +146,16 @@ export const TeamPage: React.FC = () => {
             ))}
           </FilterSelect>
           <FilterSelect
-            label="Filtrar por estado do último timesheet"
+            label={t('Filtrar por estado do último timesheet')}
             value={timesheetStatus}
             onChange={(event) => setTimesheetStatus(event.target.value)}
           >
-            <option value={ALL}>Todos os estados de timesheet</option>
-            <option value="SUBMITTED">Por aprovar</option>
-            <option value="REJECTED">Rejeitado</option>
-            <option value="DRAFT">Em rascunho</option>
-            <option value="APPROVED">Aprovado</option>
-            <option value={NO_TIMESHEET}>Sem timesheets</option>
+            <option value={ALL}>{t('Todos os estados de timesheet')}</option>
+            <option value="SUBMITTED">{t('Por aprovar')}</option>
+            <option value="REJECTED">{t('Rejeitado')}</option>
+            <option value="DRAFT">{t('Em rascunho')}</option>
+            <option value="APPROVED">{t('Aprovado')}</option>
+            <option value={NO_TIMESHEET}>{t('Sem timesheets')}</option>
           </FilterSelect>
         </div>
 
@@ -163,13 +164,13 @@ export const TeamPage: React.FC = () => {
             <ErrorState message={team.error} onRetry={team.reload} />
           </div>
         )}
-        {team.isLoading && !team.data && <LoadingState label="A carregar equipa..." />}
+        {team.isLoading && !team.data && <LoadingState label={t('A carregar equipa...')} />}
         {team.data && visible.length === 0 && (
           <EmptyState
             bordered={false}
             icon={Users}
-            title={hasFilters ? 'Nenhum colaborador corresponde aos filtros.' : 'Não tem colaboradores no seu âmbito de gestão.'}
-            message={hasFilters ? undefined : 'A atribuição de equipas é feita pela administração.'}
+            title={hasFilters ? t('Nenhum colaborador corresponde aos filtros.') : t('Não tem colaboradores no seu âmbito de gestão.')}
+            message={hasFilters ? undefined : t('A atribuição de equipas é feita pela administração.')}
             action={
               hasFilters && (
                 <Button
@@ -181,7 +182,7 @@ export const TeamPage: React.FC = () => {
                     setTimesheetStatus(ALL);
                   }}
                 >
-                  Limpar filtros
+                  {t('Limpar filtros')}
                 </Button>
               )
             }
@@ -189,7 +190,7 @@ export const TeamPage: React.FC = () => {
         )}
         {visible.length > 0 && (
           <DataTable
-            caption="Colaboradores da equipa"
+            caption={t('Colaboradores da equipa')}
             columns={columns}
             rows={visible}
             getRowKey={(row) => row.member.id}

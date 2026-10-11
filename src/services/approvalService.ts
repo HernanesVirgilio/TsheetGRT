@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase/client';
 import { toServiceError } from '../lib/errors';
+import { t } from '../lib/i18n';
 
 export type ReviewDecision = 'APPROVED' | 'REJECTED';
 
@@ -22,7 +23,7 @@ export async function reviewTimesheet(timesheetId: string, decision: ReviewDecis
   if (error) {
     throw toServiceError(
       error,
-      decision === 'APPROVED' ? 'Não foi possível aprovar o timesheet.' : 'Não foi possível rejeitar o timesheet.'
+      decision === 'APPROVED' ? t('Não foi possível aprovar o timesheet.') : t('Não foi possível rejeitar o timesheet.')
     );
   }
 }
@@ -33,6 +34,6 @@ export async function approveTimesheets(timesheetIds: string[], comment: string 
     p_timesheet_ids: timesheetIds,
     p_comment: comment,
   });
-  if (error) throw toServiceError(error, 'Não foi possível aprovar os timesheets selecionados.');
+  if (error) throw toServiceError(error, t('Não foi possível aprovar os timesheets selecionados.'));
   return data.map((row) => ({ timesheetId: row.timesheet_id, approved: row.approved, message: row.message }));
 }

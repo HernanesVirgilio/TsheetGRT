@@ -12,6 +12,7 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState, LoadingState } from '../../components/ui/States';
 import { OverdueBadge } from '../../components/work/WorkStatusBadge';
 import { formatMinutesAsHours } from '../../utils/format';
+import { t } from '../../lib/i18n';
 
 /** Carga de trabalho da equipa do âmbito (dados agregados pelo servidor, sem expor detalhes). */
 export const TeamWorkPage: React.FC = () => {
@@ -24,7 +25,7 @@ export const TeamWorkPage: React.FC = () => {
   const columns: DataTableColumn<TeamMemberWorkload>[] = [
     {
       id: 'name',
-      header: 'Colaborador',
+      header: t('Colaborador'),
       render: (member) => (
         <span>
           <span className="block font-semibold text-text">{member.fullName}</span>
@@ -32,34 +33,34 @@ export const TeamWorkPage: React.FC = () => {
         </span>
       ),
     },
-    { id: 'open', header: 'Em aberto', align: 'right', render: (member) => member.tasksOpen },
-    { id: 'progress', header: 'Em curso', align: 'right', render: (member) => member.tasksInProgress },
-    { id: 'blocked', header: 'Bloqueadas', align: 'right', render: (member) => member.tasksBlocked },
+    { id: 'open', header: t('Em aberto'), align: 'right', render: (member) => member.tasksOpen },
+    { id: 'progress', header: t('Em curso'), align: 'right', render: (member) => member.tasksInProgress },
+    { id: 'blocked', header: t('Bloqueadas'), align: 'right', render: (member) => member.tasksBlocked },
     {
       id: 'overdue',
-      header: 'Atrasadas',
+      header: t('Atrasadas'),
       align: 'right',
       render: (member) => (member.tasksOverdue > 0 ? <OverdueBadge label={String(member.tasksOverdue)} /> : 0),
     },
-    { id: 'due', header: 'Prazo em 7 dias', align: 'right', render: (member) => member.tasksDueNext7Days },
-    { id: 'hours', header: 'Horas na semana', align: 'right', render: (member) => formatMinutesAsHours(member.minutesThisWeek) },
-    { id: 'absence', header: 'Hoje', render: (member) => member.absenceToday ?? <span className="text-text-muted">Presente</span> },
-    { id: 'pending', header: 'Ausências por decidir', align: 'right', render: (member) => member.pendingAbsenceRequests },
+    { id: 'due', header: t('Prazo em 7 dias'), align: 'right', render: (member) => member.tasksDueNext7Days },
+    { id: 'hours', header: t('Horas na semana'), align: 'right', render: (member) => formatMinutesAsHours(member.minutesThisWeek) },
+    { id: 'absence', header: t('Hoje'), render: (member) => member.absenceToday ?? <span className="text-text-muted">{t('Presente')}</span> },
+    { id: 'pending', header: t('Ausências por decidir'), align: 'right', render: (member) => member.pendingAbsenceRequests },
   ];
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Carga da equipa"
-        subtitle="O que a equipa tem em mãos: tarefas em aberto, atrasos, bloqueios, horas e ausências."
+        title={t('Carga da equipa')}
+        subtitle={t('O que a equipa tem em mãos: tarefas em aberto, atrasos, bloqueios, horas e ausências.')}
         actions={
           <Link to="/timesheet/tasks?scope=TEAM" className="text-sm font-medium text-primary-hover hover:underline">
-            Tarefas da equipa
+            {t('Tarefas da equipa')}
           </Link>
         }
       />
       {absent.length > 0 && (
-        <Panel title="Ausentes hoje">
+        <Panel title={t('Ausentes hoje')}>
           <p className="text-sm text-text-secondary">{absent.map((member) => `${member.fullName} (${member.absenceToday})`).join(' · ')}</p>
         </Panel>
       )}
@@ -69,11 +70,11 @@ export const TeamWorkPage: React.FC = () => {
             <ErrorState message={overview.error} onRetry={overview.reload} />
           </div>
         )}
-        {overview.isLoading && !overview.data && <LoadingState label="A carregar a equipa..." />}
+        {overview.isLoading && !overview.data && <LoadingState label={t('A carregar a equipa...')} />}
         {overview.data && members.length === 0 && (
-          <EmptyState bordered={false} icon={Users} title="Ainda não tem colaboradores no seu âmbito." message="O âmbito de gestão é atribuído pela administração." />
+          <EmptyState bordered={false} icon={Users} title={t('Ainda não tem colaboradores no seu âmbito.')} message={t('O âmbito de gestão é atribuído pela administração.')} />
         )}
-        {members.length > 0 && <DataTable caption="Carga de trabalho da equipa" columns={columns} rows={members} getRowKey={(member) => member.profileId} />}
+        {members.length > 0 && <DataTable caption={t('Carga de trabalho da equipa')} columns={columns} rows={members} getRowKey={(member) => member.profileId} />}
       </Panel>
     </div>
   );

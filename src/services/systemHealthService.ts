@@ -1,5 +1,6 @@
 import { supabase, supabaseProjectUrl, supabasePublishableApiKey } from '../lib/supabase/client';
 import { describeSupabaseError } from '../lib/errors';
+import { t } from '../lib/i18n';
 
 export type CheckStatus = 'ok' | 'error';
 
@@ -38,12 +39,12 @@ async function checkDatabase(): Promise<HealthCheck> {
       return {
         status: 'error',
         latencyMs,
-        message: describeSupabaseError(result.error, `Erro ao consultar a base de dados: ${result.error.message}`),
+        message: describeSupabaseError(result.error, t('Erro ao consultar a base de dados: {message}', { message: result.error.message })),
       };
     }
-    return { status: 'ok', latencyMs, message: 'Base de dados acessível e schema disponível.' };
+    return { status: 'ok', latencyMs, message: t('Base de dados acessível e schema disponível.') };
   } catch {
-    return { status: 'error', latencyMs: null, message: 'Não foi possível contactar a base de dados.' };
+    return { status: 'error', latencyMs: null, message: t('Não foi possível contactar a base de dados.') };
   }
 }
 
@@ -53,18 +54,18 @@ async function checkAuthentication(): Promise<HealthCheck> {
       fetch(`${supabaseProjectUrl}/auth/v1/health`, { headers: { apikey: supabasePublishableApiKey } })
     );
     return response.ok
-      ? { status: 'ok', latencyMs, message: 'Serviço de autenticação operacional.' }
-      : { status: 'error', latencyMs, message: `O serviço de autenticação respondeu com o estado HTTP ${response.status}.` };
+      ? { status: 'ok', latencyMs, message: t('Serviço de autenticação operacional.') }
+      : { status: 'error', latencyMs, message: t('O serviço de autenticação respondeu com o estado HTTP {status}.', { status: response.status }) };
   } catch {
-    return { status: 'error', latencyMs: null, message: 'Não foi possível contactar o serviço de autenticação.' };
+    return { status: 'error', latencyMs: null, message: t('Não foi possível contactar o serviço de autenticação.') };
   }
 }
 
 async function checkSession(): Promise<HealthCheck> {
   const { result, latencyMs } = await measure(() => supabase.auth.getUser());
   return result.error || !result.data.user
-    ? { status: 'error', latencyMs, message: 'A sessão atual não foi validada pelo servidor.' }
-    : { status: 'ok', latencyMs, message: 'Sessão atual validada pelo servidor.' };
+    ? { status: 'error', latencyMs, message: t('A sessão atual não foi validada pelo servidor.') }
+    : { status: 'ok', latencyMs, message: t('Sessão atual validada pelo servidor.') };
 }
 
 async function countOrNull(query: PromiseLike<{ count: number | null; error: unknown }>): Promise<number | null> {

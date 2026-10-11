@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DependencyList } from 'react';
 import { getErrorMessage } from '../lib/errors';
+import { t } from '../lib/i18n';
 
 interface AsyncDataState<T> {
   data: T | null;
@@ -35,7 +36,7 @@ export function useAsyncData<T>(loader: () => Promise<T>, dependencies: Dependen
         if (isCurrent) {
           setState((previous) => ({
             data: previous.data,
-            error: getErrorMessage(error, 'Ocorreu um erro inesperado ao carregar os dados.'),
+            error: getErrorMessage(error, t('Ocorreu um erro inesperado ao carregar os dados.')),
             isLoading: false,
           }));
         }

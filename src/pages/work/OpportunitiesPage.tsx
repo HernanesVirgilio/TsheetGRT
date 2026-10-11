@@ -21,6 +21,7 @@ import { WorkStatusBadge } from '../../components/work/WorkStatusBadge';
 import { OpportunityFormModal } from '../../components/work/OpportunityModals';
 import { formatMoney, OPPORTUNITY_STATUS_LABELS } from '../../utils/work';
 import { formatDate } from '../../utils/format';
+import { t } from '../../lib/i18n';
 
 const PAGE_SIZE = 20;
 const ACTIVE = 'ACTIVE';
@@ -56,7 +57,7 @@ export const OpportunitiesPage: React.FC = () => {
   const columns: DataTableColumn<OpportunitySummary>[] = [
     {
       id: 'title',
-      header: 'Oportunidade',
+      header: t('Oportunidade'),
       render: (item) => (
         <Link to={`/timesheet/opportunities/${item.id}`} className="block hover:underline">
           <span className="block font-semibold text-text">{item.reference}</span>
@@ -64,14 +65,14 @@ export const OpportunitiesPage: React.FC = () => {
         </Link>
       ),
     },
-    { id: 'company', header: 'Empresa', render: (item) => item.companyName ?? '—' },
-    { id: 'owner', header: 'Responsável', render: (item) => item.ownerName ?? '—' },
-    { id: 'status', header: 'Etapa', render: (item) => <WorkStatusBadge kind="opportunity" status={item.status} /> },
-    { id: 'value', header: 'Valor estimado', align: 'right', render: (item) => formatMoney(item.estimatedValue, item.currency) },
-    { id: 'probability', header: 'Prob.', align: 'right', render: (item) => (item.probability === null ? '—' : `${item.probability}%`) },
+    { id: 'company', header: t('Empresa'), render: (item) => item.companyName ?? '—' },
+    { id: 'owner', header: t('Responsável'), render: (item) => item.ownerName ?? '—' },
+    { id: 'status', header: t('Etapa'), render: (item) => <WorkStatusBadge kind="opportunity" status={item.status} /> },
+    { id: 'value', header: t('Valor estimado'), align: 'right', render: (item) => formatMoney(item.estimatedValue, item.currency) },
+    { id: 'probability', header: t('Prob.'), align: 'right', render: (item) => (item.probability === null ? '—' : `${item.probability}%`) },
     {
       id: 'next',
-      header: 'Próximo passo',
+      header: t('Próximo passo'),
       className: 'min-w-48',
       render: (item) => (item.nextStep ? `${item.nextStep}${item.nextStepDate ? ` · ${formatDate(item.nextStepDate)}` : ''}` : '—'),
     },
@@ -80,8 +81,8 @@ export const OpportunitiesPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Oportunidades"
-        subtitle="Negócios em curso, ligados às reuniões, tarefas e tempo dedicado."
+        title={t('Oportunidades')}
+        subtitle={t('Negócios em curso, ligados às reuniões, tarefas e tempo dedicado.')}
         actions={
           <>
             <Link
@@ -89,11 +90,11 @@ export const OpportunitiesPage: React.FC = () => {
               className="inline-flex h-10 items-center gap-2 rounded-md border border-border-input bg-surface px-4 text-sm font-semibold text-text hover:bg-surface-muted"
             >
               <Building2 className="h-4 w-4" aria-hidden="true" />
-              Empresas
+              {t('Empresas')}
             </Link>
             {canCreate && (
               <Button icon={Plus} onClick={() => setIsCreateOpen(true)} disabled={!companies.data}>
-                Nova oportunidade
+                {t('Nova oportunidade')}
               </Button>
             )}
           </>
@@ -101,10 +102,10 @@ export const OpportunitiesPage: React.FC = () => {
       />
       <Panel flush>
         <div className="grid grid-cols-1 gap-3 border-b border-border p-4 sm:grid-cols-3">
-          <SearchInput label="Pesquisar referência, título ou contacto" value={search} onChange={(event) => setSearch(event.target.value)} />
-          <FilterSelect label="Filtrar por etapa" value={status} onChange={(event) => setStatus(event.target.value)}>
-            <option value={ACTIVE}>Em curso</option>
-            <option value={ALL}>Todas</option>
+          <SearchInput label={t('Pesquisar referência, título ou contacto')} value={search} onChange={(event) => setSearch(event.target.value)} />
+          <FilterSelect label={t('Filtrar por etapa')} value={status} onChange={(event) => setStatus(event.target.value)}>
+            <option value={ACTIVE}>{t('Em curso')}</option>
+            <option value={ALL}>{t('Todas')}</option>
             {OPPORTUNITY_STATUSES.map((value) => (
               <option key={value} value={value}>
                 {OPPORTUNITY_STATUS_LABELS[value]}
@@ -112,8 +113,8 @@ export const OpportunitiesPage: React.FC = () => {
             ))}
           </FilterSelect>
           {(owners.data ?? []).length > 1 && (
-            <FilterSelect label="Filtrar por responsável" value={ownerId} onChange={(event) => setOwnerId(event.target.value)}>
-              <option value={ALL}>Todos os responsáveis</option>
+            <FilterSelect label={t('Filtrar por responsável')} value={ownerId} onChange={(event) => setOwnerId(event.target.value)}>
+              <option value={ALL}>{t('Todos os responsáveis')}</option>
               {(owners.data ?? []).map((person) => (
                 <option key={person.profileId} value={person.profileId}>
                   {person.fullName}
@@ -127,13 +128,13 @@ export const OpportunitiesPage: React.FC = () => {
             <ErrorState message={opportunities.error} onRetry={opportunities.reload} />
           </div>
         )}
-        {opportunities.isLoading && !opportunities.data && <LoadingState label="A carregar oportunidades..." />}
+        {opportunities.isLoading && !opportunities.data && <LoadingState label={t('A carregar oportunidades...')} />}
         {opportunities.data && opportunities.data.items.length === 0 && (
-          <EmptyState bordered={false} icon={Briefcase} title={status === ACTIVE ? 'Não existem oportunidades em curso.' : 'Não existem oportunidades registadas com estes filtros.'} />
+          <EmptyState bordered={false} icon={Briefcase} title={status === ACTIVE ? t('Não existem oportunidades em curso.') : t('Não existem oportunidades registadas com estes filtros.')} />
         )}
         {opportunities.data && opportunities.data.items.length > 0 && (
           <>
-            <DataTable caption="Oportunidades" columns={columns} rows={opportunities.data.items} getRowKey={(item) => item.id} />
+            <DataTable caption={t('Oportunidades')} columns={columns} rows={opportunities.data.items} getRowKey={(item) => item.id} />
             <Pagination page={page} pageSize={PAGE_SIZE} totalItems={opportunities.data.total} onPageChange={setPage} />
           </>
         )}

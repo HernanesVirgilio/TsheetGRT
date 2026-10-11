@@ -15,6 +15,7 @@ import { isApprovalRequestStatus, isCompanyStatus, isOpportunityApprovalStatus, 
 import { isPresent } from '../mappers';
 import { toIlikePattern } from '../../utils/validation';
 import { mapWorkEvent, WORK_EVENT_COLUMNS } from './workEvents';
+import { t } from '../../lib/i18n';
 
 // ---------------------------------------------------------------------------- empresas
 
@@ -58,7 +59,7 @@ export async function listCompanies(search: string, status: CompanyStatus | null
     request = request.or(`name.ilike.${pattern},nuit.ilike.${pattern},contact_name.ilike.${pattern}`);
   }
   const { data, error } = await request;
-  if (error) throw toServiceError(error, 'Não foi possível carregar as empresas.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar as empresas.'));
   return data.map(mapCompany).filter(isPresent);
 }
 
@@ -91,7 +92,7 @@ function toCompanyPayload(input: CompanyInput) {
 /** Escrita direta sob RLS; o servidor define o autor e audita a operação. */
 export async function createCompany(input: CompanyInput): Promise<string> {
   const { data, error } = await supabase.from('companies').insert(toCompanyPayload(input)).select('id').single();
-  if (error) throw toServiceError(error, 'Não foi possível registar a empresa.');
+  if (error) throw toServiceError(error, t('Não foi possível registar a empresa.'));
   return data.id;
 }
 
@@ -111,13 +112,13 @@ export async function findSimilarCompanies(name: string, nuit: string | null): P
   if (nuit) filters.push(`nuit.eq.${nuit}`);
   if (filters.length === 0) filters.push(`name.ilike.${toIlikePattern(name.trim())}`);
   const { data, error } = await supabase.from('companies').select(COMPANY_SELECT).or(filters.join(',')).order('name').limit(10);
-  if (error) throw toServiceError(error, 'Não foi possível verificar empresas semelhantes.');
+  if (error) throw toServiceError(error, t('Não foi possível verificar empresas semelhantes.'));
   return data.map(mapCompany).filter(isPresent);
 }
 
 export async function updateCompany(companyId: string, input: CompanyInput): Promise<void> {
   const { error } = await supabase.from('companies').update(toCompanyPayload(input)).eq('id', companyId);
-  if (error) throw toServiceError(error, 'Não foi possível guardar a empresa.');
+  if (error) throw toServiceError(error, t('Não foi possível guardar a empresa.'));
 }
 
 // ---------------------------------------------------------------------------- oportunidades
@@ -211,7 +212,7 @@ export async function listOpportunities(query: OpportunityQuery): Promise<{ item
     request = request.or(`reference.ilike.${pattern},title.ilike.${pattern},contact_name.ilike.${pattern}`);
   }
   const { data, error, count } = await request;
-  if (error) throw toServiceError(error, 'Não foi possível carregar as oportunidades.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar as oportunidades.'));
   return { items: data.map(mapOpportunity).filter(isPresent), total: count ?? data.length };
 }
 
@@ -223,13 +224,13 @@ export async function listActiveOpportunities(): Promise<OpportunitySummary[]> {
     .in('status', ['NEW', 'QUALIFICATION', 'PROPOSAL', 'NEGOTIATION'])
     .order('title')
     .limit(200);
-  if (error) throw toServiceError(error, 'Não foi possível carregar as oportunidades.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar as oportunidades.'));
   return data.map(mapOpportunity).filter(isPresent);
 }
 
 export async function getOpportunity(opportunityId: string): Promise<OpportunityDetail | null> {
   const { data, error } = await supabase.from('opportunities').select(OPPORTUNITY_SELECT).eq('id', opportunityId).maybeSingle();
-  if (error) throw toServiceError(error, 'Não foi possível carregar a oportunidade.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar a oportunidade.'));
   return data ? mapOpportunity(data) : null;
 }
 
@@ -239,13 +240,13 @@ export async function listOpportunityEvents(opportunityId: string): Promise<Work
     .select(`${WORK_EVENT_COLUMNS}, after_closure`)
     .eq('opportunity_id', opportunityId)
     .order('created_at');
-  if (error) throw toServiceError(error, 'Não foi possível carregar o histórico da oportunidade.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar o histórico da oportunidade.'));
   return data.map(mapWorkEvent);
 }
 
 export async function getOpportunityPeople(opportunityId: string): Promise<OpportunityPerson[]> {
   const { data, error } = await supabase.rpc('get_opportunity_people', { p_opportunity_id: opportunityId });
-  if (error) throw toServiceError(error, 'Não foi possível carregar a equipa da oportunidade.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar a equipa da oportunidade.'));
   return data.map((row) => ({
     profileId: row.profile_id,
     fullName: row.full_name,
@@ -294,7 +295,7 @@ export async function createOpportunity(input: OpportunityInput, ownerId: string
     p_next_step_date: input.nextStepDate,
     p_notes: input.notes,
   });
-  if (error) throw toServiceError(error, 'Não foi possível registar a oportunidade.');
+  if (error) throw toServiceError(error, t('Não foi possível registar a oportunidade.'));
   return data;
 }
 
@@ -320,33 +321,33 @@ export async function updateOpportunity(opportunityId: string, input: Opportunit
     p_reason: reason,
     p_expected_updated_at: expectedUpdatedAt,
   });
-  if (error) throw toServiceError(error, 'Não foi possível guardar a oportunidade.');
+  if (error) throw toServiceError(error, t('Não foi possível guardar a oportunidade.'));
 }
 
 export async function changeOpportunityStatus(opportunityId: string, status: OpportunityStatus, note: string | null): Promise<void> {
   const { error } = await supabase.rpc('change_opportunity_status', { p_opportunity_id: opportunityId, p_status: status, p_note: note });
-  if (error) throw toServiceError(error, 'Não foi possível alterar o estado da oportunidade.');
+  if (error) throw toServiceError(error, t('Não foi possível alterar o estado da oportunidade.'));
 }
 
 export async function setOpportunityOwner(opportunityId: string, ownerId: string, note: string | null): Promise<void> {
   const { error } = await supabase.rpc('set_opportunity_owner', { p_opportunity_id: opportunityId, p_owner_id: ownerId, p_note: note });
-  if (error) throw toServiceError(error, 'Não foi possível alterar o responsável.');
+  if (error) throw toServiceError(error, t('Não foi possível alterar o responsável.'));
 }
 
 export async function addOpportunityMember(opportunityId: string, profileId: string): Promise<void> {
   const { error } = await supabase.rpc('add_opportunity_member', { p_opportunity_id: opportunityId, p_profile_id: profileId });
-  if (error) throw toServiceError(error, 'Não foi possível acrescentar o membro.');
+  if (error) throw toServiceError(error, t('Não foi possível acrescentar o membro.'));
 }
 
 export async function removeOpportunityMember(opportunityId: string, profileId: string): Promise<void> {
   const { error } = await supabase.rpc('remove_opportunity_member', { p_opportunity_id: opportunityId, p_profile_id: profileId });
-  if (error) throw toServiceError(error, 'Não foi possível retirar o membro.');
+  if (error) throw toServiceError(error, t('Não foi possível retirar o membro.'));
 }
 
 /** Define, substitui ou retira (null) o gestor de execução; o anterior continua na equipa como membro. */
 export async function setOpportunityExecutionLead(opportunityId: string, profileId: string | null, note: string | null = null): Promise<void> {
   const { error } = await supabase.rpc('set_opportunity_execution_lead', { p_opportunity_id: opportunityId, p_profile_id: profileId, p_note: note });
-  if (error) throw toServiceError(error, 'Não foi possível definir o gestor de execução.');
+  if (error) throw toServiceError(error, t('Não foi possível definir o gestor de execução.'));
 }
 
 /**
@@ -364,7 +365,7 @@ export async function assignProjectTeam(
     try {
       await action();
     } catch (error) {
-      failures.push({ profileId, error: error instanceof Error ? error.message : 'Erro desconhecido.' });
+      failures.push({ profileId, error: error instanceof Error ? error.message : t('Erro desconhecido.') });
     }
   };
   if (executionLeadId) await attempt(executionLeadId, () => setOpportunityExecutionLead(opportunityId, executionLeadId));
@@ -376,7 +377,7 @@ export async function assignProjectTeam(
 
 export async function addOpportunityComment(opportunityId: string, body: string): Promise<void> {
   const { error } = await supabase.rpc('add_opportunity_comment', { p_opportunity_id: opportunityId, p_body: body });
-  if (error) throw toServiceError(error, 'Não foi possível enviar o comentário.');
+  if (error) throw toServiceError(error, t('Não foi possível enviar o comentário.'));
 }
 
 // ---------------------------------------------------------------------------- pedidos de aprovação
@@ -432,7 +433,7 @@ export async function listApprovalRequests(statuses: ApprovalRequestStatus[], li
   let request = supabase.from('approval_requests').select(APPROVAL_SELECT).order('created_at', { ascending: pendingOnly }).limit(limit);
   if (statuses.length > 0) request = request.in('status', statuses);
   const { data, error } = await request;
-  if (error) throw toServiceError(error, 'Não foi possível carregar os pedidos de aprovação.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar os pedidos de aprovação.'));
   return data.map(mapApproval).filter(isPresent);
 }
 
@@ -442,22 +443,22 @@ export async function listOpportunityApprovals(opportunityId: string): Promise<A
     .select(APPROVAL_SELECT)
     .eq('opportunity_id', opportunityId)
     .order('created_at', { ascending: false });
-  if (error) throw toServiceError(error, 'Não foi possível carregar os pedidos de aprovação.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar os pedidos de aprovação.'));
   return data.map(mapApproval).filter(isPresent);
 }
 
 export async function requestOpportunityApproval(opportunityId: string, justification: string): Promise<string> {
   const { data, error } = await supabase.rpc('request_opportunity_approval', { p_opportunity_id: opportunityId, p_justification: justification });
-  if (error) throw toServiceError(error, 'Não foi possível pedir a aprovação.');
+  if (error) throw toServiceError(error, t('Não foi possível pedir a aprovação.'));
   return data;
 }
 
 export async function decideOpportunityApproval(requestId: string, decision: 'APPROVED' | 'REJECTED', comment: string | null): Promise<void> {
   const { error } = await supabase.rpc('decide_opportunity_approval', { p_request_id: requestId, p_decision: decision, p_comment: comment });
-  if (error) throw toServiceError(error, 'Não foi possível registar a decisão.');
+  if (error) throw toServiceError(error, t('Não foi possível registar a decisão.'));
 }
 
 export async function cancelOpportunityApproval(requestId: string, reason: string | null): Promise<void> {
   const { error } = await supabase.rpc('cancel_opportunity_approval', { p_request_id: requestId, p_reason: reason });
-  if (error) throw toServiceError(error, 'Não foi possível anular o pedido.');
+  if (error) throw toServiceError(error, t('Não foi possível anular o pedido.'));
 }

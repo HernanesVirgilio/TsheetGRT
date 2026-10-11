@@ -5,6 +5,7 @@ import { getErrorMessage } from '../errors';
 import * as authService from '../../services/authService';
 import type { AccessResult } from '../../services/authService';
 import type { PermissionCode, Profile, RoleCode } from '../../types';
+import { t } from '../i18n';
 
 /**
  * Fluxo de autenticação:
@@ -87,7 +88,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       .catch((error: unknown) => {
         if (accessRequestRef.current?.promise === promise) {
           accessRequestRef.current = null;
-          setState({ status: 'no_access', reason: getErrorMessage(error, 'Não foi possível verificar o seu acesso.') });
+          setState({ status: 'no_access', reason: getErrorMessage(error, t('Não foi possível verificar o seu acesso.')) });
         }
       });
 
@@ -136,7 +137,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await authService.logAuthEvent('auth.login.success');
         return { success: true };
       } catch (error) {
-        return { success: false, error: getErrorMessage(error, 'Não foi possível iniciar sessão. Tente novamente.') };
+        return { success: false, error: getErrorMessage(error, t('Não foi possível iniciar sessão. Tente novamente.')) };
       }
     },
     [resolveAccess]
@@ -161,14 +162,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const changePassword = useCallback(
     async (currentPassword: string, newPassword: string): Promise<AuthActionResult> => {
-      if (!profile) return { success: false, error: 'Não existe uma sessão ativa.' };
+      if (!profile) return { success: false, error: t('Não existe uma sessão ativa.') };
       try {
         await authService.verifyCurrentPassword(profile.email, currentPassword);
         await authService.updatePassword(newPassword);
         await refreshProfile();
         return { success: true };
       } catch (error) {
-        return { success: false, error: getErrorMessage(error, 'Não foi possível alterar a palavra-passe.') };
+        return { success: false, error: getErrorMessage(error, t('Não foi possível alterar a palavra-passe.')) };
       }
     },
     [profile, refreshProfile]
@@ -179,7 +180,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         await authService.updatePassword(newPassword);
       } catch (error) {
-        return { outcome: 'error', error: getErrorMessage(error, 'Não foi possível guardar a palavra-passe.') };
+        return { outcome: 'error', error: getErrorMessage(error, t('Não foi possível guardar a palavra-passe.')) };
       }
       // A atualização não garante, por si só, uma sessão válida: confirma-a antes de decidir o destino.
       const { data } = await supabase.auth.getSession();

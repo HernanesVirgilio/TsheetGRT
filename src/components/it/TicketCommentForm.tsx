@@ -5,6 +5,7 @@ import { Alert } from '../ui/Alert';
 import { TextAreaField } from '../ui/FormField';
 import { getErrorMessage } from '../../lib/errors';
 import { validateComment } from '../../utils/it';
+import { t } from '../../lib/i18n';
 
 interface TicketCommentFormProps {
   label: string;
@@ -34,7 +35,7 @@ export const TicketCommentForm: React.FC<TicketCommentFormProps> = ({ label, hin
       setBody('');
       setIsInternal(false);
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Não foi possível enviar a mensagem.'));
+      setErrorMessage(getErrorMessage(error, t('Não foi possível enviar a mensagem.')));
     } finally {
       setIsSubmitting(false);
     }
@@ -60,13 +61,13 @@ export const TicketCommentForm: React.FC<TicketCommentFormProps> = ({ label, hin
               onChange={(event) => setIsInternal(event.target.checked)}
               className="h-4 w-4 accent-primary-hover"
             />
-            Nota interna (visível apenas para a equipa de IT)
+            {t('Nota interna (visível apenas para a equipa de IT)')}
           </label>
         ) : (
           <span />
         )}
         <Button type="submit" icon={Send} isLoading={isSubmitting}>
-          Enviar
+          {t('Enviar')}
         </Button>
       </div>
     </form>

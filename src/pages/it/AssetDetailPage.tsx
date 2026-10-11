@@ -24,11 +24,12 @@ import { InterventionsTable } from '../../components/it/InterventionsTable';
 import { ASSET_STATUS_LABELS, ASSET_TYPE_LABELS } from '../../utils/it';
 import { formatDate, formatDateTime } from '../../utils/format';
 import { isUuid } from '../../utils/validation';
+import { t } from '../../lib/i18n';
 
 const BackLink: React.FC = () => (
   <Link to="/it/assets" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary-hover hover:underline">
     <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-    Voltar aos ativos
+    {t('Voltar aos ativos')}
   </Link>
 );
 
@@ -68,7 +69,7 @@ export const AssetDetailPage: React.FC = () => {
   const [isInterventionOpen, setIsInterventionOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  if (asset.isLoading && !asset.data) return <LoadingState label="A carregar equipamento..." />;
+  if (asset.isLoading && !asset.data) return <LoadingState label={t('A carregar equipamento...')} />;
   if (asset.error && !asset.data) {
     return (
       <div className="space-y-4">
@@ -81,7 +82,7 @@ export const AssetDetailPage: React.FC = () => {
     return (
       <div className="space-y-4">
         <BackLink />
-        <EmptyState title="Equipamento não encontrado." message="O equipamento não existe ou não tem acesso a ele." />
+        <EmptyState title={t('Equipamento não encontrado.')} message={t('O equipamento não existe ou não tem acesso a ele.')} />
       </div>
     );
   }
@@ -92,7 +93,7 @@ export const AssetDetailPage: React.FC = () => {
   const ticketColumns: DataTableColumn<TicketSummary>[] = [
     {
       id: 'reference',
-      header: 'Pedido',
+      header: t('Pedido'),
       render: (ticket) =>
         canOpenTickets ? (
           <Link to={`/it/tickets/${ticket.id}`} className="font-semibold text-text hover:underline">
@@ -102,11 +103,11 @@ export const AssetDetailPage: React.FC = () => {
           ticket.reference
         ),
     },
-    { id: 'title', header: 'Assunto', render: (ticket) => ticket.title },
-    { id: 'requester', header: 'Solicitante', render: (ticket) => ticket.requesterName ?? '—' },
-    { id: 'priority', header: 'Prioridade', render: (ticket) => <PriorityBadge priority={ticket.priority} /> },
-    { id: 'status', header: 'Estado', render: (ticket) => <StatusBadge status={ticket.status} size="sm" /> },
-    { id: 'created', header: 'Aberto em', render: (ticket) => <span className="whitespace-nowrap">{formatDateTime(ticket.createdAt)}</span> },
+    { id: 'title', header: t('Assunto'), render: (ticket) => ticket.title },
+    { id: 'requester', header: t('Solicitante'), render: (ticket) => ticket.requesterName ?? '—' },
+    { id: 'priority', header: t('Prioridade'), render: (ticket) => <PriorityBadge priority={ticket.priority} /> },
+    { id: 'status', header: t('Estado'), render: (ticket) => <StatusBadge status={ticket.status} size="sm" /> },
+    { id: 'created', header: t('Aberto em'), render: (ticket) => <span className="whitespace-nowrap">{formatDateTime(ticket.createdAt)}</span> },
   ];
 
   const handleSaved = (message: string) => {
@@ -128,12 +129,12 @@ export const AssetDetailPage: React.FC = () => {
             <StatusBadge status={item.status} label={ASSET_STATUS_LABELS[item.status]} />
             {canRegisterIntervention && (
               <Button variant="secondary" icon={Wrench} onClick={() => setIsInterventionOpen(true)}>
-                Registar intervenção
+                {t('Registar intervenção')}
               </Button>
             )}
             {canManageAsset && (
               <Button icon={Pencil} onClick={() => setIsEditOpen(true)} disabled={!referenceData.data}>
-                Editar
+                {t('Editar')}
               </Button>
             )}
           </>
@@ -147,51 +148,51 @@ export const AssetDetailPage: React.FC = () => {
       )}
       {referenceData.error && <ErrorState message={referenceData.error} onRetry={referenceData.reload} />}
 
-      <Panel title="Dados do equipamento">
+      <Panel title={t('Dados do equipamento')}>
         <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <DetailItem label="Tipo">{ASSET_TYPE_LABELS[item.assetType]}</DetailItem>
-          <DetailItem label="Marca">{item.brand ?? '—'}</DetailItem>
-          <DetailItem label="Modelo">{item.model ?? '—'}</DetailItem>
-          <DetailItem label="Número de série">{item.serialNumber ?? '—'}</DetailItem>
-          <DetailItem label="Utilizador responsável">{item.assignedToName ?? 'Sem utilizador'}</DetailItem>
-          <DetailItem label="Departamento">{item.departmentName ?? '—'}</DetailItem>
-          <DetailItem label="Localização">{item.location ?? '—'}</DetailItem>
-          <DetailItem label="Data de aquisição">{formatDate(item.acquiredOn)}</DetailItem>
-          <DetailItem label="Registado em">{formatDateTime(item.createdAt)}</DetailItem>
-          <DetailItem label="Última alteração">{formatDateTime(item.updatedAt)}</DetailItem>
+          <DetailItem label={t('Tipo')}>{ASSET_TYPE_LABELS[item.assetType]}</DetailItem>
+          <DetailItem label={t('Marca')}>{item.brand ?? '—'}</DetailItem>
+          <DetailItem label={t('Modelo')}>{item.model ?? '—'}</DetailItem>
+          <DetailItem label={t('Número de série')}>{item.serialNumber ?? '—'}</DetailItem>
+          <DetailItem label={t('Utilizador responsável')}>{item.assignedToName ?? t('Sem utilizador')}</DetailItem>
+          <DetailItem label={t('Departamento')}>{item.departmentName ?? '—'}</DetailItem>
+          <DetailItem label={t('Localização')}>{item.location ?? '—'}</DetailItem>
+          <DetailItem label={t('Data de aquisição')}>{formatDate(item.acquiredOn)}</DetailItem>
+          <DetailItem label={t('Registado em')}>{formatDateTime(item.createdAt)}</DetailItem>
+          <DetailItem label={t('Última alteração')}>{formatDateTime(item.updatedAt)}</DetailItem>
         </dl>
         {item.notes && (
           <div className="mt-5 border-t border-border pt-5">
-            <p className="text-sm text-text-muted">Observações</p>
+            <p className="text-sm text-text-muted">{t('Observações')}</p>
             <p className="mt-0.5 whitespace-pre-line text-sm text-text-secondary">{item.notes}</p>
           </div>
         )}
       </Panel>
 
       {history.error && <ErrorState message={history.error} onRetry={history.reload} />}
-      {history.isLoading && !history.data && <LoadingState label="A carregar histórico..." />}
+      {history.isLoading && !history.data && <LoadingState label={t('A carregar histórico...')} />}
 
       {history.data && (
         <>
-          <Panel title="Pedidos de suporte" description="Pedidos associados a este equipamento." flush>
+          <Panel title={t('Pedidos de suporte')} description={t('Pedidos associados a este equipamento.')} flush>
             {tickets.length === 0 ? (
-              <p className="px-5 py-4 text-sm text-text-secondary">Nenhum pedido associado.</p>
+              <p className="px-5 py-4 text-sm text-text-secondary">{t('Nenhum pedido associado.')}</p>
             ) : (
-              <DataTable caption="Pedidos do equipamento" columns={ticketColumns} rows={tickets} getRowKey={(ticket) => ticket.id} />
+              <DataTable caption={t('Pedidos do equipamento')} columns={ticketColumns} rows={tickets} getRowKey={(ticket) => ticket.id} />
             )}
           </Panel>
 
-          <Panel title="Intervenções técnicas" flush>
+          <Panel title={t('Intervenções técnicas')} flush>
             {interventions.items.length === 0 ? (
-              <p className="px-5 py-4 text-sm text-text-secondary">Ainda não foram registadas intervenções.</p>
+              <p className="px-5 py-4 text-sm text-text-secondary">{t('Ainda não foram registadas intervenções.')}</p>
             ) : (
               <InterventionsTable interventions={interventions.items} hideAsset canOpenTickets={canOpenTickets} canOpenAssets />
             )}
             {interventions.total > interventions.items.length && (
               <p className="border-t border-border px-5 py-3 text-sm text-text-secondary">
-                A mostrar as {interventions.items.length} intervenções mais recentes de {interventions.total}.{' '}
+                {t('A mostrar as {shown} intervenções mais recentes de {total}.', { shown: interventions.items.length, total: interventions.total })}{' '}
                 <Link to="/it/interventions" className="font-medium text-primary-hover hover:underline">
-                  Ver todas
+                  {t('Ver todas')}
                 </Link>
               </p>
             )}
@@ -213,7 +214,7 @@ export const AssetDetailPage: React.FC = () => {
         assetId={item.id}
         targetLabel={item.assetTag}
         onClose={() => setIsInterventionOpen(false)}
-        onSaved={() => handleSaved('Intervenção registada.')}
+        onSaved={() => handleSaved(t('Intervenção registada.'))}
       />
     </div>
   );

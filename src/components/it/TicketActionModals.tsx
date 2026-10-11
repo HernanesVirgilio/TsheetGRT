@@ -5,6 +5,7 @@ import { Alert } from '../ui/Alert';
 import { SelectField, TextAreaField } from '../ui/FormField';
 import { getErrorMessage } from '../../lib/errors';
 import { validateRequiredText } from '../../utils/it';
+import { t } from '../../lib/i18n';
 
 interface NoteRule {
   label: string;
@@ -55,7 +56,7 @@ export const TicketNoteModal: React.FC<TicketNoteModalProps> = ({
       note.minLength !== undefined
         ? validateRequiredText(value, note.label, note.minLength, note.maxLength)
         : trimmed.length > note.maxLength
-          ? `Máximo de ${note.maxLength} carateres.`
+          ? t('Máximo de {maxLength} carateres.', { maxLength: note.maxLength })
           : null;
     setFieldError(validationError);
     if (validationError) return;
@@ -65,7 +66,7 @@ export const TicketNoteModal: React.FC<TicketNoteModalProps> = ({
     try {
       await onConfirm(trimmed || null);
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Não foi possível concluir a ação.'));
+      setErrorMessage(getErrorMessage(error, t('Não foi possível concluir a ação.')));
     } finally {
       setIsSubmitting(false);
     }
@@ -84,7 +85,7 @@ export const TicketNoteModal: React.FC<TicketNoteModalProps> = ({
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
-            Cancelar
+            {t('Cancelar')}
           </Button>
           <Button type="submit" form={formId} variant={variant} isLoading={isSubmitting}>
             {confirmLabel}
@@ -157,16 +158,16 @@ export const TicketSelectModal: React.FC<TicketSelectModalProps> = ({
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (value === initialValue) {
-      setErrorMessage('Escolha um valor diferente do atual.');
+      setErrorMessage(t('Escolha um valor diferente do atual.'));
       return;
     }
     if (!value && emptyOptionLabel === undefined) {
-      setErrorMessage('Selecione uma opção.');
+      setErrorMessage(t('Selecione uma opção.'));
       return;
     }
     const trimmedNote = note.trim();
     if (optionalNote && trimmedNote.length > optionalNote.maxLength) {
-      setErrorMessage(`${optionalNote.label}: máximo de ${optionalNote.maxLength} carateres.`);
+      setErrorMessage(t('{label}: máximo de {maxLength} carateres.', { label: optionalNote.label, maxLength: optionalNote.maxLength }));
       return;
     }
     setIsSubmitting(true);
@@ -174,7 +175,7 @@ export const TicketSelectModal: React.FC<TicketSelectModalProps> = ({
     try {
       await onConfirm(value || null, trimmedNote || null);
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Não foi possível concluir a ação.'));
+      setErrorMessage(getErrorMessage(error, t('Não foi possível concluir a ação.')));
     } finally {
       setIsSubmitting(false);
     }
@@ -192,7 +193,7 @@ export const TicketSelectModal: React.FC<TicketSelectModalProps> = ({
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
-            Cancelar
+            {t('Cancelar')}
           </Button>
           <Button type="submit" form={formId} isLoading={isSubmitting}>
             {confirmLabel}
@@ -203,7 +204,7 @@ export const TicketSelectModal: React.FC<TicketSelectModalProps> = ({
       <form id={formId} onSubmit={handleSubmit} className="space-y-4" noValidate>
         {errorMessage && <Alert variant="error">{errorMessage}</Alert>}
         <SelectField label={fieldLabel} value={value} onChange={(event) => setValue(event.target.value)}>
-          <option value="">{emptyOptionLabel ?? 'Selecione…'}</option>
+          <option value="">{emptyOptionLabel ?? t('Selecione…')}</option>
           {options.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}

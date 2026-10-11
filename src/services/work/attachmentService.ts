@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabase/client';
 import { ServiceError, toServiceError } from '../../lib/errors';
 import type { Attachment, AttachmentEntityType } from '../../types/work';
+import { t } from '../../lib/i18n';
 
 /**
  * Anexos no bucket privado "work-attachments". O carregamento tem três passos:
@@ -36,7 +37,7 @@ export async function listAttachments(entityType: AttachmentEntityType, entityId
     .eq('entity_id', entityId)
     .not('upload_confirmed_at', 'is', null)
     .order('created_at');
-  if (error) throw toServiceError(error, 'Não foi possível carregar os anexos.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar os anexos.'));
   return data.map((row) => ({
     id: row.id,
     fileName: row.file_name,
@@ -49,10 +50,10 @@ export async function listAttachments(entityType: AttachmentEntityType, entityId
 }
 
 export function validateAttachmentFile(file: File): string | null {
-  if (file.size === 0) return 'O ficheiro está vazio.';
-  if (file.size > MAX_ATTACHMENT_BYTES) return 'O ficheiro tem de ter no máximo 10 MB.';
+  if (file.size === 0) return t('O ficheiro está vazio.');
+  if (file.size > MAX_ATTACHMENT_BYTES) return t('O ficheiro tem de ter no máximo 10 MB.');
   if (!(ALLOWED_ATTACHMENT_TYPES as readonly string[]).includes(file.type)) {
-    return 'Tipo de ficheiro não permitido. Use imagens, PDF, documentos Office, texto ou CSV.';
+    return t('Tipo de ficheiro não permitido. Use imagens, PDF, documentos Office, texto ou CSV.');
   }
   return null;
 }
@@ -68,25 +69,25 @@ export async function uploadAttachment(entityType: AttachmentEntityType, entityI
     p_mime_type: file.type,
     p_size_bytes: file.size,
   });
-  if (registration.error) throw toServiceError(registration.error, 'Não foi possível preparar o anexo.');
+  if (registration.error) throw toServiceError(registration.error, t('Não foi possível preparar o anexo.'));
   const reserved = registration.data[0];
-  if (!reserved) throw new ServiceError('Não foi possível preparar o anexo.');
+  if (!reserved) throw new ServiceError(t('Não foi possível preparar o anexo.'));
 
   const upload = await supabase.storage.from(BUCKET).upload(reserved.storage_path, file, { contentType: file.type, upsert: false });
-  if (upload.error) throw new ServiceError('Não foi possível carregar o ficheiro. Tente novamente.');
+  if (upload.error) throw new ServiceError(t('Não foi possível carregar o ficheiro. Tente novamente.'));
 
   const confirmation = await supabase.rpc('confirm_attachment', { p_attachment_id: reserved.attachment_id });
-  if (confirmation.error) throw toServiceError(confirmation.error, 'Não foi possível confirmar o anexo.');
+  if (confirmation.error) throw toServiceError(confirmation.error, t('Não foi possível confirmar o anexo.'));
 }
 
 /** URL assinado de curta duração; só é emitido se a política do Storage permitir a leitura. */
 export async function getAttachmentUrl(storagePath: string): Promise<string> {
   const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(storagePath, SIGNED_URL_SECONDS);
-  if (error || !data) throw new ServiceError('Não foi possível abrir o anexo.');
+  if (error || !data) throw new ServiceError(t('Não foi possível abrir o anexo.'));
   return data.signedUrl;
 }
 
 export async function removeAttachment(attachmentId: string, reason: string | null): Promise<void> {
   const { error } = await supabase.rpc('remove_attachment', { p_attachment_id: attachmentId, p_reason: reason });
-  if (error) throw toServiceError(error, 'Não foi possível remover o anexo.');
+  if (error) throw toServiceError(error, t('Não foi possível remover o anexo.'));
 }

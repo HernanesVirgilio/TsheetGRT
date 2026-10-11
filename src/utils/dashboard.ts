@@ -1,5 +1,6 @@
 // Regras puras do dashboard inicial: que painel mostrar e como cumprimentar o utilizador.
 import type { PermissionCode, RoleCode } from '../types';
+import { t } from '../lib/i18n';
 
 export type DashboardKind = 'ADMIN' | 'IT' | 'MANAGER' | 'GESTOR' | 'WORK' | 'START';
 
@@ -25,9 +26,9 @@ export function selectDashboard(role: RoleCode | null, hasPermission: (permissio
 
 export function greetingFor(date: Date): string {
   const hour = date.getHours();
-  if (hour < 12) return 'Bom dia';
-  if (hour < 19) return 'Boa tarde';
-  return 'Boa noite';
+  if (hour < 12) return t('Bom dia');
+  if (hour < 19) return t('Boa tarde');
+  return t('Boa noite');
 }
 
 export function firstName(fullName: string): string {

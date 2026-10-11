@@ -7,6 +7,7 @@ import { getErrorMessage } from '../../lib/errors';
 import { completeMeeting, updateMeetingOutcome } from '../../services/work/meetingService';
 import type { MeetingDetail } from '../../types/work';
 import { validateReason } from '../../utils/work';
+import { t } from '../../lib/i18n';
 
 interface MeetingOutcomeModalProps {
   meeting: MeetingDetail | null;
@@ -39,8 +40,8 @@ export const MeetingOutcomeModal: React.FC<MeetingOutcomeModalProps> = ({ meetin
     event.preventDefault();
     if (!meeting) return;
     const nextErrors = {
-      outcome: validateReason(outcome, 'Descreva o resultado da reunião', 5, 5000),
-      reason: isCorrection ? validateReason(reason, 'Indique o motivo da alteração') : null,
+      outcome: validateReason(outcome, t('Descreva o resultado da reunião'), 5, 5000),
+      reason: isCorrection ? validateReason(reason, t('Indique o motivo da alteração')) : null,
     };
     setErrors(nextErrors);
     if (nextErrors.outcome || nextErrors.reason) return;
@@ -50,13 +51,13 @@ export const MeetingOutcomeModal: React.FC<MeetingOutcomeModalProps> = ({ meetin
     try {
       if (isCorrection) {
         await updateMeetingOutcome(meeting.id, input, reason.trim());
-        onSaved('Resultado corrigido. A alteração ficou no histórico.');
+        onSaved(t('Resultado corrigido. A alteração ficou no histórico.'));
       } else {
         await completeMeeting(meeting.id, input);
-        onSaved('Resultado registado e reunião concluída.');
+        onSaved(t('Resultado registado e reunião concluída.'));
       }
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Não foi possível guardar o resultado.'));
+      setErrorMessage(getErrorMessage(error, t('Não foi possível guardar o resultado.')));
     } finally {
       setIsSubmitting(false);
     }
@@ -66,35 +67,35 @@ export const MeetingOutcomeModal: React.FC<MeetingOutcomeModalProps> = ({ meetin
   return (
     <Modal
       isOpen={meeting !== null}
-      title={isCorrection ? 'Corrigir resultado da reunião' : 'Registar resultado da reunião'}
+      title={isCorrection ? t('Corrigir resultado da reunião') : t('Registar resultado da reunião')}
       size="lg"
       isBusy={isSubmitting}
       onClose={onClose}
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
-            Cancelar
+            {t('Cancelar')}
           </Button>
           <Button type="submit" form={formId} isLoading={isSubmitting}>
-            {isCorrection ? 'Guardar correção' : 'Concluir reunião'}
+            {isCorrection ? t('Guardar correção') : t('Concluir reunião')}
           </Button>
         </>
       }
     >
       <form id={formId} onSubmit={handleSubmit} className="space-y-4" noValidate>
         {errorMessage && <Alert variant="error">{errorMessage}</Alert>}
-        <TextAreaField label="Resultado" required rows={3} maxLength={5000} value={outcome} error={errors.outcome} onChange={(event) => setOutcome(event.target.value)} />
-        <TextAreaField label="Decisões" rows={3} maxLength={5000} value={decisions} onChange={(event) => setDecisions(event.target.value)} />
+        <TextAreaField label={t('Resultado')} required rows={3} maxLength={5000} value={outcome} error={errors.outcome} onChange={(event) => setOutcome(event.target.value)} />
+        <TextAreaField label={t('Decisões')} rows={3} maxLength={5000} value={decisions} onChange={(event) => setDecisions(event.target.value)} />
         <TextAreaField
-          label="Próximos passos"
+          label={t('Próximos passos')}
           rows={3}
           maxLength={5000}
           value={nextSteps}
-          hint="Para atribuir trabalho, crie depois uma tarefa a partir da reunião."
+          hint={t('Para atribuir trabalho, crie depois uma tarefa a partir da reunião.')}
           onChange={(event) => setNextSteps(event.target.value)}
         />
         {isCorrection && (
-          <TextAreaField label="Motivo da correção" required rows={2} maxLength={1000} value={reason} error={errors.reason} onChange={(event) => setReason(event.target.value)} />
+          <TextAreaField label={t('Motivo da correção')} required rows={2} maxLength={1000} value={reason} error={errors.reason} onChange={(event) => setReason(event.target.value)} />
         )}
       </form>
     </Modal>

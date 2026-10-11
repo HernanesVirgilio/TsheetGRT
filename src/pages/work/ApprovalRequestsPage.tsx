@@ -17,6 +17,7 @@ import { ApprovalDecisionModal } from '../../components/work/ApprovalModals';
 import { ApprovalStatusBadge } from '../../components/work/ApprovalStatusBadge';
 import { formatMoney } from '../../utils/work';
 import { formatDateTime } from '../../utils/format';
+import { t } from '../../lib/i18n';
 
 type Tab = 'TO_DECIDE' | 'HISTORY';
 
@@ -37,7 +38,7 @@ export const ApprovalRequestsPage: React.FC = () => {
   const baseColumns: DataTableColumn<ApprovalRequest>[] = [
     {
       id: 'request',
-      header: 'Pedido',
+      header: t('Pedido'),
       render: (request) => (
         <span>
           <span className="block font-semibold text-text">{request.reference}</span>
@@ -51,32 +52,32 @@ export const ApprovalRequestsPage: React.FC = () => {
         </span>
       ),
     },
-    { id: 'owner', header: 'Responsável', render: (request) => request.opportunityOwnerName ?? '—' },
-    { id: 'requester', header: 'Pedido por', render: (request) => request.requesterName ?? '—' },
+    { id: 'owner', header: t('Responsável'), render: (request) => request.opportunityOwnerName ?? '—' },
+    { id: 'requester', header: t('Pedido por'), render: (request) => request.requesterName ?? '—' },
     {
       id: 'amount',
-      header: 'Valor',
+      header: t('Valor'),
       align: 'right',
       render: (request) => <span className="whitespace-nowrap">{request.amount === null ? '—' : formatMoney(request.amount, request.currency ?? '')}</span>,
     },
-    { id: 'created', header: 'Pedido em', render: (request) => <span className="whitespace-nowrap">{formatDateTime(request.createdAt)}</span> },
+    { id: 'created', header: t('Pedido em'), render: (request) => <span className="whitespace-nowrap">{formatDateTime(request.createdAt)}</span> },
   ];
 
   const decideColumns: DataTableColumn<ApprovalRequest>[] = [
     ...baseColumns,
-    { id: 'justification', header: 'O que está a ser aprovado', className: 'min-w-56', render: (request) => <span className="line-clamp-3">{request.justification}</span> },
+    { id: 'justification', header: t('O que está a ser aprovado'), className: 'min-w-56', render: (request) => <span className="line-clamp-3">{request.justification}</span> },
     {
       id: 'actions',
-      header: 'Decisão',
+      header: t('Decisão'),
       align: 'right',
       hideLabelOnMobile: true,
       render: (request) => (
         <div className="flex flex-wrap justify-end gap-1">
           <Button size="sm" variant="danger" icon={XCircle} onClick={() => setDecision({ request, decision: 'REJECTED' })}>
-            Rejeitar
+            {t('Rejeitar')}
           </Button>
           <Button size="sm" icon={CheckCircle2} onClick={() => setDecision({ request, decision: 'APPROVED' })}>
-            Aprovar
+            {t('Aprovar')}
           </Button>
         </div>
       ),
@@ -85,10 +86,10 @@ export const ApprovalRequestsPage: React.FC = () => {
 
   const historyColumns: DataTableColumn<ApprovalRequest>[] = [
     ...baseColumns,
-    { id: 'status', header: 'Estado', render: (request) => <ApprovalStatusBadge status={request.status} /> },
+    { id: 'status', header: t('Estado'), render: (request) => <ApprovalStatusBadge status={request.status} /> },
     {
       id: 'decision',
-      header: 'Decisão',
+      header: t('Decisão'),
       className: 'min-w-48',
       render: (request) =>
         request.decidedAt ? (
@@ -106,14 +107,14 @@ export const ApprovalRequestsPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Pedidos de aprovação" subtitle="Oportunidades que precisam da decisão do Manager antes de avançar para proposta." />
+      <PageHeader title={t('Pedidos de aprovação')} subtitle={t('Oportunidades que precisam da decisão do Manager antes de avançar para proposta.')} />
       {canDecide && (
-        <div role="tablist" aria-label="Pedidos de aprovação" className="flex gap-2">
+        <div role="tablist" aria-label={t('Pedidos de aprovação')} className="flex gap-2">
           <Button role="tab" size="sm" aria-selected={tab === 'TO_DECIDE'} variant={tab === 'TO_DECIDE' ? 'primary' : 'secondary'} onClick={() => setTab('TO_DECIDE')}>
-            Por decidir{toDecide.length > 0 ? ` (${toDecide.length})` : ''}
+            {t('Por decidir')}{toDecide.length > 0 ? ` (${toDecide.length})` : ''}
           </Button>
           <Button role="tab" size="sm" aria-selected={tab === 'HISTORY'} variant={tab === 'HISTORY' ? 'primary' : 'secondary'} onClick={() => setTab('HISTORY')}>
-            Histórico
+            {t('Histórico')}
           </Button>
         </div>
       )}
@@ -130,9 +131,9 @@ export const ApprovalRequestsPage: React.FC = () => {
               <ErrorState message={pending.error} onRetry={pending.reload} />
             </div>
           )}
-          {pending.isLoading && !pending.data && <LoadingState label="A carregar pedidos..." />}
-          {pending.data && toDecide.length === 0 && <EmptyState bordered={false} icon={ClipboardCheck} title="Não há pedidos à espera da sua decisão." />}
-          {toDecide.length > 0 && <DataTable caption="Pedidos por decidir" columns={decideColumns} rows={toDecide} getRowKey={(request) => request.id} />}
+          {pending.isLoading && !pending.data && <LoadingState label={t('A carregar pedidos...')} />}
+          {pending.data && toDecide.length === 0 && <EmptyState bordered={false} icon={ClipboardCheck} title={t('Não há pedidos à espera da sua decisão.')} />}
+          {toDecide.length > 0 && <DataTable caption={t('Pedidos por decidir')} columns={decideColumns} rows={toDecide} getRowKey={(request) => request.id} />}
         </Panel>
       )}
 
@@ -143,10 +144,10 @@ export const ApprovalRequestsPage: React.FC = () => {
               <ErrorState message={history.error} onRetry={history.reload} />
             </div>
           )}
-          {history.isLoading && !history.data && <LoadingState label="A carregar pedidos..." />}
-          {history.data && history.data.length === 0 && <EmptyState bordered={false} icon={ClipboardCheck} title="Ainda não existem pedidos de aprovação." />}
+          {history.isLoading && !history.data && <LoadingState label={t('A carregar pedidos...')} />}
+          {history.data && history.data.length === 0 && <EmptyState bordered={false} icon={ClipboardCheck} title={t('Ainda não existem pedidos de aprovação.')} />}
           {history.data && history.data.length > 0 && (
-            <DataTable caption="Histórico dos pedidos de aprovação" columns={historyColumns} rows={history.data} getRowKey={(request) => request.id} />
+            <DataTable caption={t('Histórico dos pedidos de aprovação')} columns={historyColumns} rows={history.data} getRowKey={(request) => request.id} />
           )}
         </Panel>
       )}

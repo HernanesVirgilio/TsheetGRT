@@ -5,6 +5,7 @@ import { Alert } from '../ui/Alert';
 import { TextAreaField } from '../ui/FormField';
 import { getErrorMessage } from '../../lib/errors';
 import { updateJobDescription } from '../../services/work/teamService';
+import { t } from '../../lib/i18n';
 
 interface JobDescriptionModalProps {
   isOpen: boolean;
@@ -37,7 +38,7 @@ export const JobDescriptionModal: React.FC<JobDescriptionModalProps> = ({ isOpen
       await updateJobDescription(profileId, description.trim() || null);
       onSaved();
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Não foi possível guardar a descrição.'));
+      setErrorMessage(getErrorMessage(error, t('Não foi possível guardar a descrição.')));
     } finally {
       setIsSubmitting(false);
     }
@@ -47,17 +48,17 @@ export const JobDescriptionModal: React.FC<JobDescriptionModalProps> = ({ isOpen
   return (
     <Modal
       isOpen={isOpen}
-      title="Descrição da função"
+      title={t('Descrição da função')}
       description={fullName}
       isBusy={isSubmitting}
       onClose={onClose}
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
-            Cancelar
+            {t('Cancelar')}
           </Button>
           <Button type="submit" form={formId} isLoading={isSubmitting}>
-            Guardar
+            {t('Guardar')}
           </Button>
         </>
       }
@@ -65,11 +66,11 @@ export const JobDescriptionModal: React.FC<JobDescriptionModalProps> = ({ isOpen
       <form id={formId} onSubmit={handleSubmit} className="space-y-4" noValidate>
         {errorMessage && <Alert variant="error">{errorMessage}</Alert>}
         <TextAreaField
-          label="O que esta pessoa faz"
+          label={t('O que esta pessoa faz')}
           rows={6}
           maxLength={MAX_LENGTH}
           value={description}
-          hint={`Responsabilidades principais e o tipo de trabalho que pode receber (${description.length}/${MAX_LENGTH}). Não altera o perfil de acesso nem as permissões.`}
+          hint={t('Responsabilidades principais e o tipo de trabalho que pode receber ({count}/{MAX_LENGTH}). Não altera o perfil de acesso nem as permissões.', { count: description.length, MAX_LENGTH })}
           onChange={(event) => setDescription(event.target.value)}
         />
       </form>

@@ -9,11 +9,12 @@ import type {
   WorkPerson,
 } from '../../types/work';
 import { isCalendarItemType } from '../../types/work';
+import { t } from '../../lib/i18n';
 
 /** Agenda operacional (tarefas, prazos, reuniões, ausências, atividades, eventos, oportunidades). */
 export async function getCalendarItems(from: string, to: string, scope: CalendarScope): Promise<CalendarItem[]> {
   const { data, error } = await supabase.rpc('get_calendar_items', { p_from: from, p_to: to, p_scope: scope });
-  if (error) throw toServiceError(error, 'Não foi possível carregar o calendário.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar o calendário.'));
   return data.flatMap((row) =>
     isCalendarItemType(row.item_type)
       ? [
@@ -41,7 +42,7 @@ export async function getCalendarEvent(eventId: string): Promise<CalendarEvent |
     .select('id, title, description, starts_at, ends_at, all_day, location, department_id, created_by')
     .eq('id', eventId)
     .maybeSingle();
-  if (error) throw toServiceError(error, 'Não foi possível carregar o evento.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar o evento.'));
   return data
     ? {
         id: data.id,
@@ -79,18 +80,18 @@ export async function createCalendarEvent(profileId: string, input: CalendarEven
     department_id: input.departmentId,
     created_by: profileId,
   });
-  if (error) throw toServiceError(error, 'Não foi possível criar o evento.');
+  if (error) throw toServiceError(error, t('Não foi possível criar o evento.'));
 }
 
 export async function cancelCalendarEvent(eventId: string): Promise<void> {
   const { data, error } = await supabase.from('calendar_events').update({ status: 'CANCELLED' }).eq('id', eventId).select('id');
-  if (error) throw toServiceError(error, 'Não foi possível cancelar o evento.');
-  if (data.length === 0) throw toServiceError({ message: 'permission denied', code: '42501' }, 'Não foi possível cancelar o evento.');
+  if (error) throw toServiceError(error, t('Não foi possível cancelar o evento.'));
+  if (data.length === 0) throw toServiceError({ message: 'permission denied', code: '42501' }, t('Não foi possível cancelar o evento.'));
 }
 
 export async function getMyWorkSummary(): Promise<MyWorkSummary> {
   const { data, error } = await supabase.rpc('get_my_work_summary');
-  if (error) throw toServiceError(error, 'Não foi possível carregar o resumo do seu trabalho.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar o resumo do seu trabalho.'));
   const row = data[0];
   return {
     tasksAssigned: row?.tasks_assigned ?? 0,
@@ -110,7 +111,7 @@ export async function getMyWorkSummary(): Promise<MyWorkSummary> {
 
 export async function getTeamWorkOverview(): Promise<TeamMemberWorkload[]> {
   const { data, error } = await supabase.rpc('get_team_work_overview');
-  if (error) throw toServiceError(error, 'Não foi possível carregar a carga de trabalho da equipa.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar a carga de trabalho da equipa.'));
   return data.map((row) => ({
     profileId: row.profile_id,
     fullName: row.full_name,
@@ -142,7 +143,7 @@ export async function getTeamWorkOverview(): Promise<TeamMemberWorkload[]> {
 /** TEAM_LEAD: pessoas com gestão de equipa (candidatas a gestor de execução de uma oportunidade). */
 export async function listWorkPeople(purpose: 'ASSIGNEE' | 'MEETING' | 'PARTICIPANT' | 'TEAM_LEAD'): Promise<WorkPerson[]> {
   const { data, error } = await supabase.rpc('list_work_people', { p_purpose: purpose });
-  if (error) throw toServiceError(error, 'Não foi possível carregar os colaboradores.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar os colaboradores.'));
   return data.map((row) => ({
     profileId: row.profile_id,
     fullName: row.full_name,

@@ -11,6 +11,7 @@ import type { TicketFormField, TicketFormValues } from '../../utils/it';
 import { ASSET_TYPE_LABELS, TICKET_PRIORITY_LABELS, validateTicketForm } from '../../utils/it';
 import type { FieldErrors } from '../../utils/validation';
 import { hasErrors } from '../../utils/validation';
+import { t } from '../../lib/i18n';
 
 const EMPTY_FORM: TicketFormValues = { title: '', description: '', categoryId: '', priority: 'MEDIUM' };
 
@@ -61,7 +62,7 @@ export const NewTicketModal: React.FC<NewTicketModalProps> = ({ isOpen, categori
       });
       onCreated(ticketId);
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Não foi possível abrir o pedido de suporte.'));
+      setErrorMessage(getErrorMessage(error, t('Não foi possível abrir o pedido de suporte.')));
     } finally {
       setIsSubmitting(false);
     }
@@ -72,17 +73,17 @@ export const NewTicketModal: React.FC<NewTicketModalProps> = ({ isOpen, categori
   return (
     <Modal
       isOpen={isOpen}
-      title="Novo pedido de suporte"
-      description="Descreva o problema com o máximo de detalhe. A equipa de IT é notificada de imediato."
+      title={t('Novo pedido de suporte')}
+      description={t('Descreva o problema com o máximo de detalhe. A equipa de IT é notificada de imediato.')}
       isBusy={isSubmitting}
       onClose={onClose}
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
-            Cancelar
+            {t('Cancelar')}
           </Button>
           <Button type="submit" form={formId} isLoading={isSubmitting}>
-            Abrir pedido
+            {t('Abrir pedido')}
           </Button>
         </>
       }
@@ -90,23 +91,23 @@ export const NewTicketModal: React.FC<NewTicketModalProps> = ({ isOpen, categori
       <form id={formId} onSubmit={handleSubmit} className="space-y-4" noValidate>
         {errorMessage && <Alert variant="error">{errorMessage}</Alert>}
         <TextField
-          label="Título"
+          label={t('Título')}
           required
           maxLength={200}
           value={values.title}
           error={fieldErrors.title}
-          hint="Ex.: Computador não liga"
+          hint={t('Ex.: Computador não liga')}
           onChange={(event) => updateValue('title', event.target.value)}
         />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <SelectField
-            label="Categoria"
+            label={t('Categoria')}
             required
             value={values.categoryId}
             error={fieldErrors.categoryId}
             onChange={(event) => updateValue('categoryId', event.target.value)}
           >
-            <option value="">Selecione…</option>
+            <option value="">{t('Selecione…')}</option>
             {categories.map((category) => (
               <option key={category.id} value={category.id}>
                 {category.name}
@@ -114,11 +115,11 @@ export const NewTicketModal: React.FC<NewTicketModalProps> = ({ isOpen, categori
             ))}
           </SelectField>
           <SelectField
-            label="Prioridade"
+            label={t('Prioridade')}
             required
             value={values.priority}
             error={fieldErrors.priority}
-            hint="A equipa de IT pode ajustar a prioridade."
+            hint={t('A equipa de IT pode ajustar a prioridade.')}
             onChange={(event) => updateValue('priority', event.target.value)}
           >
             {TICKET_PRIORITIES.map((priority) => (
@@ -129,8 +130,8 @@ export const NewTicketModal: React.FC<NewTicketModalProps> = ({ isOpen, categori
           </SelectField>
         </div>
         {assets.length > 0 && (
-          <SelectField label="Equipamento (opcional)" value={assetId} onChange={(event) => setAssetId(event.target.value)}>
-            <option value="">Nenhum</option>
+          <SelectField label={t('Equipamento (opcional)')} value={assetId} onChange={(event) => setAssetId(event.target.value)}>
+            <option value="">{t('Nenhum')}</option>
             {assets.map((asset) => (
               <option key={asset.id} value={asset.id}>
                 {asset.assetTag} · {ASSET_TYPE_LABELS[asset.assetType]} {[asset.brand, asset.model].filter(Boolean).join(' ')}
@@ -139,13 +140,13 @@ export const NewTicketModal: React.FC<NewTicketModalProps> = ({ isOpen, categori
           </SelectField>
         )}
         <TextAreaField
-          label="Descrição"
+          label={t('Descrição')}
           required
           rows={5}
           maxLength={5000}
           value={values.description}
           error={fieldErrors.description}
-          hint="O que aconteceu, desde quando e que mensagens de erro aparecem."
+          hint={t('O que aconteceu, desde quando e que mensagens de erro aparecem.')}
           onChange={(event) => updateValue('description', event.target.value)}
         />
       </form>

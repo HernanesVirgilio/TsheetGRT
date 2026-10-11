@@ -17,10 +17,11 @@ import { PriorityBadge } from '../../components/it/PriorityBadge';
 import { OverdueBadge, WorkStatusBadge } from '../../components/work/WorkStatusBadge';
 import { WorkLogFormModal } from '../../components/work/WorkLogFormModal';
 import { addDays, CALENDAR_ITEM_LABELS, compareTasksForToday, isSameDay, isTaskOverdue, itemOccursOn, toDateInput } from '../../utils/work';
-import { formatDate, formatDateTime, formatMinutesAsHours } from '../../utils/format';
+import { formatDate, formatDateTime, formatMinutesAsHours, dateTimeFormatter } from '../../utils/format';
+import { t } from '../../lib/i18n';
 
-const dayFormatter = new Intl.DateTimeFormat('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' });
-const timeFormatter = new Intl.DateTimeFormat('pt-PT', { hour: '2-digit', minute: '2-digit' });
+const dayFormatter = () => dateTimeFormatter({ weekday: 'long', day: 'numeric', month: 'long' });
+const timeFormatter = () => dateTimeFormatter({ hour: '2-digit', minute: '2-digit' });
 
 function itemLink(item: CalendarItem): string {
   if (item.itemType === 'MEETING') return `/timesheet/meetings/${item.itemId}`;
@@ -54,8 +55,8 @@ export const WorkCenterPage: React.FC = () => {
   const now = new Date();
   const canLogTime = hasPermission('SELF_TIMESHEET_UPDATE');
 
-  if (data.isLoading && !data.data) return <LoadingState label="A preparar o seu dia..." />;
-  if (!data.data) return <ErrorState message={data.error ?? 'Sem dados.'} onRetry={data.reload} />;
+  if (data.isLoading && !data.data) return <LoadingState label={t('A preparar o seu dia...')} />;
+  if (!data.data) return <ErrorState message={data.error ?? t('Sem dados.')} onRetry={data.reload} />;
 
   const { summary, tasks, agenda, recent, team } = data.data;
   const orderedTasks = [...tasks].sort((first, second) => compareTasksForToday(first, second, now));
@@ -81,12 +82,12 @@ export const WorkCenterPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Centro de trabalho"
-        subtitle={`${dayFormatter.format(now)} · ${currentUser?.full_name ?? ''}`}
+        title={t('Centro de trabalho')}
+        subtitle={`${dayFormatter().format(now)} · ${currentUser?.full_name ?? ''}`}
         actions={
           canLogTime && (
             <Button icon={Plus} onClick={() => setIsLogOpen(true)}>
-              Registar atividade
+              {t('Registar atividade')}
             </Button>
           )
         }
@@ -97,39 +98,39 @@ export const WorkCenterPage: React.FC = () => {
         </Alert>
       )}
       {summary.absenceToday && (
-        <Alert variant="info" title="Hoje está ausente">
-          Ausência aprovada: {summary.absenceToday}. O dia não conta como horas por registar.
+        <Alert variant="info" title={t('Hoje está ausente')}>
+          {t('Ausência aprovada: {absence}. O dia não conta como horas por registar.', { absence: summary.absenceToday })}
         </Alert>
       )}
       {data.error && <ErrorState message={data.error} onRetry={data.reload} />}
 
-      <section aria-label="Resumo do dia" className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-        <StatCard label="Em curso" value={summary.tasksInProgress} icon={ListTodo} supporting={`${summary.tasksAssigned} por iniciar · ${summary.tasksBlocked} bloqueada(s)`} />
-        <StatCard label="Atrasadas" value={summary.tasksOverdue} icon={AlertTriangle} supporting="Prazo ultrapassado" />
-        <StatCard label="Prazos" value={summary.tasksDueToday} icon={CalendarDays} supporting={`hoje · ${summary.tasksDueNext7Days} nos próximos 7 dias`} />
+      <section aria-label={t('Resumo do dia')} className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+        <StatCard label={t('Em curso')} value={summary.tasksInProgress} icon={ListTodo} supporting={t('{tasksAssigned} por iniciar · {tasksBlocked} bloqueada(s)', { tasksAssigned: summary.tasksAssigned, tasksBlocked: summary.tasksBlocked })} />
+        <StatCard label={t('Atrasadas')} value={summary.tasksOverdue} icon={AlertTriangle} supporting={t('Prazo ultrapassado')} />
+        <StatCard label={t('Prazos')} value={summary.tasksDueToday} icon={CalendarDays} supporting={t('hoje · {tasksDueNext7Days} nos próximos 7 dias', { tasksDueNext7Days: summary.tasksDueNext7Days })} />
         <StatCard
-          label="Tempo hoje"
+          label={t('Tempo hoje')}
           value={formatMinutesAsHours(summary.minutesToday)}
           icon={Clock3}
-          supporting={summary.absenceToday ? 'Dia de ausência' : `Meta ${formatMinutesAsHours(summary.dailyTargetMinutes)} · faltam ${formatMinutesAsHours(remainingToday)}`}
+          supporting={summary.absenceToday ? t('Dia de ausência') : t('Meta {dailyTargetMinutes} · faltam {remainingToday}', { dailyTargetMinutes: formatMinutesAsHours(summary.dailyTargetMinutes), remainingToday: formatMinutesAsHours(remainingToday) })}
         />
-        <StatCard label="Esta semana" value={formatMinutesAsHours(summary.minutesThisWeek)} icon={Clock3} supporting={`${summary.meetingsToday} reunião(ões) hoje`} />
+        <StatCard label={t('Esta semana')} value={formatMinutesAsHours(summary.minutesThisWeek)} icon={Clock3} supporting={t('{meetingsToday} reunião(ões) hoje', { meetingsToday: summary.meetingsToday })} />
       </section>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <div className="space-y-6 xl:col-span-2">
           <Panel
-            title="As minhas tarefas"
-            description="Atrasadas primeiro, depois o prazo mais próximo."
+            title={t('As minhas tarefas')}
+            description={t('Atrasadas primeiro, depois o prazo mais próximo.')}
             actions={
               <Link to="/timesheet/tasks" className="text-sm font-medium text-primary-hover hover:underline">
-                Ver todas
+                {t('Ver todas')}
               </Link>
             }
             flush
           >
             {orderedTasks.length === 0 ? (
-              <p className="px-5 py-6 text-sm text-text-secondary">Não tem tarefas em aberto.</p>
+              <p className="px-5 py-6 text-sm text-text-secondary">{t('Não tem tarefas em aberto.')}</p>
             ) : (
               <ul className="divide-y divide-border">
                 {orderedTasks.slice(0, 8).map((task) => (
@@ -139,7 +140,7 @@ export const WorkCenterPage: React.FC = () => {
                         {task.reference}
                       </Link>
                       <span className="ml-2 text-sm text-text-secondary">{task.title}</span>
-                      <p className="mt-0.5 text-xs text-text-muted">Prazo: {formatDateTime(task.dueAt, 'sem prazo')}</p>
+                      <p className="mt-0.5 text-xs text-text-muted">{t('Prazo: {date}', { date: formatDateTime(task.dueAt, t('sem prazo')) })}</p>
                     </div>
                     <div className="flex shrink-0 flex-wrap items-center gap-2">
                       {isTaskOverdue(task, now) && <OverdueBadge />}
@@ -153,16 +154,16 @@ export const WorkCenterPage: React.FC = () => {
           </Panel>
 
           <Panel
-            title="Atividade recente"
+            title={t('Atividade recente')}
             actions={
               <Link to="/timesheet/activities" className="text-sm font-medium text-primary-hover hover:underline">
-                Ver atividades
+                {t('Ver atividades')}
               </Link>
             }
             flush
           >
             {recent.length === 0 ? (
-              <p className="px-5 py-6 text-sm text-text-secondary">Sem tempo registado nos últimos 7 dias.</p>
+              <p className="px-5 py-6 text-sm text-text-secondary">{t('Sem tempo registado nos últimos 7 dias.')}</p>
             ) : (
               <ul className="divide-y divide-border">
                 {recent.slice(0, 6).map((entry) => (
@@ -183,25 +184,25 @@ export const WorkCenterPage: React.FC = () => {
 
         <div className="space-y-6">
           <Panel
-            title="Agenda"
-            description={nextMeeting ? `Próxima reunião: ${nextMeeting.title} · ${formatDateTime(nextMeeting.startsAt)}` : 'Sem reuniões nos próximos dias.'}
+            title={t('Agenda')}
+            description={nextMeeting ? t('Próxima reunião: {title} · {startsAt}', { title: nextMeeting.title, startsAt: formatDateTime(nextMeeting.startsAt) }) : t('Sem reuniões nos próximos dias.')}
             actions={
               <Link to="/timesheet/calendar" className="text-sm font-medium text-primary-hover hover:underline">
-                Calendário
+                {t('Calendário')}
               </Link>
             }
             flush
           >
             {todayAndTomorrow.map(({ day, items }) => (
               <div key={day.toISOString()} className="border-b border-border px-5 py-3 last:border-b-0">
-                <p className="text-sm font-semibold capitalize text-text">{isSameDay(day, now) ? 'Hoje' : 'Amanhã'}</p>
+                <p className="text-sm font-semibold capitalize text-text">{isSameDay(day, now) ? 'Hoje' : t('Amanhã')}</p>
                 {items.length === 0 ? (
-                  <p className="mt-1 text-sm text-text-muted">Sem compromissos.</p>
+                  <p className="mt-1 text-sm text-text-muted">{t('Sem compromissos.')}</p>
                 ) : (
                   <ul className="mt-2 space-y-2">
                     {items.map((item) => (
                       <li key={`${item.itemType}-${item.itemId}`} className="flex gap-3 text-sm">
-                        <span className="w-14 shrink-0 tabular-nums text-text-muted">{item.allDay ? 'Dia' : timeFormatter.format(new Date(item.startsAt))}</span>
+                        <span className="w-14 shrink-0 tabular-nums text-text-muted">{item.allDay ? 'Dia' : timeFormatter().format(new Date(item.startsAt))}</span>
                         <span className="min-w-0">
                           <Link to={itemLink(item)} className={`font-medium hover:underline ${item.isOverdue ? 'text-danger' : 'text-text'}`}>
                             {item.reference ? `${item.reference} · ` : ''}
@@ -217,44 +218,44 @@ export const WorkCenterPage: React.FC = () => {
             ))}
           </Panel>
 
-          <Panel title="Pedidos">
+          <Panel title={t('Pedidos')}>
             <p className="text-sm text-text-secondary">
               {summary.pendingAbsenceRequests > 0
-                ? `${summary.pendingAbsenceRequests} pedido(s) de ausência a aguardar aprovação.`
-                : 'Não tem pedidos de ausência pendentes.'}
+                ? t('{pendingAbsenceRequests} pedido(s) de ausência a aguardar aprovação.', { pendingAbsenceRequests: summary.pendingAbsenceRequests })
+                : t('Não tem pedidos de ausência pendentes.')}
             </p>
             <Link to="/timesheet/absences" className="mt-2 inline-block text-sm font-medium text-primary-hover hover:underline">
-              Ausências
+              {t('Ausências')}
             </Link>
           </Panel>
 
           {teamTotals && (
             <Panel
-              title="Equipa"
+              title={t('Equipa')}
               actions={
                 <Link to="/timesheet/team" className="text-sm font-medium text-primary-hover hover:underline">
-                  Carga da equipa
+                  {t('Carga da equipa')}
                 </Link>
               }
             >
               <ul className="space-y-1 text-sm">
                 <li className="flex justify-between">
-                  <span className="text-text-secondary">Tarefas atrasadas</span>
+                  <span className="text-text-secondary">{t('Tarefas atrasadas')}</span>
                   <span className={`font-semibold ${teamTotals.overdue > 0 ? 'text-danger' : 'text-text'}`}>{teamTotals.overdue}</span>
                 </li>
                 <li className="flex justify-between">
-                  <span className="text-text-secondary">Tarefas bloqueadas</span>
+                  <span className="text-text-secondary">{t('Tarefas bloqueadas')}</span>
                   <span className="font-semibold text-text">{teamTotals.blocked}</span>
                 </li>
                 <li className="flex justify-between">
-                  <span className="text-text-secondary">Ausências por decidir</span>
+                  <span className="text-text-secondary">{t('Ausências por decidir')}</span>
                   <span className="font-semibold text-text">{teamTotals.pendingAbsences}</span>
                 </li>
               </ul>
               {teamTotals.absentToday.length > 0 && (
                 <p className="mt-3 flex items-start gap-2 text-sm text-text-secondary">
                   <Users className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                  Ausentes hoje: {teamTotals.absentToday.map((member) => member.fullName).join(', ')}
+                  {t('Ausentes hoje: {names}', { names: teamTotals.absentToday.map((member) => member.fullName).join(', ') })}
                 </p>
               )}
             </Panel>
@@ -268,7 +269,7 @@ export const WorkCenterPage: React.FC = () => {
         onClose={() => setIsLogOpen(false)}
         onSaved={() => {
           setIsLogOpen(false);
-          setMessage('Atividade registada.');
+          setMessage(t('Atividade registada.'));
           data.reload();
         }}
       />

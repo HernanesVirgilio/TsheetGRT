@@ -1,7 +1,8 @@
 import React, { useId, useState } from 'react';
+import { intlLocale, t } from '../../lib/i18n';
 
 /**
- * Gráficos simples em HTML (sem biblioteca): colunas e barras empilhadas com duas séries.
+ * Gráficos simples em HTML (sem biblioteca): colunas e barras com uma série ou duas séries empilhadas.
  * Regras de desenho: cores categóricas em ordem fixa (tokens chart-1/chart-2), marcas finas com
  * 2px de intervalo entre segmentos, extremidade arredondada só no fim do valor, legenda sempre
  * presente, texto em tokens de texto (nunca na cor da série), tooltip em hover e foco, e uma tabela
@@ -9,6 +10,7 @@ import React, { useId, useState } from 'react';
  */
 
 export interface ChartSeries {
+  /** Texto em português (chave de tradução): o gráfico traduz no idioma ativo. */
   label: string;
   /** Classe Tailwind de fundo da série (ex.: bg-chart-1). */
   swatchClass: string;
@@ -25,13 +27,13 @@ export interface ChartRow {
 
 interface ChartProps {
   title: string;
-  series: [ChartSeries, ChartSeries];
+  series: [ChartSeries] | [ChartSeries, ChartSeries];
   rows: ChartRow[];
   formatValue?: (value: number) => string;
   emptyMessage: string;
 }
 
-const defaultFormat = (value: number) => new Intl.NumberFormat('pt-PT').format(value);
+const defaultFormat = (value: number) => new Intl.NumberFormat(intlLocale()).format(value);
 
 /** Máximo "limpo" do eixo (1, 2 ou 5 × 10ⁿ) para marcas de escala legíveis. */
 export function niceMax(value: number): number {
@@ -42,11 +44,11 @@ export function niceMax(value: number): number {
 }
 
 const Legend: React.FC<{ series: ChartSeries[] }> = ({ series }) => (
-  <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-secondary" aria-label="Legenda">
+  <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-secondary" aria-label={t('Legenda')}>
     {series.map((item) => (
       <li key={item.label} className="flex items-center gap-1.5">
         <span className={`h-2.5 w-2.5 rounded-sm ${item.swatchClass}`} aria-hidden="true" />
-        {item.label}
+        {t(item.label)}
       </li>
     ))}
   </ul>
@@ -59,7 +61,7 @@ const Tooltip: React.FC<{ row: ChartRow; series: ChartSeries[]; formatValue: (va
       <p key={item.label} className="flex items-center gap-2 text-text-secondary">
         <span className={`h-2 w-2 rounded-sm ${item.swatchClass}`} aria-hidden="true" />
         <strong className="font-semibold text-text tabular-nums">{formatValue(row.values[index] ?? 0)}</strong>
-        {item.label}
+        {t(item.label)}
       </p>
     ))}
     {row.detail && <p className="mt-1 text-text-muted">{row.detail}</p>}
@@ -82,12 +84,14 @@ const DataTableView: React.FC<{ title: string; series: ChartSeries[]; rows: Char
           </th>
           {series.map((item) => (
             <th key={item.label} scope="col" className="py-1.5 pr-3 text-right font-semibold">
-              {item.label}
+              {t(item.label)}
             </th>
           ))}
-          <th scope="col" className="py-1.5 text-right font-semibold">
-            Total
-          </th>
+          {series.length > 1 && (
+            <th scope="col" className="py-1.5 text-right font-semibold">
+              {t('Total')}
+            </th>
+          )}
         </tr>
       </thead>
       <tbody className="divide-y divide-border">
@@ -102,7 +106,9 @@ const DataTableView: React.FC<{ title: string; series: ChartSeries[]; rows: Char
                 {formatValue(value)}
               </td>
             ))}
-            <td className="py-1.5 text-right font-semibold tabular-nums text-text">{formatValue(row.values.reduce((sum, value) => sum + value, 0))}</td>
+            {series.length > 1 && (
+              <td className="py-1.5 text-right font-semibold tabular-nums text-text">{formatValue(row.values.reduce((sum, value) => sum + value, 0))}</td>
+            )}
           </tr>
         ))}
       </tbody>
@@ -128,7 +134,7 @@ function ChartFrame({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <figcaption className="text-xs font-semibold uppercase tracking-wide text-text-secondary">{title}</figcaption>
         <button type="button" onClick={onToggleTable} className="text-xs font-semibold text-primary-hover hover:underline" aria-pressed={showTable}>
-          {showTable ? 'Ver gráfico' : 'Ver tabela'}
+          {showTable ? t('Ver gráfico') : t('Ver tabela')}
         </button>
       </div>
       <Legend series={series} />
@@ -154,7 +160,7 @@ export const StackedColumnChart: React.FC<ChartProps> = ({ title, series, rows, 
       {hasData && !showTable && (
         <div className="relative">
           <div className="flex gap-2">
-            <div className="flex h-40 w-8 shrink-0 flex-col justify-between text-right text-[11px] tabular-nums text-text-muted" aria-hidden="true">
+            <div className="flex h-40 w-12 shrink-0 flex-col justify-between whitespace-nowrap text-right text-[11px] tabular-nums text-text-muted" aria-hidden="true">
               <span>{formatValue(max)}</span>
               <span>{formatValue(max / 2)}</span>
               <span>0</span>
@@ -171,7 +177,7 @@ export const StackedColumnChart: React.FC<ChartProps> = ({ title, series, rows, 
                       <button
                         type="button"
                         className="group flex h-full w-full max-w-10 flex-col items-center justify-end rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-                        aria-label={`${row.label}: ${series.map((item, index) => `${formatValue(row.values[index] ?? 0)} ${item.label}`).join(', ')}`}
+                        aria-label={`${row.label}: ${series.map((item, index) => `${formatValue(row.values[index] ?? 0)} ${t(item.label)}`).join(', ')}`}
                         onPointerEnter={() => setActive(row.id)}
                         onPointerLeave={() => setActive((current) => (current === row.id ? null : current))}
                         onFocus={() => setActive(row.id)}
@@ -197,7 +203,7 @@ export const StackedColumnChart: React.FC<ChartProps> = ({ title, series, rows, 
               </ul>
             </div>
           </div>
-          <div className="ml-10 mt-1 flex justify-around gap-1 text-[11px] text-text-muted" aria-hidden="true">
+          <div className="ml-14 mt-1 flex justify-around gap-1 text-[11px] text-text-muted" aria-hidden="true">
             {rows.map((row) => (
               <span key={row.id} className="flex-1 truncate text-center">
                 {row.label}
@@ -205,7 +211,7 @@ export const StackedColumnChart: React.FC<ChartProps> = ({ title, series, rows, 
             ))}
           </div>
           <p id={chartId} className="sr-only">
-            Use a tecla Tab para percorrer as colunas ou abra a vista em tabela.
+            {t('Use a tecla Tab para percorrer as colunas ou abra a vista em tabela.')}
           </p>
           {activeRow && (
             <div className="absolute right-0 top-0 z-10">
@@ -248,7 +254,7 @@ export const StackedBarChart: React.FC<ChartProps & { maxRows?: number }> = ({
                 <button
                   type="button"
                   className="grid w-full grid-cols-[minmax(0,9rem)_1fr] items-center gap-3 rounded text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-focus sm:grid-cols-[minmax(0,12rem)_1fr]"
-                  aria-label={`${row.label}: ${series.map((item, index) => `${formatValue(row.values[index] ?? 0)} ${item.label}`).join(', ')}`}
+                  aria-label={`${row.label}: ${series.map((item, index) => `${formatValue(row.values[index] ?? 0)} ${t(item.label)}`).join(', ')}`}
                   onPointerEnter={() => setActive(row.id)}
                   onPointerLeave={() => setActive((current) => (current === row.id ? null : current))}
                   onFocus={() => setActive(row.id)}
@@ -282,7 +288,7 @@ export const StackedBarChart: React.FC<ChartProps & { maxRows?: number }> = ({
             );
           })}
           {rows.length > maxRows && (
-            <li className="text-xs text-text-muted">Mais {rows.length - maxRows} na vista em tabela.</li>
+            <li className="text-xs text-text-muted">{t('Mais {count} na vista em tabela.', { count: rows.length - maxRows })}</li>
           )}
         </ul>
       )}

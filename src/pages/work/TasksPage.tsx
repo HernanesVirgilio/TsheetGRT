@@ -23,6 +23,7 @@ import { OverdueBadge, WorkStatusBadge } from '../../components/work/WorkStatusB
 import { TaskFormModal } from '../../components/work/TaskFormModal';
 import { isTaskOverdue, TASK_STATUS_LABELS, WORK_PRIORITY_LABELS } from '../../utils/work';
 import { formatDateTime } from '../../utils/format';
+import { t } from '../../lib/i18n';
 
 const PAGE_SIZE = 20;
 const OPEN = 'OPEN';
@@ -87,7 +88,7 @@ export const TasksPage: React.FC = () => {
   const columns: DataTableColumn<TaskSummary>[] = [
     {
       id: 'task',
-      header: 'Tarefa',
+      header: t('Tarefa'),
       render: (task) => (
         <Link to={`/timesheet/tasks/${task.id}`} className="block hover:underline">
           <span className="block font-semibold text-text">{task.reference}</span>
@@ -95,11 +96,11 @@ export const TasksPage: React.FC = () => {
         </Link>
       ),
     },
-    { id: 'assignee', header: 'Responsável', render: (task) => task.assigneeName ?? <span className="text-text-muted">Sem responsável</span> },
-    { id: 'priority', header: 'Prioridade', render: (task) => <PriorityBadge priority={task.priority} /> },
+    { id: 'assignee', header: t('Responsável'), render: (task) => task.assigneeName ?? <span className="text-text-muted">{t('Sem responsável')}</span> },
+    { id: 'priority', header: t('Prioridade'), render: (task) => <PriorityBadge priority={task.priority} /> },
     {
       id: 'status',
-      header: 'Estado',
+      header: t('Estado'),
       render: (task) => (
         <span className="flex flex-wrap gap-1">
           <WorkStatusBadge kind="task" status={task.status} />
@@ -107,32 +108,32 @@ export const TasksPage: React.FC = () => {
         </span>
       ),
     },
-    { id: 'due', header: 'Prazo', render: (task) => <span className="whitespace-nowrap">{formatDateTime(task.dueAt, 'Sem prazo')}</span> },
-    { id: 'updated', header: 'Atualizada', render: (task) => <span className="whitespace-nowrap">{formatDateTime(task.updatedAt)}</span> },
+    { id: 'due', header: t('Prazo'), render: (task) => <span className="whitespace-nowrap">{formatDateTime(task.dueAt, t('Sem prazo'))}</span> },
+    { id: 'updated', header: t('Atualizada'), render: (task) => <span className="whitespace-nowrap">{formatDateTime(task.updatedAt)}</span> },
   ];
 
   const scopes: { value: TaskScope; label: string; visible: boolean }[] = [
-    { value: 'MINE', label: 'As minhas', visible: true },
-    { value: 'TEAM', label: 'Equipa', visible: canSeeTeam },
-    { value: 'CREATED', label: 'Criadas por mim', visible: canCreate },
-    { value: 'FOLLOW_UP', label: 'Por acompanhar', visible: canFollowUp },
+    { value: 'MINE', label: t('As minhas'), visible: true },
+    { value: 'TEAM', label: t('Equipa'), visible: canSeeTeam },
+    { value: 'CREATED', label: t('Criadas por mim'), visible: canCreate },
+    { value: 'FOLLOW_UP', label: t('Por acompanhar'), visible: canFollowUp },
   ];
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Tarefas"
-        subtitle="Trabalho planeado e atribuído, com prazos, estado e histórico."
+        title={t('Tarefas')}
+        subtitle={t('Trabalho planeado e atribuído, com prazos, estado e histórico.')}
         actions={
           canCreate && (
             <Button icon={Plus} onClick={() => setIsCreateOpen(true)}>
-              Nova tarefa
+              {t('Nova tarefa')}
             </Button>
           )
         }
       />
 
-      <div role="group" aria-label="Âmbito das tarefas" className="flex flex-wrap gap-2">
+      <div role="group" aria-label={t('Âmbito das tarefas')} className="flex flex-wrap gap-2">
         {scopes
           .filter((option) => option.visible)
           .map((option) => (
@@ -144,18 +145,18 @@ export const TasksPage: React.FC = () => {
 
       <Panel flush>
         <div className="grid grid-cols-1 gap-3 border-b border-border p-4 sm:grid-cols-2 lg:grid-cols-5">
-          <SearchInput label="Pesquisar referência ou título" value={search} onChange={(event) => setSearch(event.target.value)} />
-          <FilterSelect label="Filtrar por estado" value={status} disabled={scope === 'FOLLOW_UP'} onChange={(event) => setStatus(event.target.value)}>
-            <option value={OPEN}>Em aberto</option>
-            <option value={ALL}>Todos os estados</option>
+          <SearchInput label={t('Pesquisar referência ou título')} value={search} onChange={(event) => setSearch(event.target.value)} />
+          <FilterSelect label={t('Filtrar por estado')} value={status} disabled={scope === 'FOLLOW_UP'} onChange={(event) => setStatus(event.target.value)}>
+            <option value={OPEN}>{t('Em aberto')}</option>
+            <option value={ALL}>{t('Todos os estados')}</option>
             {TASK_STATUSES.map((value) => (
               <option key={value} value={value}>
                 {TASK_STATUS_LABELS[value]}
               </option>
             ))}
           </FilterSelect>
-          <FilterSelect label="Filtrar por prioridade" value={priority} onChange={(event) => setPriority(event.target.value)}>
-            <option value={ALL}>Todas as prioridades</option>
+          <FilterSelect label={t('Filtrar por prioridade')} value={priority} onChange={(event) => setPriority(event.target.value)}>
+            <option value={ALL}>{t('Todas as prioridades')}</option>
             {WORK_PRIORITIES.map((value) => (
               <option key={value} value={value}>
                 {WORK_PRIORITY_LABELS[value]}
@@ -163,8 +164,8 @@ export const TasksPage: React.FC = () => {
             ))}
           </FilterSelect>
           {scope !== 'MINE' ? (
-            <FilterSelect label="Filtrar por responsável" value={assigneeId} onChange={(event) => setAssigneeId(event.target.value)}>
-              <option value={ALL}>Todos os responsáveis</option>
+            <FilterSelect label={t('Filtrar por responsável')} value={assigneeId} onChange={(event) => setAssigneeId(event.target.value)}>
+              <option value={ALL}>{t('Todos os responsáveis')}</option>
               {(people.data ?? []).map((person) => (
                 <option key={person.profileId} value={person.profileId}>
                   {person.fullName}
@@ -176,7 +177,7 @@ export const TasksPage: React.FC = () => {
           )}
           <label className="flex items-center gap-2 self-end pb-2 text-sm text-text">
             <input type="checkbox" className="h-4 w-4 accent-primary-hover" checked={overdueOnly} onChange={(event) => setOverdueOnly(event.target.checked)} />
-            Só atrasadas
+            {t('Só atrasadas')}
           </label>
         </div>
 
@@ -185,17 +186,17 @@ export const TasksPage: React.FC = () => {
             <ErrorState message={tasks.error} onRetry={tasks.reload} />
           </div>
         )}
-        {tasks.isLoading && !tasks.data && <LoadingState label="A carregar tarefas..." />}
+        {tasks.isLoading && !tasks.data && <LoadingState label={t('A carregar tarefas...')} />}
         {tasks.data && tasks.data.items.length === 0 && (
           <EmptyState
             bordered={false}
             icon={ListTodo}
-            title={overdueOnly ? 'Não existem tarefas atrasadas.' : scope === 'MINE' ? 'Não tem tarefas atribuídas com estes filtros.' : 'Não existem tarefas com estes filtros.'}
+            title={overdueOnly ? t('Não existem tarefas atrasadas.') : scope === 'MINE' ? t('Não tem tarefas atribuídas com estes filtros.') : t('Não existem tarefas com estes filtros.')}
           />
         )}
         {tasks.data && tasks.data.items.length > 0 && (
           <>
-            <DataTable caption="Tarefas" columns={columns} rows={tasks.data.items} getRowKey={(task) => task.id} />
+            <DataTable caption={t('Tarefas')} columns={columns} rows={tasks.data.items} getRowKey={(task) => task.id} />
             <Pagination page={page} pageSize={PAGE_SIZE} totalItems={tasks.data.total} onPageChange={setPage} />
           </>
         )}

@@ -8,6 +8,7 @@ import { Button } from '../../components/ui/Button';
 import { TextField } from '../../components/ui/FormField';
 import type { FieldErrors, NewPasswordField } from '../../utils/validation';
 import { hasErrors, MIN_PASSWORD_LENGTH, validateNewPassword } from '../../utils/validation';
+import { t } from '../../lib/i18n';
 
 type ChangePasswordField = NewPasswordField | 'currentPassword';
 
@@ -29,8 +30,8 @@ export const ChangePasswordPage: React.FC = () => {
     setSuccessMessage(null);
 
     const errors: FieldErrors<ChangePasswordField> = validateNewPassword({ newPassword, confirmPassword });
-    if (!currentPassword) errors.currentPassword = 'Indique a palavra-passe atual.';
-    else if (currentPassword === newPassword) errors.newPassword = 'A nova palavra-passe deve ser diferente da atual.';
+    if (!currentPassword) errors.currentPassword = t('Indique a palavra-passe atual.');
+    else if (currentPassword === newPassword) errors.newPassword = t('A nova palavra-passe deve ser diferente da atual.');
     setFieldErrors(errors);
     if (hasErrors(errors)) return;
 
@@ -45,18 +46,18 @@ export const ChangePasswordPage: React.FC = () => {
     setCurrentPassword('');
     setNewPassword('');
     setConfirmPassword('');
-    setSuccessMessage('Palavra-passe alterada com sucesso.');
+    setSuccessMessage(t('Palavra-passe alterada com sucesso.'));
     if (mustChangePassword) navigate('/dashboard', { replace: true });
   };
 
   return (
     <div className="mx-auto max-w-xl">
       <PageHeader
-        title="Alterar palavra-passe"
+        title={t('Alterar palavra-passe')}
         subtitle={
           mustChangePassword
-            ? 'É obrigatório definir uma nova palavra-passe antes de continuar.'
-            : 'Defina uma nova palavra-passe segura para a sua conta.'
+            ? t('É obrigatório definir uma nova palavra-passe antes de continuar.')
+            : t('Defina uma nova palavra-passe segura para a sua conta.')
         }
       />
       <Panel>
@@ -64,7 +65,7 @@ export const ChangePasswordPage: React.FC = () => {
           {errorMessage && <Alert variant="error">{errorMessage}</Alert>}
           {successMessage && <Alert variant="success">{successMessage}</Alert>}
           <TextField
-            label="Palavra-passe atual"
+            label={t('Palavra-passe atual')}
             type="password"
             autoComplete="current-password"
             required
@@ -73,17 +74,17 @@ export const ChangePasswordPage: React.FC = () => {
             onChange={(event) => setCurrentPassword(event.target.value)}
           />
           <TextField
-            label="Nova palavra-passe"
+            label={t('Nova palavra-passe')}
             type="password"
             autoComplete="new-password"
             required
-            hint={`Mínimo de ${MIN_PASSWORD_LENGTH} carateres.`}
+            hint={t('Mínimo de {MIN_PASSWORD_LENGTH} carateres.', { MIN_PASSWORD_LENGTH })}
             value={newPassword}
             error={fieldErrors.newPassword}
             onChange={(event) => setNewPassword(event.target.value)}
           />
           <TextField
-            label="Confirmar nova palavra-passe"
+            label={t('Confirmar nova palavra-passe')}
             type="password"
             autoComplete="new-password"
             required
@@ -93,7 +94,7 @@ export const ChangePasswordPage: React.FC = () => {
           />
           <div className="flex justify-end pt-2">
             <Button type="submit" isLoading={isSubmitting}>
-              Atualizar palavra-passe
+              {t('Atualizar palavra-passe')}
             </Button>
           </div>
         </form>

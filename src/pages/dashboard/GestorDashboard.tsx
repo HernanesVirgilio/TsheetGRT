@@ -27,15 +27,16 @@ import {
 } from '../../components/work/DashboardPanels';
 import { recentPeriod } from '../../utils/work';
 import { formatMinutesAsHours, pluralize } from '../../utils/format';
+import { t } from '../../lib/i18n';
 
 const PERIOD_DAYS = 30;
 const TREND_DAYS = 56;
 
 /** Equipa: quem é, o que faz e o que tem em mãos. */
 const TeamPanel: React.FC<{ members: TeamMemberWorkload[] }> = ({ members }) => (
-  <Panel title="A minha equipa" actions={<PanelLink to="/team">Ver equipa</PanelLink>} flush>
+  <Panel title={t('A minha equipa')} actions={<PanelLink to="/team">{t('Ver equipa')}</PanelLink>} flush>
     {members.length === 0 ? (
-      <EmptyState bordered={false} icon={Users} title="Ainda não tem colaboradores no seu âmbito." message="A equipa é atribuída pela administração." />
+      <EmptyState bordered={false} icon={Users} title={t('Ainda não tem colaboradores no seu âmbito.')} message={t('A equipa é atribuída pela administração.')} />
     ) : (
       <ul className="divide-y divide-border">
         {members.map((member) => (
@@ -44,10 +45,10 @@ const TeamPanel: React.FC<{ members: TeamMemberWorkload[] }> = ({ members }) => 
               <span className="min-w-0">
                 <span className="block text-sm font-semibold text-text">{member.fullName}</span>
                 <span className="block text-xs text-text-secondary">
-                  {[member.jobTitle ?? 'Cargo por definir', member.departmentName].filter(Boolean).join(' · ')}
+                  {[member.jobTitle ?? t('Cargo por definir'), member.departmentName].filter(Boolean).join(' · ')}
                 </span>
                 <span className="mt-1 line-clamp-2 block text-xs text-text-muted">
-                  {member.jobDescription ?? 'Descrição da função por preencher.'}
+                  {member.jobDescription ?? t('Descrição da função por preencher.')}
                 </span>
               </span>
               <span className="flex shrink-0 flex-wrap items-center gap-2 text-xs text-text-secondary">
@@ -80,42 +81,42 @@ export const GestorDashboard: React.FC = () => {
   const assignees = useAsyncData(() => (canCreateTask ? listWorkPeople('ASSIGNEE') : Promise.resolve([])), [canCreateTask]);
 
   if (dashboard.error) return <ErrorState message={dashboard.error} onRetry={dashboard.reload} />;
-  if (!dashboard.data) return <LoadingState label="A carregar o painel da equipa..." />;
+  if (!dashboard.data) return <LoadingState label={t('A carregar o painel da equipa...')} />;
   const summary = dashboard.data;
   const members = team.data ?? [];
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Painel da equipa"
-        subtitle="O trabalho da sua equipa hoje: execução, prazos, pedidos e o que precisa da sua atenção."
+        title={t('Painel da equipa')}
+        subtitle={t('O trabalho da sua equipa hoje: execução, prazos, pedidos e o que precisa da sua atenção.')}
         actions={
           canCreateTask && (
             <Button icon={Plus} onClick={() => setIsTaskFormOpen(true)} disabled={!assignees.data}>
-              Atribuir tarefa
+              {t('Atribuir tarefa')}
             </Button>
           )
         }
       />
 
       {scopes.data && scopes.data.length === 0 && (
-        <Alert variant="warning" title="Sem equipa atribuída">
-          Ainda não lhe foi atribuído nenhum departamento ou colaborador. Contacte a administração.
+        <Alert variant="warning" title={t('Sem equipa atribuída')}>
+          {t('Ainda não lhe foi atribuído nenhum departamento ou colaborador. Contacte a administração.')}
         </Alert>
       )}
       {scopes.data && scopes.data.length > 0 && (
         <p className="text-sm text-text-secondary">
-          <span className="font-medium text-text">Equipa:</span>{' '}
-          {scopes.data.map((scope) => (scope.departmentName ? `Departamento ${scope.departmentName}` : scope.employeeName ?? '—')).join(' · ')}
+          <span className="font-medium text-text">{t('Equipa:')}</span>{' '}
+          {scopes.data.map((scope) => (scope.departmentName ? t('Departamento {departmentName}', { departmentName: scope.departmentName }) : scope.employeeName ?? '—')).join(' · ')}
         </p>
       )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Colaboradores" value={summary.teamSize} supporting={`${formatMinutesAsHours(summary.minutesLogged)} registadas em ${PERIOD_DAYS} dias`} icon={Users} />
-        <StatCard label="Em curso" value={summary.tasksInProgress} supporting={pluralize(summary.tasksBlocked, 'bloqueada', 'bloqueadas')} icon={ClipboardList} />
-        <StatCard label="Em atraso" value={summary.tasksOverdue} supporting="Prazo ultrapassado e por concluir" icon={AlertCircle} />
+        <StatCard label={t('Colaboradores')} value={summary.teamSize} supporting={t('{minutesLogged} registadas em {PERIOD_DAYS} dias', { minutesLogged: formatMinutesAsHours(summary.minutesLogged), PERIOD_DAYS })} icon={Users} />
+        <StatCard label={t('Em curso')} value={summary.tasksInProgress} supporting={pluralize(summary.tasksBlocked, 'bloqueada', 'bloqueadas')} icon={ClipboardList} />
+        <StatCard label={t('Em atraso')} value={summary.tasksOverdue} supporting={t('Prazo ultrapassado e por concluir')} icon={AlertCircle} />
         <StatCard
-          label={`Concluídas (${PERIOD_DAYS} dias)`}
+          label={t('Concluídas ({PERIOD_DAYS} dias)', { PERIOD_DAYS })}
           value={summary.tasksCompleted}
           supporting={pluralize(summary.tasksCompletedLate, 'com atraso', 'com atraso')}
           icon={CheckCircle2}
@@ -124,18 +125,18 @@ export const GestorDashboard: React.FC = () => {
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <div className="space-y-6 xl:col-span-2">
-          {team.error ? <ErrorState message={team.error} onRetry={team.reload} /> : team.data ? <TeamPanel members={members} /> : <LoadingState label="A carregar a equipa..." />}
+          {team.error ? <ErrorState message={team.error} onRetry={team.reload} /> : team.data ? <TeamPanel members={members} /> : <LoadingState label={t('A carregar a equipa...')} />}
           <MyTasksPanel viewerId={viewerId} />
         </div>
         <div className="space-y-6">
           <AttentionPanel
-            title="Precisa da sua atenção"
+            title={t('Precisa da sua atenção')}
             items={[
-              { label: 'Tarefas bloqueadas', count: summary.tasksBlocked, to: '/timesheet/tasks?scope=TEAM&status=BLOCKED', hint: 'Impedimentos a resolver', tone: 'danger' },
-              { label: 'Conclusões por acompanhar', count: summary.tasksPendingFollowUp, to: '/timesheet/tasks?scope=FOLLOW_UP', hint: 'Concluídas e ainda não validadas', tone: 'warning' },
-              { label: 'Ausências por validar', count: summary.absencesToValidate, to: '/timesheet/absences?tab=TEAM', hint: 'Pedidos da equipa a aguardar a sua validação', tone: 'warning' },
-              { label: 'Ausências no Manager', count: summary.absencesAwaitingDecision, to: '/timesheet/absences?tab=TEAM', hint: 'Validadas, a aguardar a decisão do Manager' },
-              { label: 'Oportunidades por aprovar', count: summary.opportunityApprovalsPending, to: '/timesheet/approvals', hint: 'Pedidos enviados ao Manager' },
+              { label: t('Tarefas bloqueadas'), count: summary.tasksBlocked, to: '/timesheet/tasks?scope=TEAM&status=BLOCKED', hint: t('Impedimentos a resolver'), tone: 'danger' },
+              { label: t('Conclusões por acompanhar'), count: summary.tasksPendingFollowUp, to: '/timesheet/tasks?scope=FOLLOW_UP', hint: t('Concluídas e ainda não validadas'), tone: 'warning' },
+              { label: t('Ausências por validar'), count: summary.absencesToValidate, to: '/timesheet/absences?tab=TEAM', hint: t('Pedidos da equipa a aguardar a sua validação'), tone: 'warning' },
+              { label: t('Ausências no Manager'), count: summary.absencesAwaitingDecision, to: '/timesheet/absences?tab=TEAM', hint: t('Validadas, a aguardar a decisão do Manager') },
+              { label: t('Oportunidades por aprovar'), count: summary.opportunityApprovalsPending, to: '/timesheet/approvals', hint: t('Pedidos enviados ao Manager') },
             ]}
           />
           <UpcomingMeetingsPanel viewerId={viewerId} />

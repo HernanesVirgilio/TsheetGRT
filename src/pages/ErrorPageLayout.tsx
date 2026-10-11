@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { t } from '../lib/i18n';
 
 interface ErrorPageLayoutProps {
   /** Código técnico (ex.: 404); omitido quando não ajuda o utilizador. */
@@ -21,10 +22,10 @@ export const ErrorPageLayout: React.FC<ErrorPageLayoutProps> = ({ code, title, m
     <p className="mb-6 max-w-md text-sm text-text-secondary">{message}</p>
     <Link
       to="/dashboard"
-      className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-on-primary hover:bg-primary-hover hover:text-white"
+      className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-on-primary hover:bg-primary-hover hover:text-on-primary-hover"
     >
       <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-      Voltar ao dashboard
+      {t('Voltar ao dashboard')}
     </Link>
   </div>
 );

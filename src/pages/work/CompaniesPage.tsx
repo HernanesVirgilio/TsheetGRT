@@ -18,6 +18,7 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState, LoadingState } from '../../components/ui/States';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { CompanyFormModal } from '../../components/work/OpportunityModals';
+import { t } from '../../lib/i18n';
 
 export const CompaniesPage: React.FC = () => {
   const { hasPermission } = useAuth();
@@ -31,22 +32,22 @@ export const CompaniesPage: React.FC = () => {
   const companies = useAsyncData(() => listCompanies(debouncedSearch, isCompanyStatus(status) ? status : null), [debouncedSearch, status]);
 
   const columns: DataTableColumn<Company>[] = [
-    { id: 'name', header: 'Empresa', render: (company) => <span className="font-semibold text-text">{company.name}</span> },
+    { id: 'name', header: t('Empresa'), render: (company) => <span className="font-semibold text-text">{company.name}</span> },
     { id: 'nuit', header: 'NUIT', render: (company) => company.nuit ?? '—' },
-    { id: 'contact', header: 'Contacto', render: (company) => company.contactName ?? '—' },
-    { id: 'phone', header: 'Telefone', render: (company) => company.phone ?? '—' },
-    { id: 'email', header: 'E-mail', render: (company) => company.email ?? '—' },
-    { id: 'status', header: 'Estado', render: (company) => <StatusBadge status={company.status} size="sm" /> },
+    { id: 'contact', header: t('Contacto'), render: (company) => company.contactName ?? '—' },
+    { id: 'phone', header: t('Telefone'), render: (company) => company.phone ?? '—' },
+    { id: 'email', header: t('E-mail'), render: (company) => company.email ?? '—' },
+    { id: 'status', header: t('Estado'), render: (company) => <StatusBadge status={company.status} size="sm" /> },
     {
       id: 'actions',
-      header: 'Ações',
+      header: t('Ações'),
       align: 'right',
       hideLabelOnMobile: true,
       render: (company) =>
         canEdit && (
           <IconButton
             icon={Pencil}
-            label={`Editar ${company.name}`}
+            label={t('Editar {name}', { name: company.name })}
             onClick={() => {
               setEditing(company);
               setIsFormOpen(true);
@@ -60,11 +61,11 @@ export const CompaniesPage: React.FC = () => {
     <div className="space-y-6">
       <Link to="/timesheet/opportunities" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary-hover hover:underline">
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        Voltar às oportunidades
+        {t('Voltar às oportunidades')}
       </Link>
       <PageHeader
-        title="Empresas"
-        subtitle="Clientes e potenciais clientes. As empresas não são apagadas: ficam inativas."
+        title={t('Empresas')}
+        subtitle={t('Clientes e potenciais clientes. As empresas não são apagadas: ficam inativas.')}
         actions={
           canEdit && (
             <Button
@@ -74,7 +75,7 @@ export const CompaniesPage: React.FC = () => {
                 setIsFormOpen(true);
               }}
             >
-              Nova empresa
+              {t('Nova empresa')}
             </Button>
           )
         }
@@ -86,11 +87,11 @@ export const CompaniesPage: React.FC = () => {
       )}
       <Panel flush>
         <div className="grid grid-cols-1 gap-3 border-b border-border p-4 sm:grid-cols-2">
-          <SearchInput label="Pesquisar nome, NUIT ou contacto" value={search} onChange={(event) => setSearch(event.target.value)} />
-          <FilterSelect label="Filtrar por estado" value={status} onChange={(event) => setStatus(event.target.value)}>
-            <option value="ACTIVE">Ativas</option>
-            <option value="INACTIVE">Inativas</option>
-            <option value="ALL">Todas</option>
+          <SearchInput label={t('Pesquisar nome, NUIT ou contacto')} value={search} onChange={(event) => setSearch(event.target.value)} />
+          <FilterSelect label={t('Filtrar por estado')} value={status} onChange={(event) => setStatus(event.target.value)}>
+            <option value="ACTIVE">{t('Ativas')}</option>
+            <option value="INACTIVE">{t('Inativas')}</option>
+            <option value="ALL">{t('Todas')}</option>
           </FilterSelect>
         </div>
         {companies.error && (
@@ -98,9 +99,9 @@ export const CompaniesPage: React.FC = () => {
             <ErrorState message={companies.error} onRetry={companies.reload} />
           </div>
         )}
-        {companies.isLoading && !companies.data && <LoadingState label="A carregar empresas..." />}
-        {companies.data && companies.data.length === 0 && <EmptyState bordered={false} icon={Building2} title="Não existem empresas registadas com estes filtros." />}
-        {companies.data && companies.data.length > 0 && <DataTable caption="Empresas" columns={columns} rows={companies.data} getRowKey={(company) => company.id} />}
+        {companies.isLoading && !companies.data && <LoadingState label={t('A carregar empresas...')} />}
+        {companies.data && companies.data.length === 0 && <EmptyState bordered={false} icon={Building2} title={t('Não existem empresas registadas com estes filtros.')} />}
+        {companies.data && companies.data.length > 0 && <DataTable caption={t('Empresas')} columns={columns} rows={companies.data} getRowKey={(company) => company.id} />}
       </Panel>
       <CompanyFormModal
         isOpen={isFormOpen}

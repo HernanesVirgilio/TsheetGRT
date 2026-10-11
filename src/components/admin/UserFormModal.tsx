@@ -8,6 +8,7 @@ import { createUser, updateUser } from '../../services/userService';
 import type { Department, Profile, Role, RoleCode } from '../../types';
 import type { FieldErrors, UserFormField, UserFormValues } from '../../utils/validation';
 import { hasErrors, optionalText, validateUserForm } from '../../utils/validation';
+import { t } from '../../lib/i18n';
 
 const DEFAULT_ROLE: RoleCode = 'EMPLOYEE';
 
@@ -86,7 +87,7 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
           jobTitle: optionalText(values.jobTitle),
           jobDescription: optionalText(jobDescription),
         });
-        onSaved('Dados do utilizador atualizados com sucesso.');
+        onSaved(t('Dados do utilizador atualizados com sucesso.'));
       } else {
         await createUser({
           fullName: values.fullName.trim(),
@@ -96,10 +97,10 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
           jobTitle: optionalText(values.jobTitle),
           phone: optionalText(values.phone),
         });
-        onSaved(`Utilizador criado com sucesso. Foi enviado um convite para ${values.email.trim().toLowerCase()}.`);
+        onSaved(t('Utilizador criado com sucesso. Foi enviado um convite para {email}.', { email: values.email.trim().toLowerCase() }));
       }
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Não foi possível guardar o utilizador.'));
+      setErrorMessage(getErrorMessage(error, t('Não foi possível guardar o utilizador.')));
     } finally {
       setIsSubmitting(false);
     }
@@ -110,21 +111,21 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
   return (
     <Modal
       isOpen={isOpen}
-      title={isEditing ? 'Editar utilizador' : 'Novo utilizador'}
+      title={isEditing ? t('Editar utilizador') : t('Novo utilizador')}
       description={
         isEditing
           ? user?.email
-          : 'O utilizador recebe um convite por e-mail e define a sua própria palavra-passe.'
+          : t('O utilizador recebe um convite por e-mail e define a sua própria palavra-passe.')
       }
       isBusy={isSubmitting}
       onClose={onClose}
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
-            Cancelar
+            {t('Cancelar')}
           </Button>
           <Button type="submit" form={formId} isLoading={isSubmitting}>
-            {isEditing ? 'Guardar' : 'Criar e enviar convite'}
+            {isEditing ? 'Guardar' : t('Criar e enviar convite')}
           </Button>
         </>
       }
@@ -133,7 +134,7 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
         {errorMessage && <Alert variant="error">{errorMessage}</Alert>}
 
         <TextField
-          label="Nome completo"
+          label={t('Nome completo')}
           required
           autoComplete="off"
           value={values.fullName}
@@ -143,26 +144,26 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
 
         {!isEditing && (
           <TextField
-            label="E-mail institucional"
+            label={t('E-mail institucional')}
             type="email"
             required
             autoComplete="off"
             value={values.email}
             error={fieldErrors.email}
-            hint="Não pode ser alterado depois da criação."
+            hint={t('Não pode ser alterado depois da criação.')}
             onChange={(event) => updateValue('email', event.target.value)}
           />
         )}
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <SelectField
-            label="Departamento"
+            label={t('Departamento')}
             required
             value={values.departmentId}
             error={fieldErrors.departmentId}
             onChange={(event) => updateValue('departmentId', event.target.value)}
           >
-            <option value="">Selecione…</option>
+            <option value="">{t('Selecione…')}</option>
             {selectableDepartments.map((department) => (
               <option key={department.id} value={department.id}>
                 {department.name}
@@ -171,7 +172,7 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
             ))}
           </SelectField>
           <TextField
-            label="Cargo"
+            label={t('Cargo')}
             value={values.jobTitle}
             error={fieldErrors.jobTitle}
             onChange={(event) => updateValue('jobTitle', event.target.value)}
@@ -179,7 +180,7 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
         </div>
 
         <TextField
-          label="Telefone"
+          label={t('Telefone')}
           type="tel"
           autoComplete="off"
           value={values.phone}
@@ -189,18 +190,18 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
 
         {isEditing && (
           <TextAreaField
-            label="Descrição da função"
+            label={t('Descrição da função')}
             rows={3}
             maxLength={2000}
             value={jobDescription}
-            hint="O que a pessoa faz e que responsabilidades pode receber. Não altera o perfil de acesso."
+            hint={t('O que a pessoa faz e que responsabilidades pode receber. Não altera o perfil de acesso.')}
             onChange={(event) => setJobDescription(event.target.value)}
           />
         )}
 
         {!isEditing && (
           <SelectField
-            label="Perfil de acesso"
+            label={t('Perfil de acesso')}
             required
             value={roleCode}
             onChange={(event) => {

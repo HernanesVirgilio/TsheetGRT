@@ -39,6 +39,7 @@ import type { PermissionCode } from '../../types';
 import { findActiveSection, parseOpenSections } from '../../utils/navigation';
 import type { NavigationTarget, OpenSections } from '../../utils/navigation';
 import { BrandMark } from './BrandMark';
+import { t } from '../../lib/i18n';
 
 interface NavigationItem extends NavigationTarget {
   label: string;
@@ -147,7 +148,7 @@ const SidebarLink: React.FC<SidebarLinkProps> = ({ to, label, icon: Icon, end, b
     <NavLink to={to} end={end} className={navigationLinkClass} onClick={onNavigate}>
       <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
       <span className="min-w-0 truncate">{label}</span>
-      {badge > 0 && <CountBadge value={badge} label="por ler" />}
+      {badge > 0 && <CountBadge value={badge} label={t('por ler')} />}
     </NavLink>
   </li>
 );
@@ -175,7 +176,7 @@ const SidebarSection: React.FC<SidebarSectionProps> = ({ id, title, isOpen, onTo
       >
         <ChevronRight className={`h-3.5 w-3.5 shrink-0 transition-transform ${isOpen ? 'rotate-90' : ''}`} aria-hidden="true" />
         <span className="flex-1">{title}</span>
-        {!isOpen && badge > 0 && <CountBadge value={badge} label="por ler" />}
+        {!isOpen && badge > 0 && <CountBadge value={badge} label={t('por ler')} />}
       </button>
       <ul id={listId} hidden={!isOpen} className="mt-1 space-y-1">
         {children}
@@ -200,12 +201,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNavigate }) => {
   const allowed = (items: NavigationItem[]) => items.filter((item) => !item.permission || hasPermission(item.permission));
 
   const candidateSections: NavigationSection[] = [
-    { id: 'work', title: 'Trabalho', items: allowed(WORK_ITEMS) },
-    { id: 'team', title: 'Gestão de equipa', items: isTeamManager ? allowed(TEAM_ITEMS) : [] },
-    { id: 'it', title: 'Suporte IT', items: allowed(IT_ITEMS) },
-    { id: 'analysis', title: 'Análise', items: allowed(ANALYSIS_ITEMS) },
-    { id: 'administration', title: 'Administração', items: allowed(ADMINISTRATION_ITEMS) },
-    { id: 'account', title: 'Conta', items: ACCOUNT_ITEMS },
+    { id: 'work', title: t('Trabalho'), items: allowed(WORK_ITEMS) },
+    { id: 'team', title: t('Gestão de equipa'), items: isTeamManager ? allowed(TEAM_ITEMS) : [] },
+    { id: 'it', title: t('Suporte IT'), items: allowed(IT_ITEMS) },
+    { id: 'analysis', title: t('Análise'), items: allowed(ANALYSIS_ITEMS) },
+    { id: 'administration', title: t('Administração'), items: allowed(ADMINISTRATION_ITEMS) },
+    { id: 'account', title: t('Conta'), items: ACCOUNT_ITEMS },
   ];
   const sections = candidateSections.filter((section) => section.items.length > 0);
 
@@ -238,16 +239,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNavigate }) => {
         <BrandMark inverted />
       </div>
 
-      <nav aria-label="Navegação principal" className="flex-1 space-y-2 overflow-y-auto px-3 py-4 custom-scrollbar">
+      <nav aria-label={t('Navegação principal')} className="flex-1 space-y-2 overflow-y-auto px-3 py-4 custom-scrollbar">
         <ul className="space-y-1 pb-2">
-          <SidebarLink to="/dashboard" label="Dashboard" icon={LayoutDashboard} onNavigate={onNavigate} />
+          <SidebarLink to="/dashboard" label={t('Dashboard')} icon={LayoutDashboard} onNavigate={onNavigate} />
 
           {showOwnTimesheet && (
-            <SidebarLink to="/timesheets" label="Meu Timesheet" icon={Clock3} onNavigate={onNavigate} />
+            <SidebarLink to="/timesheets" label={t('Meu Timesheet')} icon={Clock3} onNavigate={onNavigate} />
           )}
 
           {showSupportRequests && (
-            <SidebarLink to="/support" label="Pedidos de suporte" icon={LifeBuoy} onNavigate={onNavigate} />
+            <SidebarLink to="/support" label={t('Pedidos de suporte')} icon={LifeBuoy} onNavigate={onNavigate} />
           )}
         </ul>
 
@@ -261,7 +262,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNavigate }) => {
             badge={section.items.reduce((total, item) => total + (badges[item.to] ?? 0), 0)}
           >
             {section.items.map((item) => (
-              <SidebarLink key={item.to} {...item} badge={badges[item.to]} onNavigate={onNavigate} />
+              <SidebarLink key={item.to} {...item} label={t(item.label)} badge={badges[item.to]} onNavigate={onNavigate} />
             ))}
           </SidebarSection>
         ))}
@@ -271,13 +272,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNavigate }) => {
         <div className="flex items-center justify-between gap-2 border-t border-white/15 px-4 py-3">
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-white">{currentUser.full_name}</p>
-            <p className="truncate text-xs text-sidebar-muted">{currentUser.role?.name ?? 'Sem perfil de acesso'}</p>
+            <p className="truncate text-xs text-sidebar-muted">{currentUser.role?.name ?? t('Sem perfil de acesso')}</p>
           </div>
           <button
             type="button"
             onClick={() => signOut()}
-            aria-label="Terminar sessão"
-            title="Terminar sessão"
+            aria-label={t('Terminar sessão')}
+            title={t('Terminar sessão')}
             className={`shrink-0 rounded-md p-2 text-sidebar-muted hover:bg-sidebar-hover hover:text-white ${FOCUS_CLASS}`}
           >
             <LogOut className="h-4 w-4" aria-hidden="true" />

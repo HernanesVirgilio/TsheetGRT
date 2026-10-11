@@ -3,6 +3,7 @@ import { toServiceError } from '../lib/errors';
 import type { Profile, TimesheetStatus, TimesheetSummary } from '../types';
 import { isPresent, mapDepartment, mapTimesheetSummary, TIMESHEET_SUMMARY_SELECT } from './mappers';
 import type { DepartmentRow, ProfileRow } from '../types/database';
+import { t } from '../lib/i18n';
 
 /**
  * Dados do gestor. A equipa é sempre lida da vista my_team_members (manager_scope do
@@ -32,20 +33,20 @@ function mapTeamMember(row: ProfileRow & { department: DepartmentRow | null }): 
 
 export async function listTeamMembers(): Promise<Profile[]> {
   const { data, error } = await supabase.from('my_team_members').select(TEAM_MEMBER_SELECT).order('full_name');
-  if (error) throw toServiceError(error, 'Não foi possível carregar a sua equipa.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar a sua equipa.'));
   return data.map(mapTeamMember);
 }
 
 /** Devolve null se o colaborador não existir ou não pertencer ao âmbito do gestor. */
 export async function getTeamMember(profileId: string): Promise<Profile | null> {
   const { data, error } = await supabase.from('my_team_members').select(TEAM_MEMBER_SELECT).eq('id', profileId).maybeSingle();
-  if (error) throw toServiceError(error, 'Não foi possível carregar o colaborador.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar o colaborador.'));
   return data ? mapTeamMember(data) : null;
 }
 
 async function listTeamMemberIds(): Promise<string[]> {
   const { data, error } = await supabase.from('my_team_members').select('id');
-  if (error) throw toServiceError(error, 'Não foi possível carregar a sua equipa.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar a sua equipa.'));
   return data.flatMap((member) => (member.id ? [member.id] : []));
 }
 
@@ -66,7 +67,7 @@ export async function listTeamTimesheets(filters: TeamTimesheetFilters): Promise
   if (filters.periodTo) request = request.lte('period_end', filters.periodTo);
 
   const { data, error } = await request;
-  if (error) throw toServiceError(error, 'Não foi possível carregar os timesheets da equipa.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar os timesheets da equipa.'));
   return data.map(mapTimesheetSummary).filter(isPresent);
 }
 
@@ -76,7 +77,7 @@ export async function listMyScopes(managerProfileId: string): Promise<ManagerSco
     .from('manager_scopes')
     .select('id, department:departments(name), employee:profiles!manager_scopes_employee_id_fkey(full_name)')
     .eq('manager_id', managerProfileId);
-  if (error) throw toServiceError(error, 'Não foi possível carregar o seu âmbito de gestão.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar o seu âmbito de gestão.'));
   return data.map((scope) => ({
     id: scope.id,
     departmentName: scope.department?.name ?? null,

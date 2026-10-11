@@ -15,6 +15,7 @@ import { OverdueBadge, WorkStatusBadge } from './WorkStatusBadge';
 import { StackedBarChart, StackedColumnChart } from '../charts/StackedCharts';
 import { compareTasksForToday, describeWorkEvent, formatMoney, isTaskOverdue } from '../../utils/work';
 import { formatCalendarDate, formatDateTime, formatMinutesAsHours } from '../../utils/format';
+import { t } from '../../lib/i18n';
 
 export const PanelLink: React.FC<{ to: string; children: React.ReactNode }> = ({ to, children }) => (
   <Link to={to} className="inline-flex items-center gap-1 text-sm font-semibold text-primary-hover hover:underline">
@@ -69,10 +70,10 @@ export const MyTasksPanel: React.FC<{ viewerId: string }> = ({ viewerId }) => {
   const now = new Date();
   const ordered = [...(tasks.data ?? [])].sort((first, second) => compareTasksForToday(first, second, now)).slice(0, 5);
   return (
-    <Panel title="As minhas tarefas" actions={<PanelLink to="/timesheet/tasks">Ver todas</PanelLink>} flush>
+    <Panel title={t('As minhas tarefas')} actions={<PanelLink to="/timesheet/tasks">{t('Ver todas')}</PanelLink>} flush>
       {tasks.error && <p className="px-5 py-4 text-sm text-danger">{tasks.error}</p>}
-      {tasks.isLoading && !tasks.data && <LoadingState label="A carregar tarefas..." />}
-      {tasks.data && ordered.length === 0 && <EmptyState bordered={false} icon={ListTodo} title="Não tem tarefas em aberto." />}
+      {tasks.isLoading && !tasks.data && <LoadingState label={t('A carregar tarefas...')} />}
+      {tasks.data && ordered.length === 0 && <EmptyState bordered={false} icon={ListTodo} title={t('Não tem tarefas em aberto.')} />}
       {ordered.length > 0 && (
         <ul className="divide-y divide-border">
           {ordered.map((task) => (
@@ -83,7 +84,7 @@ export const MyTasksPanel: React.FC<{ viewerId: string }> = ({ viewerId }) => {
                     {task.reference} · {task.title}
                   </span>
                   <span className="block text-xs text-text-muted">
-                    Prazo: {formatDateTime(task.dueAt, 'sem prazo')}
+                    {t('Prazo: {date}', { date: formatDateTime(task.dueAt, t('sem prazo')) })}
                     {task.createdBy !== viewerId && task.creatorName ? ` · pedida por ${task.creatorName}` : ''}
                   </span>
                 </span>
@@ -107,10 +108,10 @@ export const UpcomingMeetingsPanel: React.FC<{ viewerId: string }> = ({ viewerId
   );
   const items = (meetings.data?.items ?? []).filter((meeting) => meeting.status !== 'CANCELLED');
   return (
-    <Panel title="Próximas reuniões" actions={<PanelLink to="/timesheet/calendar">Calendário</PanelLink>} flush>
+    <Panel title={t('Próximas reuniões')} actions={<PanelLink to="/timesheet/calendar">{t('Calendário')}</PanelLink>} flush>
       {meetings.error && <p className="px-5 py-4 text-sm text-danger">{meetings.error}</p>}
-      {meetings.isLoading && !meetings.data && <LoadingState label="A carregar reuniões..." />}
-      {meetings.data && items.length === 0 && <EmptyState bordered={false} icon={CalendarDays} title="Sem reuniões agendadas." />}
+      {meetings.isLoading && !meetings.data && <LoadingState label={t('A carregar reuniões...')} />}
+      {meetings.data && items.length === 0 && <EmptyState bordered={false} icon={CalendarDays} title={t('Sem reuniões agendadas.')} />}
       {items.length > 0 && (
         <ul className="divide-y divide-border">
           {items.map((meeting) => (
@@ -135,21 +136,21 @@ export const PipelinePanel: React.FC = () => {
   const pipeline = useAsyncData(getOpportunityPipeline, []);
   const rows = (pipeline.data ?? []).filter((row) => row.opportunitiesActive > 0 || row.approvalsPending > 0 || row.wonLast90Days > 0);
   return (
-    <Panel title="Oportunidades da equipa" actions={<PanelLink to="/timesheet/opportunities">Ver oportunidades</PanelLink>} flush>
+    <Panel title={t('Oportunidades da equipa')} actions={<PanelLink to="/timesheet/opportunities">{t('Ver oportunidades')}</PanelLink>} flush>
       {pipeline.error && <p className="px-5 py-4 text-sm text-danger">{pipeline.error}</p>}
-      {pipeline.isLoading && !pipeline.data && <LoadingState label="A carregar oportunidades..." />}
-      {pipeline.data && rows.length === 0 && <p className="px-5 py-4 text-sm text-text-secondary">Sem oportunidades em curso na equipa.</p>}
+      {pipeline.isLoading && !pipeline.data && <LoadingState label={t('A carregar oportunidades...')} />}
+      {pipeline.data && rows.length === 0 && <p className="px-5 py-4 text-sm text-text-secondary">{t('Sem oportunidades em curso na equipa.')}</p>}
       {rows.length > 0 && (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <caption className="sr-only">Oportunidades da equipa por moeda</caption>
+            <caption className="sr-only">{t('Oportunidades da equipa por moeda')}</caption>
             <thead>
               <tr className="border-b border-border text-xs text-text-muted">
-                <th scope="col" className="px-5 py-2 font-semibold">Moeda</th>
-                <th scope="col" className="px-3 py-2 text-right font-semibold">Em curso</th>
-                <th scope="col" className="px-3 py-2 text-right font-semibold">Valor estimado</th>
-                <th scope="col" className="px-3 py-2 text-right font-semibold">Ponderado</th>
-                <th scope="col" className="px-5 py-2 text-right font-semibold">Por aprovar</th>
+                <th scope="col" className="px-5 py-2 font-semibold">{t('Moeda')}</th>
+                <th scope="col" className="px-3 py-2 text-right font-semibold">{t('Em curso')}</th>
+                <th scope="col" className="px-3 py-2 text-right font-semibold">{t('Valor estimado')}</th>
+                <th scope="col" className="px-3 py-2 text-right font-semibold">{t('Ponderado')}</th>
+                <th scope="col" className="px-5 py-2 text-right font-semibold">{t('Por aprovar')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -164,7 +165,7 @@ export const PipelinePanel: React.FC = () => {
               ))}
             </tbody>
           </table>
-          <p className="px-5 pb-3 pt-2 text-xs text-text-muted">Ponderado = valor estimado × probabilidade. Cada moeda é somada à parte.</p>
+          <p className="px-5 pb-3 pt-2 text-xs text-text-muted">{t('Ponderado = valor estimado × probabilidade. Cada moeda é somada à parte.')}</p>
         </div>
       )}
     </Panel>
@@ -174,10 +175,10 @@ export const PipelinePanel: React.FC = () => {
 export const RecentActivityPanel: React.FC = () => {
   const activity = useAsyncData(() => listRecentTeamActivity(8), []);
   return (
-    <Panel title="Atividade recente" flush>
+    <Panel title={t('Atividade recente')} flush>
       {activity.error && <p className="px-5 py-4 text-sm text-danger">{activity.error}</p>}
-      {activity.isLoading && !activity.data && <LoadingState label="A carregar atividade..." />}
-      {activity.data && activity.data.length === 0 && <p className="px-5 py-4 text-sm text-text-secondary">Sem atividade registada.</p>}
+      {activity.isLoading && !activity.data && <LoadingState label={t('A carregar atividade...')} />}
+      {activity.data && activity.data.length === 0 && <p className="px-5 py-4 text-sm text-text-secondary">{t('Sem atividade registada.')}</p>}
       {activity.data && activity.data.length > 0 && (
         <ul className="divide-y divide-border">
           {activity.data.map((item) => (
@@ -208,6 +209,8 @@ const WORKLOAD_SERIES: [{ label: string; swatchClass: string }, { label: string;
   { label: 'Em atraso', swatchClass: 'bg-chart-2' },
 ];
 
+const HOURS_SERIES: [{ label: string; swatchClass: string }] = [{ label: 'Horas registadas', swatchClass: 'bg-chart-1' }];
+
 const weekLabel = (weekStart: string) => formatCalendarDate(weekStart).slice(0, 5);
 
 /** Resumo pequeno dos relatórios: evolução semanal e distribuição do trabalho. A análise completa fica na página própria. */
@@ -223,34 +226,49 @@ export const ReportSummaryPanel: React.FC<{ filters: ReportFilters; members: Tea
       id: member.profileId,
       label: member.fullName,
       values: [Math.max(0, member.tasksOpen - member.tasksOverdue), member.tasksOverdue],
-      detail: `${formatMinutesAsHours(member.minutesThisWeek)} registadas esta semana`,
+      detail: t('{minutesThisWeek} registadas esta semana', { minutesThisWeek: formatMinutesAsHours(member.minutesThisWeek) }),
     }));
   return (
-    <Panel title="Relatórios" description="Resumo do período; a análise detalhada está na página de relatórios." actions={<PanelLink to="/timesheet/reports">Abrir relatórios</PanelLink>}>
+    <Panel title={t('Relatórios')} description={t('Resumo do período; a análise detalhada está na página de relatórios.')} actions={<PanelLink to="/timesheet/reports">{t('Abrir relatórios')}</PanelLink>}>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div>
+        <div className="space-y-6">
           {trend.error && <ErrorState message={trend.error} onRetry={trend.reload} />}
-          {trend.isLoading && !trend.data && <LoadingState label="A carregar evolução..." />}
+          {trend.isLoading && !trend.data && <LoadingState label={t('A carregar evolução...')} />}
           {trend.data && (
             <StackedColumnChart
-              title="Tarefas concluídas por semana"
+              title={t('Tarefas concluídas por semana')}
               series={COMPLETION_SERIES}
               rows={trend.data.map((point) => ({
                 id: point.weekStart,
                 label: weekLabel(point.weekStart),
                 values: [Math.max(0, point.tasksCompleted - point.tasksCompletedLate), point.tasksCompletedLate],
-                detail: `Semana de ${formatCalendarDate(point.weekStart)} · ${formatMinutesAsHours(point.minutesLogged)} registadas`,
+                detail: t('Semana de {weekStart} · {minutesLogged} registadas', { weekStart: formatCalendarDate(point.weekStart), minutesLogged: formatMinutesAsHours(point.minutesLogged) }),
               }))}
-              emptyMessage="Nenhuma tarefa concluída no período."
+              emptyMessage={t('Nenhuma tarefa concluída no período.')}
+            />
+          )}
+          {/* Mesma série semanal (já carregada): o esforço registado ajuda a ler a evolução das conclusões. */}
+          {trend.data && (
+            <StackedColumnChart
+              title={t('Horas registadas por semana')}
+              series={HOURS_SERIES}
+              rows={trend.data.map((point) => ({
+                id: point.weekStart,
+                label: weekLabel(point.weekStart),
+                values: [point.minutesLogged],
+                detail: t('Semana de {weekStart}', { weekStart: formatCalendarDate(point.weekStart) }),
+              }))}
+              formatValue={formatMinutesAsHours}
+              emptyMessage={t('Sem tempo registado no período.')}
             />
           )}
         </div>
         <StackedBarChart
-          title={`Trabalho em aberto por ${groupLabel}`}
+          title={t('Trabalho em aberto por {groupLabel}', { groupLabel })}
           series={WORKLOAD_SERIES}
           rows={workloadRows}
           maxRows={8}
-          emptyMessage="A equipa não tem tarefas em aberto."
+          emptyMessage={t('A equipa não tem tarefas em aberto.')}
         />
       </div>
     </Panel>

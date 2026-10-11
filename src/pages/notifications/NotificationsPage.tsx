@@ -15,6 +15,7 @@ import { formatDateTime } from '../../utils/format';
 import { isNotificationCategory, NOTIFICATION_CATEGORIES, NOTIFICATION_CATEGORY_LABELS } from '../../utils/notifications';
 import type { NotificationCategory } from '../../utils/notifications';
 import { NotificationCategoryBadge } from '../../components/layout/NotificationCategoryBadge';
+import { t } from '../../lib/i18n';
 
 type NotificationFilter = 'ALL' | 'UNREAD';
 
@@ -40,15 +41,15 @@ export const NotificationsPage: React.FC = () => {
     try {
       await action();
     } catch (error) {
-      setActionError(getErrorMessage(error, 'Não foi possível atualizar as notificações.'));
+      setActionError(getErrorMessage(error, t('Não foi possível atualizar as notificações.')));
     }
   };
 
   return (
     <div className="max-w-4xl space-y-6">
       <PageHeader
-        title="Notificações"
-        subtitle="Avisos operacionais e alertas de aprovação."
+        title={t('Notificações')}
+        subtitle={t('Avisos operacionais e alertas de aprovação.')}
         actions={
           unreadCount > 0 && (
             <Button
@@ -56,7 +57,7 @@ export const NotificationsPage: React.FC = () => {
               icon={Check}
               onClick={() => runAction(markAllAsRead)}
             >
-              Marcar todas como lidas
+              {t('Marcar todas como lidas')}
             </Button>
           )
         }
@@ -64,11 +65,11 @@ export const NotificationsPage: React.FC = () => {
 
       {actionError && <Alert variant="error">{actionError}</Alert>}
 
-      <div role="tablist" aria-label="Filtrar notificações" className="flex gap-1 border-b border-border">
+      <div role="tablist" aria-label={t('Filtrar notificações')} className="flex gap-1 border-b border-border">
         {(
           [
-            ['ALL', `Todas (${items.length})`],
-            ['UNREAD', `Não lidas (${unreadCount})`],
+            ['ALL', t('Todas ({count})', { count: items.length })],
+            ['UNREAD', t('Não lidas ({unreadCount})', { unreadCount })],
           ] as const
         ).map(([value, label]) => (
           <button
@@ -86,9 +87,9 @@ export const NotificationsPage: React.FC = () => {
         ))}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filtrar por tipo">
+      <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t('Filtrar por tipo')}>
         <label htmlFor="notification-category" className="text-sm text-text-secondary">
-          Tipo
+          {t('Tipo')}
         </label>
         <select
           id="notification-category"
@@ -99,7 +100,7 @@ export const NotificationsPage: React.FC = () => {
           }}
           className="h-9 rounded-md border border-border-input bg-surface px-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary-hover"
         >
-          <option value="ALL">Todos</option>
+          <option value="ALL">{t('Todos')}</option>
           {NOTIFICATION_CATEGORIES.map((value) => (
             <option key={value} value={value}>
               {NOTIFICATION_CATEGORY_LABELS[value]}
@@ -119,7 +120,7 @@ export const NotificationsPage: React.FC = () => {
           <EmptyState
             bordered={false}
             icon={Bell}
-            title={filter === 'UNREAD' ? 'Não existem notificações por ler.' : 'Não existem notificações.'}
+            title={filter === 'UNREAD' ? t('Não existem notificações por ler.') : t('Não existem notificações.')}
           />
         )}
         {visibleItems.length > 0 && (
@@ -137,7 +138,7 @@ export const NotificationsPage: React.FC = () => {
                     <p className="flex flex-wrap items-center gap-2">
                       <span className={`text-sm ${notification.read_at ? 'text-text-secondary' : 'font-semibold text-text'}`}>
                         {notification.title}
-                        {!notification.read_at && <span className="sr-only"> (por ler)</span>}
+                        {!notification.read_at && <span className="sr-only"> {t('(por ler)')}</span>}
                       </span>
                       <NotificationCategoryBadge category={notification.category} />
                     </p>
@@ -152,10 +153,10 @@ export const NotificationsPage: React.FC = () => {
                           }}
                           className="font-semibold text-primary-hover hover:underline"
                         >
-                          {target === notification.link ? 'Abrir registo' : 'Abrir módulo'}
+                          {target === notification.link ? t('Abrir registo') : t('Abrir módulo')}
                         </Link>
                       ) : (
-                        <span>Sem página associada</span>
+                        <span>{t('Sem página associada')}</span>
                       )}
                     </p>
                   </div>
@@ -165,7 +166,7 @@ export const NotificationsPage: React.FC = () => {
                       size="sm"
                       onClick={() => runAction(() => markAsRead(notification.id))}
                     >
-                      Marcar como lida
+                      {t('Marcar como lida')}
                     </Button>
                   )}
                 </li>

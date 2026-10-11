@@ -12,6 +12,19 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+      // Tema e idioma guardados neste browser, aplicados antes do primeiro desenho (ver PreferencesContext).
+      (function () {
+        try {
+          var theme = localStorage.getItem('tsheetgrt.theme');
+          var dark = theme === 'dark' || ((theme === null || theme === 'system') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+          if (localStorage.getItem('tsheetgrt.locale') === 'en') document.documentElement.lang = 'en-GB';
+        } catch (error) {
+          document.documentElement.dataset.theme = 'light';
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

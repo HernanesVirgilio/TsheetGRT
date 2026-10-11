@@ -12,6 +12,7 @@ import type { EntryFormField, EntryFormValues } from '../../utils/timesheets';
 import { calculateEntryMinutes, validateEntryForm } from '../../utils/timesheets';
 import type { FieldErrors } from '../../utils/validation';
 import { hasErrors } from '../../utils/validation';
+import { t } from '../../lib/i18n';
 
 const DEFAULT_START_TIME = '08:00';
 const DEFAULT_END_TIME = '17:00';
@@ -89,9 +90,9 @@ export const EntryFormModal: React.FC<EntryFormModalProps> = ({ isOpen, timeshee
         },
         entry?.id
       );
-      onSaved(entry ? 'Registo de horas atualizado.' : 'Registo de horas adicionado.');
+      onSaved(entry ? t('Registo de horas atualizado.') : t('Registo de horas adicionado.'));
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Não foi possível guardar o registo de horas.'));
+      setErrorMessage(getErrorMessage(error, t('Não foi possível guardar o registo de horas.')));
     } finally {
       setIsSubmitting(false);
     }
@@ -102,16 +103,16 @@ export const EntryFormModal: React.FC<EntryFormModalProps> = ({ isOpen, timeshee
   return (
     <Modal
       isOpen={isOpen}
-      title={entry ? 'Editar registo de horas' : 'Novo registo de horas'}
+      title={entry ? t('Editar registo de horas') : t('Novo registo de horas')}
       isBusy={isSubmitting}
       onClose={onClose}
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
-            Cancelar
+            {t('Cancelar')}
           </Button>
           <Button type="submit" form={formId} isLoading={isSubmitting}>
-            Guardar
+            {t('Guardar')}
           </Button>
         </>
       }
@@ -119,11 +120,11 @@ export const EntryFormModal: React.FC<EntryFormModalProps> = ({ isOpen, timeshee
       <form id={formId} onSubmit={handleSubmit} className="space-y-4" noValidate>
         {errorMessage && <Alert variant="error">{errorMessage}</Alert>}
         {activities.length === 0 && (
-          <Alert variant="warning">Não existem atividades ativas. Contacte a administração.</Alert>
+          <Alert variant="warning">{t('Não existem atividades ativas. Contacte a administração.')}</Alert>
         )}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <TextField
-            label="Data"
+            label={t('Data')}
             type="date"
             required
             min={timesheet.periodStart}
@@ -133,13 +134,13 @@ export const EntryFormModal: React.FC<EntryFormModalProps> = ({ isOpen, timeshee
             onChange={(event) => updateValue('workDate', event.target.value)}
           />
           <SelectField
-            label="Atividade"
+            label={t('Atividade')}
             required
             value={values.activityId}
             error={fieldErrors.activityId}
             onChange={(event) => updateValue('activityId', event.target.value)}
           >
-            <option value="">Selecione…</option>
+            <option value="">{t('Selecione…')}</option>
             {activities.map((activity) => (
               <option key={activity.id} value={activity.id}>
                 {activity.name}
@@ -149,7 +150,7 @@ export const EntryFormModal: React.FC<EntryFormModalProps> = ({ isOpen, timeshee
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <TextField
-            label="Início"
+            label={t('Início')}
             type="time"
             required
             value={values.startTime}
@@ -157,7 +158,7 @@ export const EntryFormModal: React.FC<EntryFormModalProps> = ({ isOpen, timeshee
             onChange={(event) => updateValue('startTime', event.target.value)}
           />
           <TextField
-            label="Fim"
+            label={t('Fim')}
             type="time"
             required
             value={values.endTime}
@@ -165,7 +166,7 @@ export const EntryFormModal: React.FC<EntryFormModalProps> = ({ isOpen, timeshee
             onChange={(event) => updateValue('endTime', event.target.value)}
           />
           <TextField
-            label="Pausa (min)"
+            label={t('Pausa (min)')}
             type="number"
             inputMode="numeric"
             min={0}
@@ -176,10 +177,10 @@ export const EntryFormModal: React.FC<EntryFormModalProps> = ({ isOpen, timeshee
           />
         </div>
         <p className="text-sm text-text-secondary">
-          Tempo efetivo: <strong className="text-text">{formatMinutesAsHours(Math.max(previewMinutes, 0))}</strong>
+          {t('Tempo efetivo:')} <strong className="text-text">{formatMinutesAsHours(Math.max(previewMinutes, 0))}</strong>
         </p>
         <TextAreaField
-          label="Descrição das tarefas"
+          label={t('Descrição das tarefas')}
           required
           rows={3}
           value={values.description}

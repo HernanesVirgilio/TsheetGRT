@@ -1,13 +1,14 @@
 import { supabase } from '../lib/supabase/client';
 import { toServiceError } from '../lib/errors';
 import type { NotificationItem } from '../types';
+import { t } from '../lib/i18n';
 
 /** A RLS limita a leitura às notificações do próprio utilizador. */
 export async function listNotifications(limit?: number): Promise<NotificationItem[]> {
   let request = supabase.from('notifications').select('*').order('created_at', { ascending: false });
   if (limit) request = request.limit(limit);
   const { data, error } = await request;
-  if (error) throw toServiceError(error, 'Não foi possível carregar as notificações.');
+  if (error) throw toServiceError(error, t('Não foi possível carregar as notificações.'));
   return data;
 }
 
@@ -17,7 +18,7 @@ export async function countUnreadNotifications(): Promise<number> {
     .from('notifications')
     .select('id', { count: 'exact', head: true })
     .is('read_at', null);
-  if (error) throw toServiceError(error, 'Não foi possível contar as notificações por ler.');
+  if (error) throw toServiceError(error, t('Não foi possível contar as notificações por ler.'));
   return count ?? 0;
 }
 
@@ -28,7 +29,7 @@ export async function countUnreadNotifications(): Promise<number> {
  */
 export async function refreshDeadlineAlerts(): Promise<void> {
   const { error } = await supabase.rpc('refresh_deadline_alerts');
-  if (error) throw toServiceError(error, 'Não foi possível atualizar os alertas de prazo.');
+  if (error) throw toServiceError(error, t('Não foi possível atualizar os alertas de prazo.'));
 }
 
 export async function markNotificationAsRead(notificationId: string): Promise<void> {
@@ -37,7 +38,7 @@ export async function markNotificationAsRead(notificationId: string): Promise<vo
     .update({ read_at: new Date().toISOString() })
     .eq('id', notificationId)
     .is('read_at', null);
-  if (error) throw toServiceError(error, 'Não foi possível marcar a notificação como lida.');
+  if (error) throw toServiceError(error, t('Não foi possível marcar a notificação como lida.'));
 }
 
 export async function markAllNotificationsAsRead(): Promise<void> {
@@ -45,5 +46,5 @@ export async function markAllNotificationsAsRead(): Promise<void> {
     .from('notifications')
     .update({ read_at: new Date().toISOString() })
     .is('read_at', null);
-  if (error) throw toServiceError(error, 'Não foi possível marcar as notificações como lidas.');
+  if (error) throw toServiceError(error, t('Não foi possível marcar as notificações como lidas.'));
 }

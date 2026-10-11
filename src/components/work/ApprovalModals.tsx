@@ -7,6 +7,7 @@ import { getErrorMessage } from '../../lib/errors';
 import { decideOpportunityApproval, requestOpportunityApproval } from '../../services/work/opportunityService';
 import type { ApprovalRequest, OpportunityDetail } from '../../types/work';
 import { formatMoney, validateReason } from '../../utils/work';
+import { t } from '../../lib/i18n';
 
 interface RequestApprovalModalProps {
   opportunity: OpportunityDetail | null;
@@ -30,16 +31,16 @@ export const RequestApprovalModal: React.FC<RequestApprovalModalProps> = ({ oppo
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!opportunity) return;
-    const validation = validateReason(justification, 'Explique o que deve ser aprovado', 5, 2000);
+    const validation = validateReason(justification, t('Explique o que deve ser aprovado'), 5, 2000);
     setFieldError(validation);
     if (validation) return;
     setIsSubmitting(true);
     setErrorMessage(null);
     try {
       await requestOpportunityApproval(opportunity.id, justification.trim());
-      onRequested('Pedido de aprovação enviado ao Manager.');
+      onRequested(t('Pedido de aprovação enviado ao Manager.'));
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Não foi possível pedir a aprovação.'));
+      setErrorMessage(getErrorMessage(error, t('Não foi possível pedir a aprovação.')));
     } finally {
       setIsSubmitting(false);
     }
@@ -49,7 +50,7 @@ export const RequestApprovalModal: React.FC<RequestApprovalModalProps> = ({ oppo
   return (
     <Modal
       isOpen={opportunity !== null}
-      title="Pedir aprovação ao Manager"
+      title={t('Pedir aprovação ao Manager')}
       description={
         opportunity
           ? `${opportunity.reference} · ${opportunity.estimatedValue === null ? 'sem valor estimado' : formatMoney(opportunity.estimatedValue, opportunity.currency)}`
@@ -61,10 +62,10 @@ export const RequestApprovalModal: React.FC<RequestApprovalModalProps> = ({ oppo
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
-            Cancelar
+            {t('Cancelar')}
           </Button>
           <Button type="submit" form={formId} isLoading={isSubmitting}>
-            Enviar pedido
+            {t('Enviar pedido')}
           </Button>
         </>
       }
@@ -72,16 +73,16 @@ export const RequestApprovalModal: React.FC<RequestApprovalModalProps> = ({ oppo
       <form id={formId} onSubmit={handleSubmit} className="space-y-4" noValidate>
         {errorMessage && <Alert variant="error">{errorMessage}</Alert>}
         <p className="text-sm text-text-secondary">
-          Sem aprovação, a oportunidade não avança para Proposta, Negociação ou Ganha. Os valores ficam fixos enquanto o pedido está pendente.
+          {t('Sem aprovação, a oportunidade não avança para Proposta, Negociação ou Ganha. Os valores ficam fixos enquanto o pedido está pendente.')}
         </p>
         <TextAreaField
-          label="O que deve ser aprovado"
+          label={t('O que deve ser aprovado')}
           required
           rows={4}
           maxLength={2000}
           value={justification}
           error={fieldError}
-          hint="Ex.: avançar com a proposta de 1,5 M MZN, prazo de entrega e condições."
+          hint={t('Ex.: avançar com a proposta de 1,5 M MZN, prazo de entrega e condições.')}
           onChange={(event) => {
             setJustification(event.target.value);
             setFieldError(null);
@@ -118,16 +119,16 @@ export const ApprovalDecisionModal: React.FC<ApprovalDecisionModalProps> = ({ re
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!request) return;
-    const validation = isApproval ? null : validateReason(comment, 'Indique o motivo da rejeição');
+    const validation = isApproval ? null : validateReason(comment, t('Indique o motivo da rejeição'));
     setFieldError(validation);
     if (validation) return;
     setIsSubmitting(true);
     setErrorMessage(null);
     try {
       await decideOpportunityApproval(request.id, decision, comment.trim() || null);
-      onDecided(isApproval ? `Pedido ${request.reference} aprovado.` : `Pedido ${request.reference} rejeitado.`);
+      onDecided(isApproval ? t('Pedido {reference} aprovado.', { reference: request.reference }) : t('Pedido {reference} rejeitado.', { reference: request.reference }));
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Não foi possível registar a decisão.'));
+      setErrorMessage(getErrorMessage(error, t('Não foi possível registar a decisão.')));
     } finally {
       setIsSubmitting(false);
     }
@@ -137,7 +138,7 @@ export const ApprovalDecisionModal: React.FC<ApprovalDecisionModalProps> = ({ re
   return (
     <Modal
       isOpen={request !== null}
-      title={isApproval ? 'Aprovar pedido' : 'Rejeitar pedido'}
+      title={isApproval ? t('Aprovar pedido') : t('Rejeitar pedido')}
       description={request ? `${request.reference} · ${request.title}` : undefined}
       size="sm"
       isBusy={isSubmitting}
@@ -145,7 +146,7 @@ export const ApprovalDecisionModal: React.FC<ApprovalDecisionModalProps> = ({ re
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
-            Cancelar
+            {t('Cancelar')}
           </Button>
           <Button type="submit" form={formId} variant={isApproval ? 'primary' : 'danger'} isLoading={isSubmitting}>
             {isApproval ? 'Aprovar' : 'Rejeitar'}
@@ -158,21 +159,21 @@ export const ApprovalDecisionModal: React.FC<ApprovalDecisionModalProps> = ({ re
         {request && (
           <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
             <div>
-              <dt className="text-text-muted">Valor</dt>
-              <dd className="font-medium text-text">{request.amount === null ? 'Sem valor' : formatMoney(request.amount, request.currency ?? '')}</dd>
+              <dt className="text-text-muted">{t('Valor')}</dt>
+              <dd className="font-medium text-text">{request.amount === null ? t('Sem valor') : formatMoney(request.amount, request.currency ?? '')}</dd>
             </div>
             <div>
-              <dt className="text-text-muted">Pedido por</dt>
+              <dt className="text-text-muted">{t('Pedido por')}</dt>
               <dd className="font-medium text-text">{request.requesterName ?? '—'}</dd>
             </div>
             <div className="sm:col-span-2">
-              <dt className="text-text-muted">O que está a ser aprovado</dt>
+              <dt className="text-text-muted">{t('O que está a ser aprovado')}</dt>
               <dd className="whitespace-pre-line text-text">{request.justification}</dd>
             </div>
           </dl>
         )}
         <TextAreaField
-          label={isApproval ? 'Comentário (opcional)' : 'Motivo da rejeição'}
+          label={isApproval ? t('Comentário (opcional)') : t('Motivo da rejeição')}
           required={!isApproval}
           rows={3}
           maxLength={1000}

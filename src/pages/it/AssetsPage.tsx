@@ -21,6 +21,7 @@ import { ErrorState, LoadingState } from '../../components/ui/States';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { AssetFormModal } from '../../components/it/AssetFormModal';
 import { ASSET_STATUS_LABELS, ASSET_TYPE_LABELS } from '../../utils/it';
+import { t } from '../../lib/i18n';
 
 const PAGE_SIZE = 20;
 const ALL = 'ALL';
@@ -62,7 +63,7 @@ export const AssetsPage: React.FC = () => {
   const columns: DataTableColumn<Asset>[] = [
     {
       id: 'tag',
-      header: 'Código',
+      header: t('Código'),
       render: (asset) => (
         <Link to={`/it/assets/${asset.id}`} className="font-semibold text-text hover:underline">
           {asset.assetTag}
@@ -71,7 +72,7 @@ export const AssetsPage: React.FC = () => {
     },
     {
       id: 'equipment',
-      header: 'Equipamento',
+      header: t('Equipamento'),
       render: (asset) => (
         <span>
           <span className="block text-text">{ASSET_TYPE_LABELS[asset.assetType]}</span>
@@ -79,26 +80,26 @@ export const AssetsPage: React.FC = () => {
         </span>
       ),
     },
-    { id: 'serial', header: 'Nº de série', render: (asset) => asset.serialNumber ?? '—' },
+    { id: 'serial', header: t('Nº de série'), render: (asset) => asset.serialNumber ?? '—' },
     {
       id: 'status',
-      header: 'Estado',
+      header: t('Estado'),
       render: (asset) => <StatusBadge status={asset.status} label={ASSET_STATUS_LABELS[asset.status]} size="sm" />,
     },
-    { id: 'user', header: 'Utilizador', render: (asset) => asset.assignedToName ?? <span className="text-text-muted">Sem utilizador</span> },
-    { id: 'department', header: 'Departamento', render: (asset) => asset.departmentName ?? '—' },
-    { id: 'location', header: 'Localização', render: (asset) => asset.location ?? '—' },
+    { id: 'user', header: t('Utilizador'), render: (asset) => asset.assignedToName ?? <span className="text-text-muted">{t('Sem utilizador')}</span> },
+    { id: 'department', header: t('Departamento'), render: (asset) => asset.departmentName ?? '—' },
+    { id: 'location', header: t('Localização'), render: (asset) => asset.location ?? '—' },
   ];
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Ativos"
-        subtitle="Inventário de equipamentos informáticos, responsáveis e localização."
+        title={t('Ativos')}
+        subtitle={t('Inventário de equipamentos informáticos, responsáveis e localização.')}
         actions={
           canManage && (
             <Button icon={Plus} onClick={() => setIsCreateOpen(true)} disabled={!referenceData.data}>
-              Novo equipamento
+              {t('Novo equipamento')}
             </Button>
           )
         }
@@ -108,17 +109,17 @@ export const AssetsPage: React.FC = () => {
 
       <Panel flush>
         <div className="grid grid-cols-1 gap-3 border-b border-border p-4 sm:grid-cols-3">
-          <SearchInput label="Pesquisar código, nº de série, marca ou modelo" value={search} onChange={(event) => setSearch(event.target.value)} />
-          <FilterSelect label="Filtrar por estado" value={status} onChange={(event) => setStatus(event.target.value)}>
-            <option value={ALL}>Todos os estados</option>
+          <SearchInput label={t('Pesquisar código, nº de série, marca ou modelo')} value={search} onChange={(event) => setSearch(event.target.value)} />
+          <FilterSelect label={t('Filtrar por estado')} value={status} onChange={(event) => setStatus(event.target.value)}>
+            <option value={ALL}>{t('Todos os estados')}</option>
             {ASSET_STATUSES.map((value) => (
               <option key={value} value={value}>
                 {ASSET_STATUS_LABELS[value]}
               </option>
             ))}
           </FilterSelect>
-          <FilterSelect label="Filtrar por tipo" value={assetType} onChange={(event) => setAssetType(event.target.value)}>
-            <option value={ALL}>Todos os tipos</option>
+          <FilterSelect label={t('Filtrar por tipo')} value={assetType} onChange={(event) => setAssetType(event.target.value)}>
+            <option value={ALL}>{t('Todos os tipos')}</option>
             {ASSET_TYPES.map((value) => (
               <option key={value} value={value}>
                 {ASSET_TYPE_LABELS[value]}
@@ -132,13 +133,13 @@ export const AssetsPage: React.FC = () => {
             <ErrorState message={assets.error} onRetry={assets.reload} />
           </div>
         )}
-        {assets.isLoading && !assets.data && <LoadingState label="A carregar equipamentos..." />}
+        {assets.isLoading && !assets.data && <LoadingState label={t('A carregar equipamentos...')} />}
 
         {assets.data && items.length === 0 && (
           <EmptyState
             bordered={false}
             icon={Monitor}
-            title={hasFilters ? 'Nenhum equipamento corresponde aos filtros.' : 'Ainda não existem equipamentos registados.'}
+            title={hasFilters ? t('Nenhum equipamento corresponde aos filtros.') : t('Ainda não existem equipamentos registados.')}
             action={
               hasFilters && (
                 <Button
@@ -150,7 +151,7 @@ export const AssetsPage: React.FC = () => {
                     setAssetType(ALL);
                   }}
                 >
-                  Limpar filtros
+                  {t('Limpar filtros')}
                 </Button>
               )
             }
@@ -159,7 +160,7 @@ export const AssetsPage: React.FC = () => {
 
         {items.length > 0 && (
           <>
-            <DataTable caption="Equipamentos" columns={columns} rows={pageItems} getRowKey={(asset) => asset.id} />
+            <DataTable caption={t('Equipamentos')} columns={columns} rows={pageItems} getRowKey={(asset) => asset.id} />
             <Pagination page={page} pageSize={PAGE_SIZE} totalItems={items.length} onPageChange={setPage} />
           </>
         )}

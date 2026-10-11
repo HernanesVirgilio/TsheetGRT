@@ -18,6 +18,7 @@ import type { WorkLogFormField, WorkLogFormValues } from '../../utils/work';
 import { ENTRY_KIND_LABELS, minutesBetween, toDateInput, validateWorkLogForm } from '../../utils/work';
 import type { FieldErrors } from '../../utils/validation';
 import { hasErrors } from '../../utils/validation';
+import { t } from '../../lib/i18n';
 
 /** Pré-preenchimento quando a atividade nasce de uma tarefa ou reunião (sem duplicar dados). */
 export interface WorkLogPreset {
@@ -112,7 +113,7 @@ export const WorkLogFormModal: React.FC<WorkLogFormModalProps> = ({ isOpen, empl
       });
       onSaved();
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Não foi possível registar a atividade.'));
+      setErrorMessage(getErrorMessage(error, t('Não foi possível registar a atividade.')));
     } finally {
       setIsSubmitting(false);
     }
@@ -135,45 +136,45 @@ export const WorkLogFormModal: React.FC<WorkLogFormModalProps> = ({ isOpen, empl
   return (
     <Modal
       isOpen={isOpen}
-      title="Registar atividade"
-      description="O tempo fica no seu timesheet do período, com o contexto indicado."
+      title={t('Registar atividade')}
+      description={t('O tempo fica no seu timesheet do período, com o contexto indicado.')}
       size="lg"
       isBusy={isSubmitting}
       onClose={onClose}
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
-            Cancelar
+            {t('Cancelar')}
           </Button>
           <Button type="submit" form={formId} isLoading={isSubmitting} disabled={!options.data}>
-            Registar
+            {t('Registar')}
           </Button>
         </>
       }
     >
-      {options.isLoading && !options.data && <LoadingState label="A carregar opções..." />}
+      {options.isLoading && !options.data && <LoadingState label={t('A carregar opções...')} />}
       {options.error && <Alert variant="error">{options.error}</Alert>}
       {options.data && (
         <form id={formId} onSubmit={handleSubmit} className="space-y-4" noValidate>
           {errorMessage && <Alert variant="error">{errorMessage}</Alert>}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <SelectField label="Contexto" required value={values.kind} onChange={(event) => updateValue('kind', event.target.value)}>
+            <SelectField label={t('Contexto')} required value={values.kind} onChange={(event) => updateValue('kind', event.target.value)}>
               {SELECTABLE_KINDS.map((kind) => (
                 <option key={kind} value={kind}>
-                  {kind === 'GENERAL' ? 'Geral (sem contexto)' : ENTRY_KIND_LABELS[kind]}
+                  {kind === 'GENERAL' ? t('Geral (sem contexto)') : ENTRY_KIND_LABELS[kind]}
                 </option>
               ))}
             </SelectField>
             {['TASK', 'MEETING', 'OPPORTUNITY'].includes(values.kind) ? (
               <SelectField
-                label={values.kind === 'TASK' ? 'Tarefa' : values.kind === 'MEETING' ? 'Reunião' : 'Oportunidade'}
+                label={values.kind === 'TASK' ? 'Tarefa' : values.kind === 'MEETING' ? t('Reunião') : 'Oportunidade'}
                 required
                 value={values.contextId}
                 error={fieldErrors.contextId}
-                hint={contextOptions.length === 0 ? 'Não existem registos disponíveis.' : undefined}
+                hint={contextOptions.length === 0 ? t('Não existem registos disponíveis.') : undefined}
                 onChange={(event) => updateValue('contextId', event.target.value)}
               >
-                <option value="">Selecione…</option>
+                <option value="">{t('Selecione…')}</option>
                 {contextOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
@@ -181,7 +182,7 @@ export const WorkLogFormModal: React.FC<WorkLogFormModalProps> = ({ isOpen, empl
                 ))}
               </SelectField>
             ) : (
-              <SelectField label="Tipo de atividade" required value={values.activityId} error={fieldErrors.activityId} onChange={(event) => updateValue('activityId', event.target.value)}>
+              <SelectField label={t('Tipo de atividade')} required value={values.activityId} error={fieldErrors.activityId} onChange={(event) => updateValue('activityId', event.target.value)}>
                 {options.data.activities.map((activity) => (
                   <option key={activity.id} value={activity.id}>
                     {activity.name}
@@ -190,7 +191,7 @@ export const WorkLogFormModal: React.FC<WorkLogFormModalProps> = ({ isOpen, empl
               </SelectField>
             )}
             {['TASK', 'MEETING', 'OPPORTUNITY'].includes(values.kind) && (
-              <SelectField label="Tipo de atividade" required value={values.activityId} error={fieldErrors.activityId} onChange={(event) => updateValue('activityId', event.target.value)}>
+              <SelectField label={t('Tipo de atividade')} required value={values.activityId} error={fieldErrors.activityId} onChange={(event) => updateValue('activityId', event.target.value)}>
                 {options.data.activities.map((activity) => (
                   <option key={activity.id} value={activity.id}>
                     {activity.name}
@@ -198,27 +199,27 @@ export const WorkLogFormModal: React.FC<WorkLogFormModalProps> = ({ isOpen, empl
                 ))}
               </SelectField>
             )}
-            <TextField label="Data" type="date" required value={values.workDate} error={fieldErrors.workDate} max={toDateInput(new Date())} onChange={(event) => updateValue('workDate', event.target.value)} />
-            <TextField label="Início" type="time" required value={values.startTime} error={fieldErrors.startTime} onChange={(event) => updateValue('startTime', event.target.value)} />
-            <TextField label="Fim" type="time" required value={values.endTime} error={fieldErrors.endTime} onChange={(event) => updateValue('endTime', event.target.value)} />
+            <TextField label={t('Data')} type="date" required value={values.workDate} error={fieldErrors.workDate} max={toDateInput(new Date())} onChange={(event) => updateValue('workDate', event.target.value)} />
+            <TextField label={t('Início')} type="time" required value={values.startTime} error={fieldErrors.startTime} onChange={(event) => updateValue('startTime', event.target.value)} />
+            <TextField label={t('Fim')} type="time" required value={values.endTime} error={fieldErrors.endTime} onChange={(event) => updateValue('endTime', event.target.value)} />
             <TextField
-              label="Pausa (minutos)"
+              label={t('Pausa (minutos)')}
               type="number"
               min={0}
               value={values.breakMinutes}
               error={fieldErrors.breakMinutes}
-              hint={totalMinutes > 0 ? `Tempo efetivo: ${formatMinutesAsHours(totalMinutes)}` : undefined}
+              hint={totalMinutes > 0 ? t('Tempo efetivo: {totalMinutes}', { totalMinutes: formatMinutesAsHours(totalMinutes) }) : undefined}
               onChange={(event) => updateValue('breakMinutes', event.target.value)}
             />
           </div>
           <TextAreaField
-            label={values.kind === 'UNPLANNED' ? 'Descrição da atividade extraordinária' : 'O que foi feito'}
+            label={values.kind === 'UNPLANNED' ? t('Descrição da atividade extraordinária') : t('O que foi feito')}
             required
             rows={3}
             maxLength={2000}
             value={values.description}
             error={fieldErrors.description}
-            hint={values.kind === 'UNPLANNED' ? 'Ex.: Intervenção urgente pedida pelo Diretor Financeiro.' : undefined}
+            hint={values.kind === 'UNPLANNED' ? t('Ex.: Intervenção urgente pedida pelo Diretor Financeiro.') : undefined}
             onChange={(event) => updateValue('description', event.target.value)}
           />
         </form>

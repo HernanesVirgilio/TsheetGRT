@@ -13,6 +13,7 @@ import { SelectField } from '../ui/FormField';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { ErrorState, LoadingState } from '../ui/States';
 import { formatDate } from '../../utils/format';
+import { t } from '../../lib/i18n';
 
 type TargetKind = ScopeTarget['kind'];
 
@@ -23,8 +24,8 @@ interface ManagerScopePanelProps {
 }
 
 function describeScope(scope: ManagerScope): string {
-  if (scope.departmentId) return `Departamento: ${scope.departmentName ?? '—'}`;
-  return `Colaborador: ${scope.employeeName ?? '—'}`;
+  if (scope.departmentId) return t('Departamento: {departmentName}', { departmentName: scope.departmentName ?? '—' });
+  return t('Colaborador: {employeeName}', { employeeName: scope.employeeName ?? '—' });
 }
 
 /**
@@ -63,7 +64,7 @@ export const ManagerScopePanel: React.FC<ManagerScopePanelProps> = ({ manager, d
     setErrorMessage(null);
     setSuccessMessage(null);
     if (!targetId) {
-      setFieldError(targetKind === 'department' ? 'Selecione o departamento.' : 'Selecione o colaborador.');
+      setFieldError(targetKind === 'department' ? t('Selecione o departamento.') : t('Selecione o colaborador.'));
       return;
     }
     setFieldError(null);
@@ -74,10 +75,10 @@ export const ManagerScopePanel: React.FC<ManagerScopePanelProps> = ({ manager, d
         targetKind === 'department' ? { kind: 'department', departmentId: targetId } : { kind: 'employee', employeeId: targetId }
       );
       setTargetId('');
-      setSuccessMessage('Âmbito atribuído com sucesso.');
+      setSuccessMessage(t('Âmbito atribuído com sucesso.'));
       scopes.reload();
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Não foi possível atribuir o âmbito.'));
+      setErrorMessage(getErrorMessage(error, t('Não foi possível atribuir o âmbito.')));
     } finally {
       setIsSaving(false);
     }
@@ -89,10 +90,10 @@ export const ManagerScopePanel: React.FC<ManagerScopePanelProps> = ({ manager, d
     setErrorMessage(null);
     try {
       await removeManagerScope(scopeToRemove.id);
-      setSuccessMessage('Âmbito removido com sucesso.');
+      setSuccessMessage(t('Âmbito removido com sucesso.'));
       scopes.reload();
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Não foi possível remover o âmbito.'));
+      setErrorMessage(getErrorMessage(error, t('Não foi possível remover o âmbito.')));
     } finally {
       setIsSaving(false);
       setScopeToRemove(null);
@@ -101,11 +102,11 @@ export const ManagerScopePanel: React.FC<ManagerScopePanelProps> = ({ manager, d
 
   return (
     <Panel
-      title="Âmbito de gestão"
+      title={t('Âmbito de gestão')}
       description={
         isGestor
-          ? 'Equipa direta deste gestor: departamentos (colaboradores com perfil COLABORADOR) e colaboradores individuais.'
-          : 'Gestores supervisionados (adicione-os como colaborador) e equipas sem gestor. O Manager vê também as equipas dos gestores que supervisiona.'
+          ? t('Equipa direta deste gestor: departamentos (colaboradores com perfil COLABORADOR) e colaboradores individuais.')
+          : t('Gestores supervisionados (adicione-os como colaborador) e equipas sem gestor. O Manager vê também as equipas dos gestores que supervisiona.')
       }
     >
       <div className="space-y-4">
@@ -120,7 +121,7 @@ export const ManagerScopePanel: React.FC<ManagerScopePanelProps> = ({ manager, d
 
         {scopes.data?.length === 0 && (
           <p className="text-sm text-text-secondary">
-            Sem âmbito atribuído: este gestor ainda não tem equipa nem pode aprovar timesheets.
+            {t('Sem âmbito atribuído: este gestor ainda não tem equipa nem pode aprovar timesheets.')}
           </p>
         )}
         {scopes.data && scopes.data.length > 0 && (
@@ -132,7 +133,7 @@ export const ManagerScopePanel: React.FC<ManagerScopePanelProps> = ({ manager, d
                   <span className="block text-xs text-text-muted">Atribuído em {formatDate(scope.createdAt)}</span>
                 </span>
                 {canManage && (
-                  <IconButton icon={Trash2} tone="danger" label={`Remover ${describeScope(scope)}`} onClick={() => setScopeToRemove(scope)} />
+                  <IconButton icon={Trash2} tone="danger" label={t('Remover {scope}', { scope: describeScope(scope) })} onClick={() => setScopeToRemove(scope)} />
                 )}
               </li>
             ))}
@@ -142,7 +143,7 @@ export const ManagerScopePanel: React.FC<ManagerScopePanelProps> = ({ manager, d
         {canManage && (
           <form onSubmit={handleAdd} className="grid grid-cols-1 items-end gap-3 sm:grid-cols-[12rem_1fr_auto]" noValidate>
             <SelectField
-              label="Tipo"
+              label={t('Tipo')}
               value={targetKind}
               onChange={(event) => {
                 setTargetKind(event.target.value === 'employee' ? 'employee' : 'department');
@@ -150,8 +151,8 @@ export const ManagerScopePanel: React.FC<ManagerScopePanelProps> = ({ manager, d
                 setFieldError(null);
               }}
             >
-              <option value="department">Departamento</option>
-              <option value="employee">Colaborador</option>
+              <option value="department">{t('Departamento')}</option>
+              <option value="employee">{t('Colaborador')}</option>
             </SelectField>
             <SelectField
               label={targetKind === 'department' ? 'Departamento' : 'Colaborador'}
@@ -159,7 +160,7 @@ export const ManagerScopePanel: React.FC<ManagerScopePanelProps> = ({ manager, d
               error={fieldError}
               onChange={(event) => setTargetId(event.target.value)}
             >
-              <option value="">Selecione…</option>
+              <option value="">{t('Selecione…')}</option>
               {targetKind === 'department'
                 ? departmentOptions.map((department) => (
                     <option key={department.id} value={department.id}>
@@ -173,7 +174,7 @@ export const ManagerScopePanel: React.FC<ManagerScopePanelProps> = ({ manager, d
                   ))}
             </SelectField>
             <Button type="submit" icon={Plus} isLoading={isSaving} className={fieldError ? 'sm:mb-6' : ''}>
-              Atribuir
+              {t('Atribuir')}
             </Button>
           </form>
         )}
@@ -182,9 +183,9 @@ export const ManagerScopePanel: React.FC<ManagerScopePanelProps> = ({ manager, d
 
       <ConfirmDialog
         isOpen={Boolean(scopeToRemove)}
-        title="Remover âmbito?"
-        message={`${manager.full_name} deixa de ter acesso aos timesheets abrangidos (${scopeToRemove ? describeScope(scopeToRemove) : ''}).`}
-        confirmLabel="Remover"
+        title={t('Remover âmbito?')}
+        message={t('{full_name} deixa de ter acesso aos timesheets abrangidos ({scopeToRemove}).', { full_name: manager.full_name, scopeToRemove: scopeToRemove ? describeScope(scopeToRemove) : '' })}
+        confirmLabel={t('Remover')}
         isLoading={isSaving}
         onConfirm={handleRemove}
         onCancel={() => setScopeToRemove(null)}
