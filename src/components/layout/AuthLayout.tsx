@@ -11,7 +11,7 @@ interface AuthLayoutProps {
 
 /**
  * Páginas de autenticação. Em ecrãs grandes mostra a imagem institucional de boas-vindas ao lado do
- * formulário (cópia JPEG otimizada de welcome-enviroment.png; com loading="lazy" não é descarregada
+ * formulário (JPEG otimizado; com loading="lazy" não é descarregado
  * quando está oculta). Em ecrãs pequenos fica só o formulário.
  */
 export const AuthLayout: React.FC<AuthLayoutProps> = ({ title, subtitle, children }) => (
