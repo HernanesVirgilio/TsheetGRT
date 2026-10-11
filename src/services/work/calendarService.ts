@@ -139,7 +139,8 @@ export async function getTeamWorkOverview(): Promise<TeamMemberWorkload[]> {
  * MEETING: quem pode ser convidado para reuniões (equipa e chefias de quem organiza).
  * PARTICIPANT: colaboradores ativos (membros de oportunidades).
  */
-export async function listWorkPeople(purpose: 'ASSIGNEE' | 'MEETING' | 'PARTICIPANT'): Promise<WorkPerson[]> {
+/** TEAM_LEAD: pessoas com gestão de equipa (candidatas a gestor de execução de uma oportunidade). */
+export async function listWorkPeople(purpose: 'ASSIGNEE' | 'MEETING' | 'PARTICIPANT' | 'TEAM_LEAD'): Promise<WorkPerson[]> {
   const { data, error } = await supabase.rpc('list_work_people', { p_purpose: purpose });
   if (error) throw toServiceError(error, 'Não foi possível carregar os colaboradores.');
   return data.map((row) => ({

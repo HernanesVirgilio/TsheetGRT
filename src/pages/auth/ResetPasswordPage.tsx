@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/auth/AuthContext';
-import { getErrorMessage } from '../../lib/errors';
-import { updatePassword } from '../../services/authService';
+import { initialAuthRedirect } from '../../lib/supabase/client';
 import { AuthLayout } from '../../components/layout/AuthLayout';
 import { Alert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
@@ -11,68 +10,87 @@ import { LoadingState } from '../../components/ui/States';
 import type { FieldErrors, NewPasswordField } from '../../utils/validation';
 import { hasErrors, MIN_PASSWORD_LENGTH, validateNewPassword } from '../../utils/validation';
 
+const InvalidLinkScreen: React.FC<{ isExpired: boolean }> = ({ isExpired }) => (
+  <AuthLayout title={isExpired ? 'Link expirado' : 'Link inválido'}>
+    <Alert variant="error">
+      {isExpired
+        ? 'Este link já expirou ou já foi utilizado. Os links de convite e de recuperação só podem ser usados uma vez.'
+        : 'Não foi possível validar este link.'}{' '}
+      Peça um novo link de recuperação ou contacte o administrador para reenviar o convite.
+    </Alert>
+    <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-between">
+      <Link to="/forgot-password" className="text-sm font-medium text-primary-hover hover:underline">
+        Pedir novo link
+      </Link>
+      <Link to="/login" className="text-sm font-medium text-primary-hover hover:underline">
+        Voltar ao início de sessão
+      </Link>
+    </div>
+  </AuthLayout>
+);
+
 /**
  * Destino dos links de convite e de recuperação enviados pelo Supabase Auth.
- * O SDK cria a sessão a partir do link; aqui o utilizador define a palavra-passe.
+ * O SDK cria a sessão a partir do link; aqui o utilizador define a palavra-passe e, só depois de o
+ * servidor confirmar a sessão e o acesso, segue para o dashboard.
  */
 export const ResetPasswordPage: React.FC = () => {
-  const { status, hasSession, refreshProfile } = useAuth();
+  const { status, hasSession, completePasswordSetup } = useAuth();
   const navigate = useNavigate();
+  // Após um refresh o fragmento já foi limpo: o formulário continua disponível com a sessão do link.
+  const authRedirect = initialAuthRedirect;
+  const isInvite = authRedirect?.type === 'invite';
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fieldErrors, setFieldErrors] = useState<FieldErrors<NewPasswordField>>({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // O link falhou no Supabase (expirado, já usado, ...): não há nada para definir.
+  if (authRedirect?.errorCode) {
+    return <InvalidLinkScreen isExpired={authRedirect.errorCode === 'otp_expired' || authRedirect.errorCode === 'access_denied'} />;
+  }
+
   if (status === 'loading') {
     return (
-      <AuthLayout title="Definir palavra-passe">
+      <AuthLayout title={isInvite ? 'Ativar conta' : 'Definir palavra-passe'}>
         <LoadingState label="A validar o link..." />
       </AuthLayout>
     );
   }
 
-  if (!hasSession) {
-    return (
-      <AuthLayout title="Link inválido ou expirado">
-        <Alert variant="error">
-          Este link já foi utilizado ou expirou. Peça um novo link de recuperação ou contacte o administrador para reenviar o convite.
-        </Alert>
-        <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-between">
-          <Link to="/forgot-password" className="text-sm font-medium text-primary-hover hover:underline">
-            Pedir novo link
-          </Link>
-          <Link to="/login" className="text-sm font-medium text-primary-hover hover:underline">
-            Voltar ao início de sessão
-          </Link>
-        </div>
-      </AuthLayout>
-    );
-  }
+  if (!hasSession) return <InvalidLinkScreen isExpired />;
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (isSubmitting) return;
     setErrorMessage(null);
     const errors = validateNewPassword({ newPassword, confirmPassword });
     setFieldErrors(errors);
     if (hasErrors(errors)) return;
 
     setIsSubmitting(true);
-    try {
-      await updatePassword(newPassword);
-      await refreshProfile();
-      navigate('/dashboard', { replace: true });
-    } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Não foi possível guardar a palavra-passe.'));
-    } finally {
+    const result = await completePasswordSetup(newPassword);
+    if (result.outcome === 'error') {
+      setErrorMessage(result.error);
       setIsSubmitting(false);
+      return;
     }
+    if (result.outcome === 'signed_out') {
+      navigate('/login', {
+        replace: true,
+        state: { notice: 'A palavra-passe foi guardada, mas a sessão do link terminou. Inicie sessão com a nova palavra-passe.' },
+      });
+      return;
+    }
+    // `ready` abre o dashboard; `blocked` mostra no AppShell o motivo e as opções disponíveis.
+    navigate('/dashboard', { replace: true });
   };
 
   return (
     <AuthLayout
-      title="Definir palavra-passe"
-      subtitle={`Escolha uma palavra-passe pessoal com pelo menos ${MIN_PASSWORD_LENGTH} carateres.`}
+      title={isInvite ? 'Ativar conta' : 'Definir nova palavra-passe'}
+      subtitle={`${isInvite ? 'Bem-vindo ao TsheetGRT. ' : ''}Escolha uma palavra-passe pessoal com pelo menos ${MIN_PASSWORD_LENGTH} carateres.`}
     >
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
         {errorMessage && <Alert variant="error">{errorMessage}</Alert>}
@@ -95,7 +113,7 @@ export const ResetPasswordPage: React.FC = () => {
           onChange={(event) => setConfirmPassword(event.target.value)}
         />
         <Button type="submit" className="w-full" isLoading={isSubmitting}>
-          Guardar palavra-passe
+          {isSubmitting ? 'A guardar e a preparar o acesso...' : isInvite ? 'Ativar conta' : 'Guardar palavra-passe'}
         </Button>
       </form>
     </AuthLayout>

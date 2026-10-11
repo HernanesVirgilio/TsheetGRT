@@ -10,6 +10,7 @@ import type {
   MeetingStatus,
   OpportunityApprovalStatus,
   OpportunityStatus,
+  ScheduleConflict,
   TaskStatus,
   WorkEvent,
   WorkPriority,
@@ -196,6 +197,7 @@ const EVENT_LABELS: Record<string, string> = {
   OPPORTUNITY_APPROVED: 'Aprovada pelo Manager',
   OPPORTUNITY_APPROVAL_REJECTED: 'Aprovação recusada',
   OPPORTUNITY_APPROVAL_CANCELLED: 'Pedido de aprovação anulado',
+  OPPORTUNITY_EXECUTION_LEAD_CHANGED: 'Gestor de execução alterado',
 };
 
 export function describeWorkEvent(event: Pick<WorkEvent, 'eventType' | 'field'>): string {
@@ -424,6 +426,28 @@ export function validateMeetingForm(values: MeetingFormValues): FieldErrors<Meet
   if (url && !/^https?:\/\//i.test(url)) errors.meetingUrl = 'A ligação tem de começar por http:// ou https://.';
   if (values.location.trim().length > 200) errors.location = 'Máximo de 200 carateres.';
   return errors;
+}
+
+/**
+ * Identifica um pedido de verificação de conflitos: muda quando muda o horário ou o conjunto de pessoas
+ * (independentemente da ordem). Serve para saber se o aviso apresentado ainda corresponde ao formulário.
+ */
+export function scheduleSignature(startsAt: string, endsAt: string, profileIds: string[]): string {
+  return `${startsAt}|${endsAt}|${[...new Set(profileIds)].sort().join(',')}`;
+}
+
+/** Descrição curta do período ocupado, sem expor o que o organizador não pode ver. */
+export function describeConflict(conflict: ScheduleConflict): string {
+  const start = new Date(conflict.startsAt);
+  const end = new Date(conflict.endsAt);
+  const shortDate = (date: Date) => `${pad(date.getDate())}/${pad(date.getMonth() + 1)}`;
+  if (conflict.kind === 'ABSENCE') {
+    // A ausência termina no início do dia seguinte ao último dia ausente.
+    const lastDay = new Date(end.getTime() - 1);
+    return isSameDay(start, lastDay) ? `Ausência aprovada (${shortDate(start)})` : `Ausência aprovada (${shortDate(start)} a ${shortDate(lastDay)})`;
+  }
+  const period = isSameDay(start, end) ? `${toTimeInput(start)}–${toTimeInput(end)}` : `${toTimeInput(start)} até ${shortDate(end)} ${toTimeInput(end)}`;
+  return `${conflict.title ?? 'Ocupado noutra reunião'} · ${period}`;
 }
 
 /** Valores iniciais do formulário de reunião: a reunião existente, o intervalo escolhido no calendário ou o dia em vista. */

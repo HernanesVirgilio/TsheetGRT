@@ -1,45 +1,18 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, Check, ChevronRight } from 'lucide-react';
-import { useAuth } from '../../lib/auth/AuthContext';
 import { getErrorMessage } from '../../lib/errors';
-import * as notificationService from '../../services/notificationService';
+import { useNotifications } from '../../lib/notifications/NotificationsContext';
 import type { NotificationItem } from '../../types';
 import { formatDateTime } from '../../utils/format';
-import { safeNotificationLink } from '../../utils/notifications';
 import { NotificationCategoryBadge } from './NotificationCategoryBadge';
 
-const NOTIFICATION_PREVIEW_LIMIT = 10;
-const NOTIFICATION_REFRESH_INTERVAL_MS = 60_000;
-
 export const NotificationDropdown: React.FC = () => {
-  const { currentUser } = useAuth();
+  const { recent, unreadCount, isLoading, error, refresh, markAsRead, markAllAsRead, targetOf } = useNotifications();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const currentUserId = currentUser?.id;
-
-  const loadNotifications = useCallback(async (refreshAlerts = false) => {
-    if (refreshAlerts) {
-      // Os alertas de prazo são gerados a pedido (sem agendador); uma falha não impede a leitura.
-      await notificationService.refreshDeadlineAlerts().catch(() => undefined);
-    }
-    try {
-      setNotifications(await notificationService.listNotifications(NOTIFICATION_PREVIEW_LIMIT));
-      setErrorMessage(null);
-    } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Não foi possível carregar as notificações.'));
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!currentUserId) return undefined;
-    loadNotifications(true);
-    const interval = window.setInterval(() => loadNotifications(), NOTIFICATION_REFRESH_INTERVAL_MS);
-    return () => window.clearInterval(interval);
-  }, [currentUserId, loadNotifications]);
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -57,26 +30,40 @@ export const NotificationDropdown: React.FC = () => {
     };
   }, [isOpen]);
 
-  const unreadCount = notifications.filter((notification) => !notification.read_at).length;
+  const runAction = (action: () => Promise<void>) => {
+    setActionError(null);
+    action().catch((actionFailure: unknown) =>
+      setActionError(getErrorMessage(actionFailure, 'Não foi possível atualizar as notificações.'))
+    );
+  };
 
-  const runAndReload = async (action: () => Promise<void>) => {
-    try {
-      await action();
-      await loadNotifications();
-    } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Não foi possível atualizar as notificações.'));
+  // Abrir o menu não marca nada como lido: só abrir uma notificação (ou "marcar todas") o faz.
+  const toggle = () => {
+    if (!isOpen) {
+      setActionError(null);
+      refresh({ withDeadlineAlerts: true });
+    }
+    setIsOpen((open) => !open);
+  };
+
+  const openNotification = (notification: NotificationItem) => {
+    const target = targetOf(notification);
+    if (!notification.read_at) runAction(() => markAsRead(notification.id));
+    if (target) {
+      setIsOpen(false);
+      navigate(target);
     }
   };
+
+  const errorMessage = actionError ?? error;
 
   return (
     <div className="relative" ref={dropdownRef}>
       <button
         type="button"
-        onClick={() => {
-          if (!isOpen) loadNotifications(true);
-          setIsOpen((open) => !open);
-        }}
+        onClick={toggle}
         aria-expanded={isOpen}
+        aria-haspopup="true"
         aria-label={unreadCount > 0 ? `Notificações: ${unreadCount} por ler` : 'Notificações'}
         className="relative rounded-md p-2 text-text-secondary hover:bg-surface-muted hover:text-text"
       >
@@ -90,12 +77,15 @@ export const NotificationDropdown: React.FC = () => {
 
       {isOpen && (
         <div className="absolute right-0 mt-2 w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-lg border border-border bg-surface shadow-lg">
-          <div className="flex items-center justify-between border-b border-border px-4 py-3">
-            <p className="text-sm font-semibold text-text">Notificações</p>
+          <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
+            <p className="text-sm font-semibold text-text">
+              Notificações
+              {unreadCount > 0 && <span className="ml-1 font-normal text-text-secondary">· {unreadCount} por ler</span>}
+            </p>
             {unreadCount > 0 && (
               <button
                 type="button"
-                onClick={() => runAndReload(notificationService.markAllNotificationsAsRead)}
+                onClick={() => runAction(markAllAsRead)}
                 className="inline-flex items-center gap-1 text-xs font-semibold text-primary-hover hover:underline"
               >
                 <Check className="h-3.5 w-3.5" aria-hidden="true" />
@@ -106,34 +96,34 @@ export const NotificationDropdown: React.FC = () => {
 
           <div className="max-h-80 divide-y divide-border overflow-y-auto custom-scrollbar">
             {errorMessage && <p className="px-4 py-3 text-sm text-danger">{errorMessage}</p>}
-            {!errorMessage && notifications.length === 0 && (
+            {!errorMessage && isLoading && <p className="px-4 py-6 text-center text-sm text-text-secondary">A carregar notificações...</p>}
+            {!errorMessage && !isLoading && recent.length === 0 && (
               <p className="px-4 py-6 text-center text-sm text-text-secondary">Não existem notificações.</p>
             )}
-            {notifications.map((notification) => (
-              <button
-                type="button"
-                key={notification.id}
-                onClick={() => {
-                  const link = safeNotificationLink(notification.link);
-                  runAndReload(() => notificationService.markNotificationAsRead(notification.id));
-                  if (link) {
-                    setIsOpen(false);
-                    navigate(link);
-                  }
-                }}
-                className={`block w-full px-4 py-3 text-left hover:bg-background ${notification.read_at ? '' : 'bg-primary-soft'}`}
-              >
-                <span className="flex items-start justify-between gap-2">
-                  <span className={`text-sm ${notification.read_at ? 'text-text-secondary' : 'font-semibold text-text'}`}>
-                    {notification.title}
+            {recent.map((notification) => {
+              const hasTarget = targetOf(notification) !== null;
+              return (
+                <button
+                  type="button"
+                  key={notification.id}
+                  onClick={() => openNotification(notification)}
+                  className={`block w-full px-4 py-3 text-left hover:bg-background ${notification.read_at ? '' : 'bg-primary-soft'}`}
+                >
+                  <span className="flex items-start justify-between gap-2">
+                    <span className={`text-sm ${notification.read_at ? 'text-text-secondary' : 'font-semibold text-text'}`}>
+                      {notification.title}
+                    </span>
+                    {!notification.read_at && <span className="sr-only">(por ler)</span>}
+                    <NotificationCategoryBadge category={notification.category} />
                   </span>
-                  {!notification.read_at && <span className="sr-only">(por ler)</span>}
-                  <NotificationCategoryBadge category={notification.category} />
-                </span>
-                <span className="mt-1 line-clamp-2 block text-sm text-text-secondary">{notification.message}</span>
-                <span className="mt-1 block text-xs text-text-muted">{formatDateTime(notification.created_at)}</span>
-              </button>
-            ))}
+                  <span className="mt-1 line-clamp-2 block text-sm text-text-secondary">{notification.message}</span>
+                  <span className="mt-1 block text-xs text-text-muted">
+                    {formatDateTime(notification.created_at)}
+                    {!hasTarget && ' · Sem página associada'}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
           <div className="border-t border-border bg-background p-2">

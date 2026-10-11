@@ -11,6 +11,16 @@ export async function listNotifications(limit?: number): Promise<NotificationIte
   return data;
 }
 
+/** Total de notificações por ler (não limitado às que estão carregadas na lista). */
+export async function countUnreadNotifications(): Promise<number> {
+  const { count, error } = await supabase
+    .from('notifications')
+    .select('id', { count: 'exact', head: true })
+    .is('read_at', null);
+  if (error) throw toServiceError(error, 'Não foi possível contar as notificações por ler.');
+  return count ?? 0;
+}
+
 /**
  * Gera, no servidor, os alertas de prazo de quem está autenticado (prazos nas próximas 24 h, tarefas em
  * atraso e, para o gestor da equipa, atrasos da equipa). Não há duplicados: pode ser chamado sempre que

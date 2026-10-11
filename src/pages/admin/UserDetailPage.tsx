@@ -21,6 +21,7 @@ import { UserFormModal } from '../../components/admin/UserFormModal';
 import { RoleAssignModal } from '../../components/admin/RoleAssignModal';
 import { UserStatusDialog } from '../../components/admin/UserStatusDialog';
 import { ManagerScopePanel } from '../../components/admin/ManagerScopePanel';
+import { ProfileLeadsPanel } from '../../components/admin/ProfileLeadsPanel';
 import { formatDate, formatDateTime, formatMinutesAsHours, formatPeriod } from '../../utils/format';
 import { isUuid } from '../../utils/validation';
 
@@ -162,6 +163,10 @@ export const UserDetailPage: React.FC = () => {
         </div>
       </Panel>
 
+      {/* Hierarquia: a quem responde (colaboradores e gestores) e quem coordena (gestores e Managers). */}
+      {profile.role && profile.role.code !== 'ADMIN' && profile.role.code !== 'MANAGER' && (
+        <ProfileLeadsPanel profile={profile} canManage={hasPermission('USERS_UPDATE') && profile.is_active} />
+      )}
       {(profile.role?.code === 'MANAGER' || profile.role?.code === 'GESTOR') && (
         <ManagerScopePanel manager={profile} departments={departments} canManage={hasPermission('USERS_UPDATE')} />
       )}

@@ -1,21 +1,23 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../lib/auth/AuthContext';
-import type { PermissionCode, RoleCode } from '../../types';
+import type { PermissionCode } from '../../types';
 import { LoadingState } from '../ui/States';
+import { UnauthorizedPage } from '../../pages/UnauthorizedPage';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requiredPermission?: PermissionCode;
-  allowedRoles?: RoleCode[];
 }
 
 /**
  * Proteção de navegação (experiência de utilizador). A autorização efetiva é feita
  * no servidor pelas políticas RLS; esta verificação apenas evita ecrãs sem acesso.
+ * Sem permissão, mostra o acesso restrito no próprio endereço (sem redirecionar),
+ * para que o utilizador perceba que página pediu e possa regressar ao dashboard.
  */
-export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredPermission, allowedRoles }) => {
-  const { status, hasPermission, role } = useAuth();
+export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredPermission }) => {
+  const { status, hasPermission } = useAuth();
   const location = useLocation();
 
   if (status === 'loading') {
@@ -26,12 +28,8 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requir
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (allowedRoles && (!role || !allowedRoles.includes(role))) {
-    return <Navigate to="/403" replace />;
-  }
-
   if (requiredPermission && !hasPermission(requiredPermission)) {
-    return <Navigate to="/403" replace />;
+    return <UnauthorizedPage />;
   }
 
   return <>{children}</>;

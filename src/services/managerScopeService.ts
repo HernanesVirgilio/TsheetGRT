@@ -14,6 +14,30 @@ export interface ManagerScope {
 
 export type ScopeTarget = { kind: 'department'; departmentId: string } | { kind: 'employee'; employeeId: string };
 
+/** Quem é responsável por um utilizador: gestores diretos e, um nível acima, os Managers que os supervisionam. */
+export interface ProfileLead {
+  managerId: string;
+  fullName: string;
+  roleCode: string | null;
+  isActive: boolean;
+  relation: 'LEAD' | 'SUPERVISOR';
+  /** Origem da relação (ex.: "Departamento Operações", "Atribuição individual", "Supervisiona Gil"). */
+  via: string;
+}
+
+export async function getProfileLeads(profileId: string): Promise<ProfileLead[]> {
+  const { data, error } = await supabase.rpc('get_profile_leads', { p_profile_id: profileId });
+  if (error) throw toServiceError(error, 'Não foi possível carregar os responsáveis.');
+  return data.map((row) => ({
+    managerId: row.manager_id,
+    fullName: row.full_name,
+    roleCode: row.role_code,
+    isActive: row.is_active,
+    relation: row.relation === 'SUPERVISOR' ? 'SUPERVISOR' : 'LEAD',
+    via: row.via,
+  }));
+}
+
 export async function listManagerScopes(managerProfileId: string): Promise<ManagerScope[]> {
   const { data, error } = await supabase
     .from('manager_scopes')

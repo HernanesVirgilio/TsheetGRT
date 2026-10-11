@@ -47,6 +47,9 @@ export const OpportunitiesPage: React.FC = () => {
     [debouncedSearch, status, ownerId, page]
   );
   const owners = useAsyncData(() => (canCreate ? listWorkPeople('ASSIGNEE') : Promise.resolve([])), [canCreate]);
+  // Equipa do projeto na criação; sem acesso ao diretório, a secção não aparece (a equipa define-se no detalhe).
+  const teamLeads = useAsyncData(() => (canCreate ? listWorkPeople('TEAM_LEAD').catch(() => []) : Promise.resolve([])), [canCreate]);
+  const directory = useAsyncData(() => (canCreate ? listWorkPeople('PARTICIPANT').catch(() => []) : Promise.resolve([])), [canCreate]);
   const companies = useAsyncData(() => (canCreate ? listCompanies('', 'ACTIVE') : Promise.resolve([])), [canCreate]);
   useEffect(() => setPage(1), [debouncedSearch, status, ownerId]);
 
@@ -141,10 +144,12 @@ export const OpportunitiesPage: React.FC = () => {
         companies={companies.data ?? []}
         owners={owners.data ?? []}
         canCreateCompany={hasPermission('TIMESHEET_OPPORTUNITY_CREATE')}
+        teamLeads={teamLeads.data ?? []}
+        people={directory.data ?? []}
         onClose={() => setIsCreateOpen(false)}
-        onSaved={(opportunityId) => {
+        onSaved={(opportunityId, text, variant = 'success') => {
           setIsCreateOpen(false);
-          navigate(`/timesheet/opportunities/${opportunityId}`);
+          navigate(`/timesheet/opportunities/${opportunityId}`, { state: { notice: { variant, text } } });
         }}
       />
     </div>

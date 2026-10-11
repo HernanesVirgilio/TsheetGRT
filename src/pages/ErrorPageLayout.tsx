@@ -4,7 +4,8 @@ import { ArrowLeft } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 interface ErrorPageLayoutProps {
-  code: string;
+  /** Código técnico (ex.: 404); omitido quando não ajuda o utilizador. */
+  code?: string;
   title: string;
   message: string;
   icon: LucideIcon;
@@ -15,7 +16,7 @@ export const ErrorPageLayout: React.FC<ErrorPageLayoutProps> = ({ code, title, m
     <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-surface-muted text-text-muted">
       <Icon className="h-7 w-7" aria-hidden="true" />
     </div>
-    <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-text-muted">Erro {code}</p>
+    {code && <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-text-muted">Erro {code}</p>}
     <h1 className="mb-2 text-2xl font-semibold text-text">{title}</h1>
     <p className="mb-6 max-w-md text-sm text-text-secondary">{message}</p>
     <Link

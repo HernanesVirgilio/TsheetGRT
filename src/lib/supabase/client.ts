@@ -15,15 +15,41 @@ export const supabasePublishableApiKey = supabasePublishableKey;
 
 export type AuthRedirectType = 'invite' | 'recovery';
 
-// Os links de convite e de recuperação chegam com "#...&type=invite|recovery".
-// O SDK consome e limpa o fragmento ao iniciar, por isso o tipo é lido antes de criar o cliente.
-function readAuthRedirectType(): AuthRedirectType | null {
-  if (typeof window === 'undefined') return null;
-  const type = new URLSearchParams(window.location.hash.slice(1)).get('type');
-  return type === 'invite' || type === 'recovery' ? type : null;
+/** Link de convite ou de recuperação com que a aplicação foi aberta. */
+export interface AuthRedirect {
+  type: AuthRedirectType | null;
+  /** Código devolvido pelo Supabase quando o link é inválido (ex.: "otp_expired"). */
+  errorCode: string | null;
 }
 
-export const initialAuthRedirectType = readAuthRedirectType();
+// Os links chegam com "#...&type=invite|recovery" ou, quando falham, com "#error=...&error_code=...".
+// O SDK consome e limpa o fragmento ao iniciar, por isso é lido antes de criar o cliente.
+function readAuthRedirect(): AuthRedirect | null {
+  if (typeof window === 'undefined') return null;
+  const params = new URLSearchParams(window.location.hash.slice(1));
+  const rawType = params.get('type');
+  const type = rawType === 'invite' || rawType === 'recovery' ? rawType : null;
+  const errorCode = params.get('error_code') ?? params.get('error');
+  return type || errorCode ? { type, errorCode } : null;
+}
+
+/**
+ * Link com que esta página foi carregada. Fica em memória (e não no estado da navegação) porque o SDK
+ * limpa o fragmento com `location.hash = ''`, o que gera um popstate que apagaria esse estado.
+ */
+export const initialAuthRedirect = readAuthRedirect();
+
+let isAuthRedirectPending = initialAuthRedirect !== null;
+
+/**
+ * Indica uma única vez que a página foi aberta por um link de autenticação. Depois de encaminhado para
+ * /reset-password, a navegação seguinte (ex.: para o dashboard) já não pode ser desviada outra vez.
+ */
+export function consumeAuthRedirect(): boolean {
+  const wasPending = isAuthRedirectPending;
+  isAuthRedirectPending = false;
+  return wasPending;
+}
 
 // Quando a configuração falta, a aplicação mostra o erro em vez de montar as rotas,
 // por isso este cliente nunca chega a ser usado com valores vazios.

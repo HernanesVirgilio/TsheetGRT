@@ -1,10 +1,11 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { AuthProvider } from './lib/auth/AuthContext';
-import { initialAuthRedirectType } from './lib/supabase/client';
+import { consumeAuthRedirect } from './lib/supabase/client';
+import { ROUTE_PERMISSIONS } from './lib/auth/routeAccess';
+import type { PermissionRoutePath } from './lib/auth/routeAccess';
 import { AppShell } from './components/layout/AppShell';
 import { ProtectedRoute } from './components/layout/ProtectedRoute';
-import type { PermissionCode } from './types';
 
 // Autenticação
 import { LoginPage } from './pages/auth/LoginPage';
@@ -68,56 +69,60 @@ import { UnauthorizedPage } from './pages/UnauthorizedPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 
 interface PermissionRoute {
-  path: string;
-  permission: PermissionCode;
+  path: PermissionRoutePath;
   element: React.ReactNode;
 }
 
+// A permissão de cada rota está em ROUTE_PERMISSIONS (lib/auth/routeAccess).
+
 const PERMISSION_ROUTES: PermissionRoute[] = [
-  { path: '/timesheets', permission: 'SELF_TIMESHEET_READ', element: <TimesheetListPage /> },
-  { path: '/timesheets/:id', permission: 'SELF_TIMESHEET_READ', element: <TimesheetDetailPage /> },
-  { path: '/timesheet', permission: 'TIMESHEET_TASK_READ', element: <WorkCenterPage /> },
-  { path: '/timesheet/tasks', permission: 'TIMESHEET_TASK_READ', element: <TasksPage /> },
-  { path: '/timesheet/tasks/:id', permission: 'TIMESHEET_TASK_READ', element: <TaskDetailPage /> },
-  { path: '/timesheet/activities', permission: 'SELF_TIMESHEET_READ', element: <WorkLogPage /> },
-  { path: '/timesheet/calendar', permission: 'TIMESHEET_CALENDAR_READ', element: <CalendarPage /> },
-  { path: '/timesheet/meetings', permission: 'TIMESHEET_MEETING_READ', element: <MeetingsPage /> },
-  { path: '/timesheet/meetings/:id', permission: 'TIMESHEET_MEETING_READ', element: <MeetingDetailPage /> },
-  { path: '/timesheet/absences', permission: 'TIMESHEET_ABSENCE_CREATE', element: <AbsencesPage /> },
-  { path: '/timesheet/opportunities', permission: 'TIMESHEET_OPPORTUNITY_READ', element: <OpportunitiesPage /> },
-  { path: '/timesheet/opportunities/:id', permission: 'TIMESHEET_OPPORTUNITY_READ', element: <OpportunityDetailPage /> },
-  { path: '/timesheet/companies', permission: 'TIMESHEET_OPPORTUNITY_READ', element: <CompaniesPage /> },
-  { path: '/timesheet/team', permission: 'TEAM_READ', element: <TeamWorkPage /> },
-  { path: '/timesheet/reports', permission: 'TEAM_READ', element: <TeamReportsPage /> },
-  { path: '/timesheet/approvals', permission: 'TIMESHEET_OPPORTUNITY_READ', element: <ApprovalRequestsPage /> },
-  { path: '/team', permission: 'TEAM_READ', element: <TeamPage /> },
-  { path: '/team/:id', permission: 'TEAM_READ', element: <TeamMemberPage /> },
-  { path: '/approvals', permission: 'TEAM_TIMESHEET_REVIEW', element: <ApprovalsPage /> },
-  { path: '/approvals/:id', permission: 'TEAM_TIMESHEET_REVIEW', element: <TimesheetReviewPage /> },
-  { path: '/activity', permission: 'TEAM_TIMESHEET_READ', element: <TeamActivityPage /> },
-  { path: '/support', permission: 'IT_TICKET_CREATE', element: <SupportTicketsPage /> },
-  { path: '/support/:id', permission: 'IT_TICKET_CREATE', element: <TicketDetailPage context="support" /> },
-  { path: '/it', permission: 'IT_TICKETS_READ', element: <ITDashboardPage /> },
-  { path: '/it/tickets', permission: 'IT_TICKETS_READ', element: <TicketsPage /> },
-  { path: '/it/tickets/:id', permission: 'IT_TICKETS_READ', element: <TicketDetailPage context="it" /> },
-  { path: '/it/assets', permission: 'IT_ASSETS_READ', element: <AssetsPage /> },
-  { path: '/it/assets/:id', permission: 'IT_ASSETS_READ', element: <AssetDetailPage /> },
-  { path: '/it/interventions', permission: 'IT_TICKETS_READ', element: <InterventionsPage /> },
-  { path: '/reports', permission: 'REPORTS_READ', element: <ReportsPage /> },
-  { path: '/users', permission: 'USERS_READ', element: <UsersPage /> },
-  { path: '/users/:id', permission: 'USERS_READ', element: <UserDetailPage /> },
-  { path: '/departments', permission: 'DEPARTMENTS_READ', element: <DepartmentsPage /> },
-  { path: '/roles', permission: 'ROLES_READ', element: <RolesPage /> },
-  { path: '/audit', permission: 'AUDIT_READ', element: <AuditPage /> },
-  { path: '/system-health', permission: 'SYSTEM_HEALTH_READ', element: <SystemHealthPage /> },
-  { path: '/settings', permission: 'SYSTEM_SETTINGS_READ', element: <SettingsPage /> },
+  { path: '/timesheets', element: <TimesheetListPage /> },
+  { path: '/timesheets/:id', element: <TimesheetDetailPage /> },
+  { path: '/timesheet', element: <WorkCenterPage /> },
+  { path: '/timesheet/tasks', element: <TasksPage /> },
+  { path: '/timesheet/tasks/:id', element: <TaskDetailPage /> },
+  { path: '/timesheet/activities', element: <WorkLogPage /> },
+  { path: '/timesheet/calendar', element: <CalendarPage /> },
+  { path: '/timesheet/meetings', element: <MeetingsPage /> },
+  { path: '/timesheet/meetings/:id', element: <MeetingDetailPage /> },
+  { path: '/timesheet/absences', element: <AbsencesPage /> },
+  { path: '/timesheet/opportunities', element: <OpportunitiesPage /> },
+  { path: '/timesheet/opportunities/:id', element: <OpportunityDetailPage /> },
+  { path: '/timesheet/companies', element: <CompaniesPage /> },
+  { path: '/timesheet/team', element: <TeamWorkPage /> },
+  { path: '/timesheet/reports', element: <TeamReportsPage /> },
+  { path: '/timesheet/approvals', element: <ApprovalRequestsPage /> },
+  { path: '/team', element: <TeamPage /> },
+  { path: '/team/:id', element: <TeamMemberPage /> },
+  { path: '/approvals', element: <ApprovalsPage /> },
+  { path: '/approvals/:id', element: <TimesheetReviewPage /> },
+  { path: '/activity', element: <TeamActivityPage /> },
+  { path: '/support', element: <SupportTicketsPage /> },
+  { path: '/support/:id', element: <TicketDetailPage context="support" /> },
+  { path: '/it', element: <ITDashboardPage /> },
+  { path: '/it/tickets', element: <TicketsPage /> },
+  { path: '/it/tickets/:id', element: <TicketDetailPage context="it" /> },
+  { path: '/it/assets', element: <AssetsPage /> },
+  { path: '/it/assets/:id', element: <AssetDetailPage /> },
+  { path: '/it/interventions', element: <InterventionsPage /> },
+  { path: '/reports', element: <ReportsPage /> },
+  { path: '/users', element: <UsersPage /> },
+  { path: '/users/:id', element: <UserDetailPage /> },
+  { path: '/departments', element: <DepartmentsPage /> },
+  { path: '/roles', element: <RolesPage /> },
+  { path: '/audit', element: <AuditPage /> },
+  { path: '/system-health', element: <SystemHealthPage /> },
+  { path: '/settings', element: <SettingsPage /> },
 ];
 
-/** Links de convite/recuperação podem chegar a qualquer URL: encaminha para a definição da palavra-passe. */
+/**
+ * Links de convite/recuperação podem chegar a qualquer URL: encaminha, uma única vez, para a definição
+ * da palavra-passe. O link é consumido porque `navigate` muda a cada navegação e voltaria a disparar o efeito.
+ */
 const AuthRedirectHandler: React.FC = () => {
   const navigate = useNavigate();
   useEffect(() => {
-    if (initialAuthRedirectType) navigate('/reset-password', { replace: true });
+    if (consumeAuthRedirect()) navigate('/reset-password', { replace: true });
   }, [navigate]);
   return null;
 };
@@ -140,7 +145,7 @@ export const App: React.FC = () => (
             <Route
               key={route.path}
               path={route.path}
-              element={<ProtectedRoute requiredPermission={route.permission}>{route.element}</ProtectedRoute>}
+              element={<ProtectedRoute requiredPermission={ROUTE_PERMISSIONS[route.path]}>{route.element}</ProtectedRoute>}
             />
           ))}
 

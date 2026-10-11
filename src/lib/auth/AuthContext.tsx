@@ -11,15 +11,29 @@ import type { PermissionCode, Profile, RoleCode } from '../../types';
  *   Supabase Auth → sessão Supabase → profiles → user_roles/roles → permissões → ProtectedRoute
  * O frontend apenas reflete o que o servidor autoriza; a RLS continua a ser a barreira real.
  */
+/** Porque deixou de existir sessão: nunca existiu, o utilizador terminou-a ou terminou sem ação dele. */
+export type SessionEndReason = 'none' | 'signed_out' | 'ended';
+
 type AuthState =
   | { status: 'loading' }
-  | { status: 'signed_out' }
+  | { status: 'signed_out'; reason: SessionEndReason }
   | { status: 'no_access'; reason: string }
   | { status: 'ready'; profile: Profile; role: RoleCode | null; permissions: PermissionCode[] };
 
 export type AuthStatus = AuthState['status'];
 
 export type AuthActionResult = { success: true } | { success: false; error: string };
+
+/**
+ * Resultado da definição da palavra-passe a partir de um convite ou de um link de recuperação:
+ * - `ready`: sessão válida e acesso carregado;
+ * - `blocked`: sessão válida, mas sem acesso à aplicação (o AppShell explica o motivo);
+ * - `signed_out`: a palavra-passe foi guardada, mas já não existe sessão;
+ * - `error`: a palavra-passe não foi guardada.
+ */
+export type PasswordSetupResult =
+  | { outcome: 'ready' | 'blocked' | 'signed_out' }
+  | { outcome: 'error'; error: string };
 
 interface AuthContextValue {
   status: AuthStatus;
@@ -31,10 +45,13 @@ interface AuthContextValue {
   /** Existe sessão Supabase, mesmo que o acesso à aplicação tenha sido recusado. */
   hasSession: boolean;
   accessError: string | null;
+  /** Preenchido quando não há sessão; distingue o fim de sessão pedido pelo utilizador. */
+  sessionEndReason: SessionEndReason | null;
   mustChangePassword: boolean;
   signIn: (email: string, password: string) => Promise<AuthActionResult>;
   signOut: () => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<AuthActionResult>;
+  completePasswordSetup: (newPassword: string) => Promise<PasswordSetupResult>;
   hasPermission: (permissionCode: PermissionCode) => boolean;
   refreshProfile: () => Promise<void>;
 }
@@ -50,6 +67,8 @@ function toAuthState(result: AccessResult): AuthState {
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, setState] = useState<AuthState>({ status: 'loading' });
   const accessRequestRef = useRef<{ userId: string; promise: Promise<AccessResult> } | null>(null);
+  const hadSessionRef = useRef(false);
+  const signOutRequestedRef = useRef(false);
 
   // Um único pedido de acesso por utilizador, partilhado entre o login e os eventos do SDK.
   const resolveAccess = useCallback((userId: string, force = false): Promise<AccessResult> => {
@@ -78,10 +97,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const handleSession = useCallback(
     (session: Session | null) => {
       if (!session) {
+        const reason: SessionEndReason = signOutRequestedRef.current ? 'signed_out' : hadSessionRef.current ? 'ended' : 'none';
         accessRequestRef.current = null;
-        setState({ status: 'signed_out' });
+        hadSessionRef.current = false;
+        signOutRequestedRef.current = false;
+        setState({ status: 'signed_out', reason });
         return;
       }
+      hadSessionRef.current = true;
       resolveAccess(session.user.id).catch(() => undefined);
     },
     [resolveAccess]
@@ -91,7 +114,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     supabase.auth
       .getSession()
       .then(({ data }) => handleSession(data.session))
-      .catch(() => setState({ status: 'signed_out' }));
+      .catch(() => setState({ status: 'signed_out', reason: 'none' }));
 
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       // O SDK recomenda não chamar outros métodos Supabase dentro deste callback.
@@ -106,6 +129,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const userId = await authService.signInWithPassword(email, password);
         const access = await resolveAccess(userId);
         if (access.kind === 'denied') {
+          signOutRequestedRef.current = true;
           await supabase.auth.signOut({ scope: 'local' });
           return { success: false, error: access.reason };
         }
@@ -119,6 +143,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 
   const signOut = useCallback(async () => {
+    signOutRequestedRef.current = true;
     try {
       await authService.signOut();
     } catch {
@@ -149,6 +174,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [profile, refreshProfile]
   );
 
+  const completePasswordSetup = useCallback(
+    async (newPassword: string): Promise<PasswordSetupResult> => {
+      try {
+        await authService.updatePassword(newPassword);
+      } catch (error) {
+        return { outcome: 'error', error: getErrorMessage(error, 'Não foi possível guardar a palavra-passe.') };
+      }
+      // A atualização não garante, por si só, uma sessão válida: confirma-a antes de decidir o destino.
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) return { outcome: 'signed_out' };
+      // Recarrega o perfil (incluindo must_change_password, limpo no servidor) antes de navegar.
+      const access = await resolveAccess(data.session.user.id, true).catch(() => null);
+      return { outcome: access?.kind === 'granted' ? 'ready' : 'blocked' };
+    },
+    [resolveAccess]
+  );
+
   const permissions = useMemo(() => (state.status === 'ready' ? state.permissions : []), [state]);
 
   const hasPermission = useCallback(
@@ -166,14 +208,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isLoading: state.status === 'loading',
       hasSession: state.status === 'ready' || state.status === 'no_access',
       accessError: state.status === 'no_access' ? state.reason : null,
+      sessionEndReason: state.status === 'signed_out' ? state.reason : null,
       mustChangePassword: profile?.must_change_password ?? false,
       signIn,
       signOut,
       changePassword,
+      completePasswordSetup,
       hasPermission,
       refreshProfile,
     }),
-    [state, profile, permissions, signIn, signOut, changePassword, hasPermission, refreshProfile]
+    [state, profile, permissions, signIn, signOut, changePassword, completePasswordSetup, hasPermission, refreshProfile]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

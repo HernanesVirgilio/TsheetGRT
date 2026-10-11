@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, CalendarPlus, CheckCircle2, Clock3, GitBranch, ListPlus, Pencil, Send, Undo2, UserMinus, UserPlus, Users, XCircle } from 'lucide-react';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, CalendarPlus, CheckCircle2, Clock3, GitBranch, ListPlus, Pencil, Send, Undo2, UserCog, UserMinus, UserPlus, Users, XCircle } from 'lucide-react';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import {
@@ -13,13 +13,14 @@ import {
   listOpportunityApprovals,
   listOpportunityEvents,
   removeOpportunityMember,
+  setOpportunityExecutionLead,
   setOpportunityOwner,
 } from '../../services/work/opportunityService';
 import { listRelatedTasks } from '../../services/work/taskService';
 import { listRelatedMeetings } from '../../services/work/meetingService';
 import { getWorkTimeTotals } from '../../services/work/workLogService';
 import { listWorkPeople } from '../../services/work/calendarService';
-import type { ApprovalRequest, OpportunityDetail, WorkPerson } from '../../types/work';
+import type { ApprovalRequest, OpportunityDetail, OpportunityRole, WorkPerson } from '../../types/work';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Panel } from '../../components/ui/Panel';
 import { Alert } from '../../components/ui/Alert';
@@ -41,7 +42,23 @@ import { canRequestOpportunityApproval, formatMoney, isOpportunityActive, OPPORT
 import { formatDate, formatDateTime, formatMinutesAsHours } from '../../utils/format';
 import { isUuid } from '../../utils/validation';
 
-type ModalKind = 'edit' | 'owner' | 'member' | 'task' | 'meeting' | 'logTime' | null;
+type ModalKind = 'edit' | 'owner' | 'member' | 'lead' | 'task' | 'meeting' | 'logTime' | null;
+type Notice = { variant: 'success' | 'warning' | 'error'; text: string };
+
+const ROLE_LABELS: Record<OpportunityRole, string> = {
+  OWNER: 'Responsável comercial',
+  EXECUTION_LEAD: 'Gestor de execução',
+  MEMBER: 'Membro',
+};
+
+/** Aviso enviado pela página anterior (ex.: equipa associada na criação). */
+function readNotice(state: unknown): Notice | null {
+  if (typeof state !== 'object' || state === null || !('notice' in state)) return null;
+  const notice: unknown = state.notice;
+  if (typeof notice !== 'object' || notice === null || !('text' in notice) || typeof notice.text !== 'string') return null;
+  const variant = 'variant' in notice && (notice.variant === 'warning' || notice.variant === 'error') ? notice.variant : 'success';
+  return { variant, text: notice.text };
+}
 
 async function loadOpportunity(opportunityId: string) {
   if (!isUuid(opportunityId)) return null;
@@ -68,10 +85,12 @@ const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, 
 export const OpportunityDetailPage: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { currentUser, hasPermission } = useAuth();
   const viewerId = currentUser?.id ?? '';
   const detail = useAsyncData(() => loadOpportunity(id), [id]);
   const participants = useAsyncData(() => listWorkPeople('PARTICIPANT'), []);
+  const teamLeads = useAsyncData(() => (hasPermission('TIMESHEET_OPPORTUNITY_UPDATE') ? listWorkPeople('TEAM_LEAD') : Promise.resolve([])), []);
   // Convidáveis para reuniões: equipa e chefias de quem organiza (os envolvidos na oportunidade juntam-se abaixo).
   const meetingPeople = useAsyncData(() => (hasPermission('TIMESHEET_MEETING_CREATE') ? listWorkPeople('MEETING') : Promise.resolve([])), []);
   const assignees = useAsyncData(() => (hasPermission('TIMESHEET_TASK_CREATE') || hasPermission('TIMESHEET_OPPORTUNITY_MANAGE') ? listWorkPeople('ASSIGNEE') : Promise.resolve([])), []);
@@ -80,7 +99,7 @@ export const OpportunityDetailPage: React.FC = () => {
   const [statusFor, setStatusFor] = useState<OpportunityDetail | null>(null);
   const [approvalFor, setApprovalFor] = useState<OpportunityDetail | null>(null);
   const [decision, setDecision] = useState<{ request: ApprovalRequest; decision: 'APPROVED' | 'REJECTED' } | null>(null);
-  const [message, setMessage] = useState<{ variant: 'success' | 'error'; text: string } | null>(null);
+  const [message, setMessage] = useState<Notice | null>(() => readNotice(location.state));
 
   const backLink = (
     <Link to="/timesheet/opportunities" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary-hover hover:underline">
@@ -140,6 +159,8 @@ export const OpportunityDetailPage: React.FC = () => {
   };
 
   const memberCandidates = (participants.data ?? []).filter((person) => !people.some((existing) => existing.profileId === person.profileId));
+  const executionLead = people.find((person) => person.role === 'EXECUTION_LEAD') ?? null;
+  const leadCandidates = (teamLeads.data ?? []).filter((person) => person.profileId !== opportunity.ownerId);
 
   return (
     <div className="space-y-6">
@@ -347,13 +368,18 @@ export const OpportunityDetailPage: React.FC = () => {
             )}
           </Panel>
           <Panel
-            title="Equipa"
+            title="Equipa do projeto"
             actions={
               canUpdate &&
               opportunity.status !== 'CANCELLED' && (
-                <Button size="sm" variant="secondary" icon={UserPlus} onClick={() => setModal('member')} disabled={!participants.data}>
-                  Membro
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant="secondary" icon={UserCog} onClick={() => setModal('lead')} disabled={!teamLeads.data}>
+                    Gestor de execução
+                  </Button>
+                  <Button size="sm" variant="secondary" icon={UserPlus} onClick={() => setModal('member')} disabled={!participants.data}>
+                    Membro
+                  </Button>
+                </div>
               )
             }
             flush
@@ -363,7 +389,10 @@ export const OpportunityDetailPage: React.FC = () => {
                 <li key={person.profileId} className="flex items-center justify-between gap-2 px-5 py-3 text-sm">
                   <span>
                     <span className="block font-medium text-text">{person.fullName}</span>
-                    <span className="block text-xs text-text-muted">{person.isOwner ? 'Responsável' : 'Membro'}</span>
+                    <span className={`block text-xs ${person.role === 'MEMBER' ? 'text-text-muted' : 'font-semibold text-primary-hover'}`}>
+                      {ROLE_LABELS[person.role]}
+                      {person.jobTitle ? ` · ${person.jobTitle}` : ''}
+                    </span>
                   </span>
                   {canUpdate && !person.isOwner && (
                     <IconButton
@@ -380,6 +409,11 @@ export const OpportunityDetailPage: React.FC = () => {
                 </li>
               ))}
             </ul>
+            {!executionLead && (
+              <p className="border-t border-border px-5 py-3 text-xs text-text-muted">
+                Sem gestor de execução: a execução é coordenada pelo responsável comercial e pela sua chefia.
+              </p>
+            )}
             {canManage && manages && (
               <div className="border-t border-border p-4">
                 <Button size="sm" variant="ghost" icon={Users} onClick={() => setModal('owner')} disabled={!assignees.data}>
@@ -440,6 +474,25 @@ export const OpportunityDetailPage: React.FC = () => {
           if (!ownerId) return;
           await setOpportunityOwner(opportunity.id, ownerId, note);
           afterAction('Responsável alterado. O novo responsável foi notificado.');
+        }}
+      />
+      <TicketSelectModal
+        isOpen={modal === 'lead'}
+        title="Gestor de execução"
+        fieldLabel="Gestor responsável pela execução"
+        options={leadCandidates.map((person) => ({ value: person.profileId, label: person.departmentName ? `${person.fullName} · ${person.departmentName}` : person.fullName }))}
+        initialValue={executionLead?.profileId ?? ''}
+        emptyOptionLabel="Sem gestor de execução"
+        optionalNote={{ label: 'Nota (opcional)', maxLength: 1000 }}
+        confirmLabel="Guardar"
+        onClose={() => setModal(null)}
+        onConfirm={async (profileId, note) => {
+          await setOpportunityExecutionLead(opportunity.id, profileId || null, note);
+          afterAction(
+            profileId
+              ? `Gestor de execução definido e notificado.${executionLead ? ` ${executionLead.fullName} continua na equipa como membro.` : ''}`
+              : 'Gestor de execução retirado. A pessoa continua na equipa como membro.'
+          );
         }}
       />
       <TicketSelectModal

@@ -246,7 +246,13 @@ export async function listOpportunityEvents(opportunityId: string): Promise<Work
 export async function getOpportunityPeople(opportunityId: string): Promise<OpportunityPerson[]> {
   const { data, error } = await supabase.rpc('get_opportunity_people', { p_opportunity_id: opportunityId });
   if (error) throw toServiceError(error, 'Não foi possível carregar a equipa da oportunidade.');
-  return data.map((row) => ({ profileId: row.profile_id, fullName: row.full_name, jobTitle: row.job_title, isOwner: row.is_owner }));
+  return data.map((row) => ({
+    profileId: row.profile_id,
+    fullName: row.full_name,
+    jobTitle: row.job_title,
+    isOwner: row.is_owner,
+    role: row.is_owner ? 'OWNER' : row.member_role === 'EXECUTION_LEAD' ? 'EXECUTION_LEAD' : 'MEMBER',
+  }));
 }
 
 export interface OpportunityInput {
@@ -335,6 +341,37 @@ export async function addOpportunityMember(opportunityId: string, profileId: str
 export async function removeOpportunityMember(opportunityId: string, profileId: string): Promise<void> {
   const { error } = await supabase.rpc('remove_opportunity_member', { p_opportunity_id: opportunityId, p_profile_id: profileId });
   if (error) throw toServiceError(error, 'Não foi possível retirar o membro.');
+}
+
+/** Define, substitui ou retira (null) o gestor de execução; o anterior continua na equipa como membro. */
+export async function setOpportunityExecutionLead(opportunityId: string, profileId: string | null, note: string | null = null): Promise<void> {
+  const { error } = await supabase.rpc('set_opportunity_execution_lead', { p_opportunity_id: opportunityId, p_profile_id: profileId, p_note: note });
+  if (error) throw toServiceError(error, 'Não foi possível definir o gestor de execução.');
+}
+
+/**
+ * Equipa inicial de uma oportunidade acabada de criar: primeiro o gestor de execução, depois os membros.
+ * Cada associação é validada, registada e notificada no servidor; devolve as que falharam (com o motivo)
+ * para que a interface nunca indique uma equipa que não ficou guardada.
+ */
+export async function assignProjectTeam(
+  opportunityId: string,
+  executionLeadId: string | null,
+  memberIds: string[]
+): Promise<{ profileId: string; error: string }[]> {
+  const failures: { profileId: string; error: string }[] = [];
+  const attempt = async (profileId: string, action: () => Promise<void>) => {
+    try {
+      await action();
+    } catch (error) {
+      failures.push({ profileId, error: error instanceof Error ? error.message : 'Erro desconhecido.' });
+    }
+  };
+  if (executionLeadId) await attempt(executionLeadId, () => setOpportunityExecutionLead(opportunityId, executionLeadId));
+  for (const memberId of memberIds.filter((id) => id !== executionLeadId)) {
+    await attempt(memberId, () => addOpportunityMember(opportunityId, memberId));
+  }
+  return failures;
 }
 
 export async function addOpportunityComment(opportunityId: string, body: string): Promise<void> {

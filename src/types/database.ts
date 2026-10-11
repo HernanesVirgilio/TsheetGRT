@@ -298,6 +298,8 @@ export type OpportunityMemberRow = {
   opportunity_id: string;
   profile_id: string;
   added_by: string | null;
+  /** MEMBER | EXECUTION_LEAD (20261013000000). */
+  member_role: string;
   created_at: string;
 };
 
@@ -986,6 +988,30 @@ export type Database = {
       set_opportunity_owner: { Args: { p_opportunity_id: string; p_owner_id: string; p_note?: string | null }; Returns: undefined };
       add_opportunity_member: { Args: { p_opportunity_id: string; p_profile_id: string }; Returns: undefined };
       remove_opportunity_member: { Args: { p_opportunity_id: string; p_profile_id: string }; Returns: undefined };
+      set_opportunity_execution_lead: { Args: { p_opportunity_id: string; p_profile_id: string | null; p_note?: string | null }; Returns: undefined };
+      get_profile_leads: {
+        Args: { p_profile_id: string };
+        Returns: { manager_id: string; full_name: string; role_code: string | null; is_active: boolean; relation: string; via: string }[];
+      };
+      get_schedule_conflicts: {
+        Args: {
+          p_profile_ids: string[];
+          p_starts_at: string;
+          p_ends_at: string;
+          p_exclude_meeting_id?: string | null;
+          p_task_id?: string | null;
+          p_opportunity_id?: string | null;
+        };
+        Returns: {
+          profile_id: string;
+          full_name: string;
+          conflict_type: string;
+          meeting_id: string | null;
+          title: string | null;
+          starts_at: string;
+          ends_at: string;
+        }[];
+      };
       add_opportunity_comment: { Args: { p_opportunity_id: string; p_body: string }; Returns: undefined };
       register_attachment: {
         Args: { p_entity_type: string; p_entity_id: string; p_file_name: string; p_mime_type: string; p_size_bytes: number };
@@ -1141,7 +1167,7 @@ export type Database = {
       };
       get_opportunity_people: {
         Args: { p_opportunity_id: string };
-        Returns: { profile_id: string; full_name: string; job_title: string | null; is_owner: boolean }[];
+        Returns: { profile_id: string; full_name: string; job_title: string | null; is_owner: boolean; member_role: string | null }[];
       };
       approve_timesheets: {
         Args: { p_timesheet_ids: string[]; p_comment?: string | null };

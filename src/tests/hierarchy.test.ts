@@ -4,6 +4,8 @@
 import {
   CALENDAR_SLOT_COUNT,
   canRequestOpportunityApproval,
+  describeConflict,
+  scheduleSignature,
   initialMeetingValues,
   isOpportunityCleared,
   layoutTimedItems,
@@ -85,6 +87,26 @@ const escalated = { ...completed, requiresManagerReview: true };
 assert(!taskActions(escalated, viewer({}, true)).canReview, 'o gestor não valida uma conclusão reservada ao Manager');
 assert(taskActions(escalated, viewer({ supervise: true }, true, 'manager')).canReview, 'o Manager valida a conclusão que exige o seu acompanhamento');
 assert(!taskActions({ ...completed, status: 'IN_PROGRESS' }, viewer({}, true)).canReview, 'só se validam tarefas concluídas');
+
+console.log('\nConflitos de agenda');
+const twoHours = selectionToRange(day, 4, 7);
+assert(twoHours.startTime === '09:00' && twoHours.endTime === '11:00', 'arrastar quatro fatias de 30 minutos marca 09:00–11:00 (duas horas)');
+const lastSlot = selectionToRange(day, CALENDAR_SLOT_COUNT - 1, CALENDAR_SLOT_COUNT - 1);
+assert(lastSlot.startTime === '20:30' && lastSlot.endTime === '21:00', 'a última fatia do dia termina no fim da grelha');
+assert(
+  scheduleSignature('2026-10-14T07:00:00.000Z', '2026-10-14T09:00:00.000Z', ['b', 'a', 'b']) === scheduleSignature('2026-10-14T07:00:00.000Z', '2026-10-14T09:00:00.000Z', ['a', 'b']),
+  'a verificação não se repete por mudar a ordem dos participantes'
+);
+assert(
+  scheduleSignature('2026-10-14T07:00:00.000Z', '2026-10-14T09:30:00.000Z', ['a']) !== scheduleSignature('2026-10-14T07:00:00.000Z', '2026-10-14T09:00:00.000Z', ['a']),
+  'mudar o horário exige nova verificação (e nova confirmação)'
+);
+const meetingConflict = { profileId: 'a', fullName: 'Ana', kind: 'MEETING' as const, meetingId: 'm', title: 'Reunião semanal', startsAt: new Date(2026, 9, 14, 9).toISOString(), endsAt: new Date(2026, 9, 14, 11).toISOString() };
+assert(describeConflict(meetingConflict) === 'Reunião semanal · 09:00–11:00', 'conflito com o título e o período');
+assert(describeConflict({ ...meetingConflict, meetingId: null, title: null }) === 'Ocupado noutra reunião · 09:00–11:00', 'reunião não visível aparece só como período ocupado');
+const absenceConflict = { ...meetingConflict, kind: 'ABSENCE' as const, title: null, startsAt: new Date(2026, 9, 14).toISOString(), endsAt: new Date(2026, 9, 16).toISOString() };
+assert(describeConflict(absenceConflict) === 'Ausência aprovada (14/10 a 15/10)', 'ausência de vários dias, sem o tipo de ausência');
+assert(describeConflict({ ...absenceConflict, endsAt: new Date(2026, 9, 15).toISOString() }) === 'Ausência aprovada (14/10)', 'ausência de um dia');
 
 console.log('\nNotificações');
 assert(isNotificationCategory('APPROVAL_REQUEST') && !isNotificationCategory('OUTRA'), 'categorias reconhecidas');

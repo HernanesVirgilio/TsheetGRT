@@ -4,6 +4,7 @@ import { LogOut, RefreshCw, ShieldAlert, X } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { useAuth } from '../../lib/auth/AuthContext';
+import { NotificationsProvider } from '../../lib/notifications/NotificationsContext';
 import { LoadingState } from '../ui/States';
 import { Alert } from '../ui/Alert';
 import { Button } from '../ui/Button';
@@ -40,7 +41,7 @@ const AccessBlockedScreen: React.FC<{ reason: string }> = ({ reason }) => {
 };
 
 export const AppShell: React.FC = () => {
-  const { status, accessError, mustChangePassword } = useAuth();
+  const { status, accessError, mustChangePassword, sessionEndReason } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
 
@@ -66,7 +67,10 @@ export const AppShell: React.FC = () => {
   }
 
   if (status === 'signed_out') {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    // Quem termina a sessão volta ao login sem destino guardado: a próxima conta pode ser outra pessoa.
+    if (sessionEndReason === 'signed_out') return <Navigate to="/login" replace />;
+    const notice = sessionEndReason === 'ended' ? 'A sua sessão terminou. Inicie sessão novamente para continuar.' : undefined;
+    return <Navigate to="/login" state={{ from: location, notice }} replace />;
   }
 
   if (status === 'no_access') {
@@ -78,53 +82,55 @@ export const AppShell: React.FC = () => {
   }
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background">
-      <a
-        href="#conteudo-principal"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-surface focus:px-4 focus:py-2 focus:text-sm focus:font-semibold"
-      >
-        Saltar para o conteúdo
-      </a>
+    <NotificationsProvider>
+      <div className="flex h-screen w-full overflow-hidden bg-background">
+        <a
+          href="#conteudo-principal"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-surface focus:px-4 focus:py-2 focus:text-sm focus:font-semibold"
+        >
+          Saltar para o conteúdo
+        </a>
 
-      <div className="hidden shrink-0 lg:flex">
-        <Sidebar />
-      </div>
-
-      {isMobileMenuOpen && (
-        <div className="fixed inset-0 z-40 flex lg:hidden" role="dialog" aria-modal="true" aria-label="Menu de navegação">
-          <div className="fixed inset-0 bg-black/40" aria-hidden="true" onClick={() => setIsMobileMenuOpen(false)} />
-          <div className="relative flex h-full">
-            <Sidebar onNavigate={() => setIsMobileMenuOpen(false)} />
-            <button
-              type="button"
-              onClick={() => setIsMobileMenuOpen(false)}
-              aria-label="Fechar menu"
-              className="absolute right-2 top-5 rounded-md p-1 text-white hover:bg-sidebar-hover"
-            >
-              <X className="h-5 w-5" aria-hidden="true" />
-            </button>
-          </div>
+        <div className="hidden shrink-0 lg:flex">
+          <Sidebar />
         </div>
-      )}
 
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <Header onOpenMobileMenu={() => setIsMobileMenuOpen(true)} />
-
-        {mustChangePassword && (
-          <div className="flex shrink-0 items-center gap-2 border-b border-warning/30 bg-warning-soft px-4 py-2.5 text-sm text-text">
-            <ShieldAlert className="h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
-            <span>
-              <strong>Ação necessária:</strong> defina uma nova palavra-passe antes de aceder aos restantes módulos.
-            </span>
+        {isMobileMenuOpen && (
+          <div className="fixed inset-0 z-40 flex lg:hidden" role="dialog" aria-modal="true" aria-label="Menu de navegação">
+            <div className="fixed inset-0 bg-black/40" aria-hidden="true" onClick={() => setIsMobileMenuOpen(false)} />
+            <div className="relative flex h-full">
+              <Sidebar onNavigate={() => setIsMobileMenuOpen(false)} />
+              <button
+                type="button"
+                onClick={() => setIsMobileMenuOpen(false)}
+                aria-label="Fechar menu"
+                className="absolute right-2 top-5 rounded-md p-1 text-white hover:bg-sidebar-hover"
+              >
+                <X className="h-5 w-5" aria-hidden="true" />
+              </button>
+            </div>
           </div>
         )}
 
-        <main id="conteudo-principal" className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 custom-scrollbar">
-          <div className="mx-auto max-w-7xl">
-            <Outlet />
-          </div>
-        </main>
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <Header onOpenMobileMenu={() => setIsMobileMenuOpen(true)} />
+
+          {mustChangePassword && (
+            <div className="flex shrink-0 items-center gap-2 border-b border-warning/30 bg-warning-soft px-4 py-2.5 text-sm text-text">
+              <ShieldAlert className="h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
+              <span>
+                <strong>Ação necessária:</strong> defina uma nova palavra-passe antes de aceder aos restantes módulos.
+              </span>
+            </div>
+          )}
+
+          <main id="conteudo-principal" className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 custom-scrollbar">
+            <div className="mx-auto max-w-7xl">
+              <Outlet />
+            </div>
+          </main>
+        </div>
       </div>
-    </div>
+    </NotificationsProvider>
   );
 };

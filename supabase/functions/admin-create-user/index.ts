@@ -18,7 +18,7 @@
 
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 
-const ROLE_CODES = ['ADMIN', 'IT', 'MANAGER', 'EMPLOYEE'] as const;
+const ROLE_CODES = ['ADMIN', 'IT', 'MANAGER', 'GESTOR', 'EMPLOYEE'] as const;
 type RoleCode = (typeof ROLE_CODES)[number];
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

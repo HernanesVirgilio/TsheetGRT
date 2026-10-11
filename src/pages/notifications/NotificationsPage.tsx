@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Bell, Check } from 'lucide-react';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import { getErrorMessage } from '../../lib/errors';
+import { useNotifications } from '../../lib/notifications/NotificationsContext';
 import * as notificationService from '../../services/notificationService';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Panel } from '../../components/ui/Panel';
@@ -11,29 +12,33 @@ import { Button } from '../../components/ui/Button';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState, LoadingState } from '../../components/ui/States';
 import { formatDateTime } from '../../utils/format';
-import { isNotificationCategory, NOTIFICATION_CATEGORIES, NOTIFICATION_CATEGORY_LABELS, safeNotificationLink } from '../../utils/notifications';
+import { isNotificationCategory, NOTIFICATION_CATEGORIES, NOTIFICATION_CATEGORY_LABELS } from '../../utils/notifications';
 import type { NotificationCategory } from '../../utils/notifications';
 import { NotificationCategoryBadge } from '../../components/layout/NotificationCategoryBadge';
 
 type NotificationFilter = 'ALL' | 'UNREAD';
 
 export const NotificationsPage: React.FC = () => {
-  const notifications = useAsyncData(() => notificationService.listNotifications(), []);
+  // A lista completa recarrega sempre que o estado partilhado muda (nova notificação ou leitura no cabeçalho).
+  const { unreadCount, revision, refresh, markAsRead, markAllAsRead, targetOf } = useNotifications();
+  const notifications = useAsyncData(() => notificationService.listNotifications(), [revision]);
   const [filter, setFilter] = useState<NotificationFilter>('ALL');
   const [category, setCategory] = useState<NotificationCategory | 'ALL'>('ALL');
   const [actionError, setActionError] = useState<string | null>(null);
 
   const items = notifications.data ?? [];
-  const unreadCount = items.filter((notification) => !notification.read_at).length;
   const visibleItems = items.filter(
     (notification) => (filter === 'ALL' || !notification.read_at) && (category === 'ALL' || notification.category === category)
   );
 
-  const runAndReload = async (action: () => Promise<void>) => {
+  useEffect(() => {
+    refresh({ withDeadlineAlerts: true });
+  }, [refresh]);
+
+  const runAction = async (action: () => Promise<void>) => {
     setActionError(null);
     try {
       await action();
-      notifications.reload();
     } catch (error) {
       setActionError(getErrorMessage(error, 'Não foi possível atualizar as notificações.'));
     }
@@ -49,7 +54,7 @@ export const NotificationsPage: React.FC = () => {
             <Button
               variant="secondary"
               icon={Check}
-              onClick={() => runAndReload(notificationService.markAllNotificationsAsRead)}
+              onClick={() => runAction(markAllAsRead)}
             >
               Marcar todas como lidas
             </Button>
@@ -119,48 +124,53 @@ export const NotificationsPage: React.FC = () => {
         )}
         {visibleItems.length > 0 && (
           <ul className="divide-y divide-border">
-            {visibleItems.map((notification) => (
-              <li
-                key={notification.id}
-                className={`flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-start sm:justify-between ${
-                  notification.read_at ? '' : 'bg-primary-soft'
-                }`}
-              >
-                <div className="min-w-0">
-                  <p className="flex flex-wrap items-center gap-2">
-                    <span className={`text-sm ${notification.read_at ? 'text-text-secondary' : 'font-semibold text-text'}`}>
-                      {notification.title}
-                      {!notification.read_at && <span className="sr-only"> (por ler)</span>}
-                    </span>
-                    <NotificationCategoryBadge category={notification.category} />
-                  </p>
-                  <p className="mt-1 text-sm text-text-secondary">{notification.message}</p>
-                  <p className="mt-1 flex flex-wrap items-center gap-3 text-xs text-text-muted">
-                    {formatDateTime(notification.created_at)}
-                    {safeNotificationLink(notification.link) && (
-                      <Link
-                        to={safeNotificationLink(notification.link) ?? '/notifications'}
-                        onClick={() => {
-                          if (!notification.read_at) notificationService.markNotificationAsRead(notification.id).catch(() => undefined);
-                        }}
-                        className="font-semibold text-primary-hover hover:underline"
-                      >
-                        Abrir registo
-                      </Link>
-                    )}
-                  </p>
-                </div>
-                {!notification.read_at && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => runAndReload(() => notificationService.markNotificationAsRead(notification.id))}
-                  >
-                    Marcar como lida
-                  </Button>
-                )}
-              </li>
-            ))}
+            {visibleItems.map((notification) => {
+              const target = targetOf(notification);
+              return (
+                <li
+                  key={notification.id}
+                  className={`flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-start sm:justify-between ${
+                    notification.read_at ? '' : 'bg-primary-soft'
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <p className="flex flex-wrap items-center gap-2">
+                      <span className={`text-sm ${notification.read_at ? 'text-text-secondary' : 'font-semibold text-text'}`}>
+                        {notification.title}
+                        {!notification.read_at && <span className="sr-only"> (por ler)</span>}
+                      </span>
+                      <NotificationCategoryBadge category={notification.category} />
+                    </p>
+                    <p className="mt-1 text-sm text-text-secondary">{notification.message}</p>
+                    <p className="mt-1 flex flex-wrap items-center gap-3 text-xs text-text-muted">
+                      {formatDateTime(notification.created_at)}
+                      {target ? (
+                        <Link
+                          to={target}
+                          onClick={() => {
+                            if (!notification.read_at) runAction(() => markAsRead(notification.id));
+                          }}
+                          className="font-semibold text-primary-hover hover:underline"
+                        >
+                          {target === notification.link ? 'Abrir registo' : 'Abrir módulo'}
+                        </Link>
+                      ) : (
+                        <span>Sem página associada</span>
+                      )}
+                    </p>
+                  </div>
+                  {!notification.read_at && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => runAction(() => markAsRead(notification.id))}
+                    >
+                      Marcar como lida
+                    </Button>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </Panel>

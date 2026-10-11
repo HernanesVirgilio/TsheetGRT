@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../../lib/auth/AuthContext';
+import { canAccessPath } from '../../lib/auth/routeAccess';
 import { AuthLayout } from '../../components/layout/AuthLayout';
 import { Alert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
@@ -10,16 +11,23 @@ import { isValidEmail } from '../../utils/validation';
 
 const DEFAULT_REDIRECT_PATH = '/dashboard';
 
-/** Página que o utilizador tentou abrir antes de ser enviado para o login (ver ProtectedRoute). */
-function readRedirectPath(state: unknown): string {
-  if (typeof state !== 'object' || state === null || !('from' in state)) return DEFAULT_REDIRECT_PATH;
+/** Página que o utilizador tentou abrir antes de ser enviado para o login (ver AppShell). */
+function readRedirectPath(state: unknown): string | null {
+  if (typeof state !== 'object' || state === null || !('from' in state)) return null;
   const from: unknown = state.from;
-  if (typeof from !== 'object' || from === null || !('pathname' in from)) return DEFAULT_REDIRECT_PATH;
-  return typeof from.pathname === 'string' && from.pathname !== '/login' ? from.pathname : DEFAULT_REDIRECT_PATH;
+  if (typeof from !== 'object' || from === null || !('pathname' in from) || typeof from.pathname !== 'string') return null;
+  const search = 'search' in from && typeof from.search === 'string' ? from.search : '';
+  return `${from.pathname}${search}`;
+}
+
+/** Aviso a apresentar no login (sessão terminada, palavra-passe definida, ...). */
+function readNotice(state: unknown): string | null {
+  if (typeof state !== 'object' || state === null || !('notice' in state)) return null;
+  return typeof state.notice === 'string' ? state.notice : null;
 }
 
 export const LoginPage: React.FC = () => {
-  const { signIn, status } = useAuth();
+  const { signIn, status, hasPermission } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -29,12 +37,18 @@ export const LoginPage: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const notice = readNotice(location.state);
+
+  // Só regressa à página anterior se a conta que entrou a puder abrir (pode ser outra pessoa).
   useEffect(() => {
-    if (status === 'ready') navigate(readRedirectPath(location.state), { replace: true });
-  }, [status, navigate, location.state]);
+    if (status !== 'ready') return;
+    const from = readRedirectPath(location.state);
+    navigate(from && canAccessPath(from, hasPermission) ? from : DEFAULT_REDIRECT_PATH, { replace: true });
+  }, [status, navigate, location.state, hasPermission]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (isSubmitting) return;
     setErrorMessage(null);
 
     if (!isValidEmail(email)) {
@@ -55,6 +69,7 @@ export const LoginPage: React.FC = () => {
   return (
     <AuthLayout title="Iniciar sessão" subtitle="Utilize as suas credenciais institucionais.">
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+        {notice && !errorMessage && <Alert variant="info">{notice}</Alert>}
         {errorMessage && <Alert variant="error">{errorMessage}</Alert>}
 
         <TextField

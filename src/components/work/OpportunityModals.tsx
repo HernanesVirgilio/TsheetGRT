@@ -4,8 +4,9 @@ import { Button } from '../ui/Button';
 import { Alert } from '../ui/Alert';
 import { SelectField, TextAreaField, TextField } from '../ui/FormField';
 import { InlineCompanyForm } from './InlineCompanyForm';
+import { PeoplePicker } from './PeoplePicker';
 import { getErrorMessage } from '../../lib/errors';
-import { changeOpportunityStatus, createCompany, createOpportunity, updateCompany, updateOpportunity } from '../../services/work/opportunityService';
+import { assignProjectTeam, changeOpportunityStatus, createCompany, createOpportunity, updateCompany, updateOpportunity } from '../../services/work/opportunityService';
 import type { Company, OpportunityDetail, OpportunityStatus, WorkPerson } from '../../types/work';
 import type { CompanyFormField, CompanyFormValues, OpportunityFormField, OpportunityFormValues } from '../../utils/work';
 import {
@@ -144,8 +145,13 @@ interface OpportunityFormModalProps {
   owners: WorkPerson[];
   /** Permite registar a empresa sem sair do formulário (TIMESHEET_OPPORTUNITY_CREATE). */
   canCreateCompany?: boolean;
+  /** Só na criação: candidatos a gestor de execução (perfis de gestão de equipa). */
+  teamLeads?: WorkPerson[];
+  /** Só na criação: colaboradores que podem integrar a equipa do projeto. */
+  people?: WorkPerson[];
   onClose: () => void;
-  onSaved: (opportunityId: string, message: string) => void;
+  /** `warning` quando a oportunidade foi registada mas parte da equipa não ficou associada. */
+  onSaved: (opportunityId: string, message: string, variant?: 'success' | 'warning') => void;
 }
 
 function amountText(value: number | null): string {
@@ -180,10 +186,14 @@ export const OpportunityFormModal: React.FC<OpportunityFormModalProps> = ({
   companies,
   owners,
   canCreateCompany = false,
+  teamLeads = [],
+  people = [],
   onClose,
   onSaved,
 }) => {
   const [values, setValues] = useState<OpportunityFormValues>(() => initialOpportunityValues(opportunity));
+  const [executionLeadId, setExecutionLeadId] = useState('');
+  const [memberIds, setMemberIds] = useState<string[]>([]);
   const [createdCompanies, setCreatedCompanies] = useState<Company[]>([]);
   const [isCompanyFormOpen, setIsCompanyFormOpen] = useState(false);
   const [companyNotice, setCompanyNotice] = useState<string | null>(null);
@@ -200,6 +210,8 @@ export const OpportunityFormModal: React.FC<OpportunityFormModalProps> = ({
     setIsCompanyFormOpen(false);
     setCompanyNotice(null);
     setReason('');
+    setExecutionLeadId('');
+    setMemberIds([]);
     setFieldErrors({});
     setErrorMessage(null);
   }, [isOpen, opportunity]);
@@ -207,6 +219,11 @@ export const OpportunityFormModal: React.FC<OpportunityFormModalProps> = ({
   const updateValue = (field: OpportunityFormField, value: string) => {
     setValues((current) => ({ ...current, [field]: value }));
     setFieldErrors((current) => ({ ...current, [field]: undefined }));
+    // O responsável comercial não pode ser também gestor de execução nem membro.
+    if (field === 'ownerId' && value) {
+      setExecutionLeadId((current) => (current === value ? '' : current));
+      setMemberIds((current) => current.filter((id) => id !== value));
+    }
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -241,7 +258,19 @@ export const OpportunityFormModal: React.FC<OpportunityFormModalProps> = ({
         await updateOpportunity(opportunity.id, input, reason.trim() || null, opportunity.updatedAt);
         onSaved(opportunity.id, 'Oportunidade atualizada.');
       } else {
-        onSaved(await createOpportunity(input, values.ownerId || null), 'Oportunidade registada.');
+        const opportunityId = await createOpportunity(input, values.ownerId || null);
+        const hasTeam = Boolean(executionLeadId) || memberIds.length > 0;
+        const failures = hasTeam ? await assignProjectTeam(opportunityId, executionLeadId || null, memberIds) : [];
+        if (failures.length > 0) {
+          const nameOf = (profileId: string) => [...teamLeads, ...people].find((person) => person.profileId === profileId)?.fullName ?? 'Colaborador';
+          onSaved(
+            opportunityId,
+            `Oportunidade registada, mas não foi possível associar: ${failures.map((failure) => `${nameOf(failure.profileId)} (${failure.error})`).join('; ')}. Pode acrescentá-los na secção Equipa do projeto.`,
+            'warning'
+          );
+        } else {
+          onSaved(opportunityId, hasTeam ? 'Oportunidade registada. A equipa do projeto foi associada e notificada.' : 'Oportunidade registada.');
+        }
       }
     } catch (error) {
       setErrorMessage(getErrorMessage(error, 'Não foi possível guardar a oportunidade.'));
@@ -331,6 +360,40 @@ export const OpportunityFormModal: React.FC<OpportunityFormModalProps> = ({
           <TextField label="Data da próxima atividade" type="date" value={values.nextStepDate} hint="Aparece no calendário." onChange={(event) => updateValue('nextStepDate', event.target.value)} />
         </div>
         <TextAreaField label="Observações" rows={2} maxLength={5000} value={values.notes} onChange={(event) => updateValue('notes', event.target.value)} />
+        {!opportunity && (teamLeads.length > 0 || people.length > 0) && (
+          <fieldset className="space-y-4 rounded-md border border-border p-4">
+            <legend className="px-1 text-sm font-semibold text-text">Equipa do projeto (opcional)</legend>
+            {teamLeads.length > 0 && (
+              <SelectField
+                label="Gestor de execução"
+                value={executionLeadId}
+                hint="Coordena a execução e atribui tarefas à sua equipa; pode ser de outro departamento. Não altera os dados comerciais."
+                onChange={(event) => {
+                  setExecutionLeadId(event.target.value);
+                  setMemberIds((current) => current.filter((id) => id !== event.target.value));
+                }}
+              >
+                <option value="">Sem gestor de execução</option>
+                {teamLeads
+                  .filter((person) => person.profileId !== values.ownerId)
+                  .map((person) => (
+                    <option key={person.profileId} value={person.profileId}>
+                      {person.departmentName ? `${person.fullName} · ${person.departmentName}` : person.fullName}
+                    </option>
+                  ))}
+              </SelectField>
+            )}
+            {people.length > 0 && (
+              <PeoplePicker
+                label="Colaboradores"
+                people={people.filter((person) => person.profileId !== values.ownerId && person.profileId !== executionLeadId)}
+                selectedIds={memberIds}
+                onChange={setMemberIds}
+                hint="Passam a ver a oportunidade, comentar e registar tempo. Cada pessoa é notificada."
+              />
+            )}
+          </fieldset>
+        )}
         {isClosed && (
           <TextAreaField label="Motivo da alteração" required rows={2} maxLength={1000} value={reason} error={fieldErrors.reason} onChange={(event) => setReason(event.target.value)} />
         )}

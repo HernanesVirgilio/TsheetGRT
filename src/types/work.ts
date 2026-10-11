@@ -213,11 +213,27 @@ export interface OpportunityDetail extends OpportunitySummary {
   closedAt: string | null;
 }
 
+/** Responsável comercial, gestor de execução (opcional) ou membro da equipa do projeto. */
+export type OpportunityRole = 'OWNER' | 'EXECUTION_LEAD' | 'MEMBER';
+
 export interface OpportunityPerson {
   profileId: string;
   fullName: string;
   jobTitle: string | null;
   isOwner: boolean;
+  role: OpportunityRole;
+}
+
+/** Período ocupado de um participante: outra reunião ou uma ausência aprovada. */
+export interface ScheduleConflict {
+  profileId: string;
+  fullName: string;
+  kind: 'MEETING' | 'ABSENCE';
+  /** Só preenchidos quando quem organiza pode ver essa reunião. */
+  meetingId: string | null;
+  title: string | null;
+  startsAt: string;
+  endsAt: string;
 }
 
 export interface Attachment {

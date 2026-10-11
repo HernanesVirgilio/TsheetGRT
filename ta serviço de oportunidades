@@ -1,0 +1,136 @@
+[1mdiff --git a/src/services/work/opportunityService.ts b/src/services/work/opportunityService.ts[m
+[1mindex 3cde676..90ff8f5 100644[m
+[1m--- a/src/services/work/opportunityService.ts[m
+[1m+++ b/src/services/work/opportunityService.ts[m
+[36m@@ -1,6 +1,8 @@[m
+ import { supabase } from '../../lib/supabase/client';[m
+ import { toServiceError } from '../../lib/errors';[m
+ import type {[m
+[32m+[m[32m  ApprovalRequest,[m
+[32m+[m[32m  ApprovalRequestStatus,[m
+   Company,[m
+   CompanyStatus,[m
+   OpportunityDetail,[m
+[36m@@ -9,7 +11,7 @@[m [mimport type {[m
+   OpportunitySummary,[m
+   WorkEvent,[m
+ } from '../../types/work';[m
+[31m-import { isCompanyStatus, isOpportunityStatus } from '../../types/work';[m
+[32m+[m[32mimport { isApprovalRequestStatus, isCompanyStatus, isOpportunityApprovalStatus, isOpportunityStatus } from '../../types/work';[m
+ import { isPresent } from '../mappers';[m
+ import { toIlikePattern } from '../../utils/validation';[m
+ import { mapWorkEvent, WORK_EVENT_COLUMNS } from './workEvents';[m
+[36m@@ -93,6 +95,26 @@[m [mexport async function createCompany(input: CompanyInput): Promise<string> {[m
+   return data.id;[m
+ }[m
+ [m
+[32m+[m[32mconst COMPANY_STOP_WORDS = ['lda', 'limitada', 'sociedade', 'empresa', 'grupo', 'comercial'];[m
+[32m+[m
+[32m+[m[32m/**[m
+[32m+[m[32m * Empresas parecidas (mesmo NUIT ou nome semelhante) antes de registar uma nova: evita duplicados[m
+[32m+[m[32m * silenciosos. Os duplicados exatos são também recusados pela base de dados.[m
+[32m+[m[32m */[m
+[32m+[m[32mexport async function findSimilarCompanies(name: string, nuit: string | null): Promise<Company[]> {[m
+[32m+[m[32m  const words = name[m
+[32m+[m[32m    .trim()[m
+[32m+[m[32m    .toLowerCase()[m
+[32m+[m[32m    .split(/[\s,.;()-]+/)[m
+[32m+[m[32m    .filter((word) => word.length >= 4 && !COMPANY_STOP_WORDS.includes(word));[m
+[32m+[m[32m  const filters = words.slice(0, 3).map((word) => `name.ilike.${toIlikePattern(word)}`);[m
+[32m+[m[32m  if (nuit) filters.push(`nuit.eq.${nuit}`);[m
+[32m+[m[32m  if (filters.length === 0) filters.push(`name.ilike.${toIlikePattern(name.trim())}`);[m
+[32m+[m[32m  const { data, error } = await supabase.from('companies').select(COMPANY_SELECT).or(filters.join(',')).order('name').limit(10);[m
+[32m+[m[32m  if (error) throw toServiceError(error, 'Não foi possível verificar empresas semelhantes.');[m
+[32m+[m[32m  return data.map(mapCompany).filter(isPresent);[m
+[32m+[m[32m}[m
+[32m+[m
+ export async function updateCompany(companyId: string, input: CompanyInput): Promise<void> {[m
+   const { error } = await supabase.from('companies').update(toCompanyPayload(input)).eq('id', companyId);[m
+   if (error) throw toServiceError(error, 'Não foi possível guardar a empresa.');[m
+[36m@@ -101,7 +123,7 @@[m [mexport async function updateCompany(companyId: string, input: CompanyInput): Pro[m
+ // ---------------------------------------------------------------------------- oportunidades[m
+ [m
+ const OPPORTUNITY_SELECT =[m
+[31m-  'id, reference, title, company_id, owner_id, status, estimated_value, initial_value, currency, probability, expected_close_date, next_step, next_step_date, contact_name, contact_phone, contact_email, description, problem, proposal, notes, lost_reason, created_by, closed_at, updated_at, company:companies(name), owner:profiles!opportunities_owner_id_fkey(full_name)' as const;[m
+[32m+[m[32m  'id, reference, title, company_id, owner_id, status, estimated_value, initial_value, currency, probability, expected_close_date, next_step, next_step_date, contact_name, contact_phone, contact_email, description, problem, proposal, notes, lost_reason, created_by, closed_at, approval_status, updated_at, company:companies(name), owner:profiles!opportunities_owner_id_fkey(full_name)' as const;[m
+ [m
+ interface OpportunityRow {[m
+   id: string;[m
+[36m@@ -127,13 +149,14 @@[m [minterface OpportunityRow {[m
+   lost_reason: string | null;[m
+   created_by: string | null;[m
+   closed_at: string | null;[m
+[32m+[m[32m  approval_status: string;[m
+   updated_at: string;[m
+   company: { name: string } | null;[m
+   owner: { full_name: string } | null;[m
+ }[m
+ [m
+ function mapOpportunity(row: OpportunityRow): OpportunityDetail | null {[m
+[31m-  if (!isOpportunityStatus(row.status)) return null;[m
+[32m+[m[32m  if (!isOpportunityStatus(row.status) || !isOpportunityApprovalStatus(row.approval_status)) return null;[m
+   return {[m
+     id: row.id,[m
+     reference: row.reference,[m
+[36m@@ -160,6 +183,7 @@[m [mfunction mapOpportunity(row: OpportunityRow): OpportunityDetail | null {[m
+     lostReason: row.lost_reason,[m
+     createdBy: row.created_by,[m
+     closedAt: row.closed_at,[m
+[32m+[m[32m    approvalStatus: row.approval_status,[m
+     updatedAt: row.updated_at,[m
+   };[m
+ }[m
+[36m@@ -317,3 +341,86 @@[m [mexport async function addOpportunityComment(opportunityId: string, body: string)[m
+   const { error } = await supabase.rpc('add_opportunity_comment', { p_opportunity_id: opportunityId, p_body: body });[m
+   if (error) throw toServiceError(error, 'Não foi possível enviar o comentário.');[m
+ }[m
+[32m+[m
+[32m+[m[32m// ---------------------------------------------------------------------------- pedidos de aprovação[m
+[32m+[m
+[32m+[m[32mconst APPROVAL_SELECT =[m
+[32m+[m[32m  'id, reference, opportunity_id, requested_by, title, amount, currency, justification, status, decided_at, decision_comment, created_at, requester:profiles!approval_requests_requested_by_fkey(full_name), decider:profiles!approval_requests_decided_by_fkey(full_name), opportunity:opportunities(reference, title, owner:profiles!opportunities_owner_id_fkey(full_name))' as const;[m
+[32m+[m
+[32m+[m[32minterface ApprovalRow {[m
+[32m+[m[32m  id: string;[m
+[32m+[m[32m  reference: string;[m
+[32m+[m[32m  opportunity_id: string | null;[m
+[32m+[m[32m  requested_by: string;[m
+[32m+[m[32m  title: string;[m
+[32m+[m[32m  amount: number | null;[m
+[32m+[m[32m  currency: string | null;[m
+[32m+[m[32m  justification: string;[m
+[32m+[m[32m  status: string;[m
+[32m+[m[32m  decided_at: string | null;[m
+[32m+[m[32m  decision_comment: string | null;[m
+[32m+[m[32m  created_at: string;[m
+[32m+[m[32m  requester: { full_name: string } | null;[m
+[32m+[m[32m  decider: { full_name: string } | null;[m
+[32m+[m[32m  opportunity: { reference: string; title: string; owner: { full_name: string } | null } | null;[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32mfunction mapApproval(row: ApprovalRow): ApprovalRequest | null {[m
+[32m+[m[32m  if (!isApprovalRequestStatus(row.status)) return null;[m
+[32m+[m[32m  return {[m
+[32m+[m[32m    id: row.id,[m
+[32m+[m[32m    reference: row.reference,[m
+[32m+[m[32m    opportunityId: row.opportunity_id,[m
+[32m+[m[32m    opportunityReference: row.opportunity?.reference ?? null,[m
+[32m+[m[32m    opportunityTitle: row.opportunity?.title ?? null,[m
+[32m+[m[32m    opportunityOwnerName: row.opportunity?.owner?.full_name ?? null,[m
+[32m+[m[32m    requestedBy: row.requested_by,[m
+[32m+[m[32m    // Os nomes só aparecem a quem pode ler esses perfis (RLS de profiles).[m
+[32m+[m[32m    requesterName: row.requester?.full_name ?? null,[m
+[32m+[m[32m    title: row.title,[m
+[32m+[m[32m    amount: row.amount === null ? null : Number(row.amount),[m
+[32m+[m[32m    currency: row.currency,[m
+[32m+[m[32m    justification: row.justification,[m
+[32m+[m[32m    status: row.status,[m
+[32m+[m[32m    deciderName: row.decider?.full_name ?? null,[m
+[32m+[m[32m    decidedAt: row.decided_at,[m
+[32m+[m[32m    decisionComment: row.decision_comment,[m
+[32m+[m[32m    createdAt: row.created_at,[m
+[32m+[m[32m  };[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32m/** Pedidos visíveis (RLS: quem vê a oportunidade). Os pendentes vêm do mais antigo para o mais recente. */[m
+[32m+[m[32mexport async function listApprovalRequests(statuses: ApprovalRequestStatus[], limit = 100): Pro

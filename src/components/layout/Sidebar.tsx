@@ -1,11 +1,12 @@
-import React from 'react';
-import { NavLink } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import {
   Activity,
   BarChart3,
   Briefcase,
   CalendarDays,
   CalendarOff,
+  ChevronRight,
   History,
   Bell,
   Building2,
@@ -33,16 +34,25 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from '../../lib/auth/AuthContext';
+import { useNotifications } from '../../lib/notifications/NotificationsContext';
 import type { PermissionCode } from '../../types';
+import { findActiveSection, parseOpenSections } from '../../utils/navigation';
+import type { NavigationTarget, OpenSections } from '../../utils/navigation';
 import { BrandMark } from './BrandMark';
 
-interface NavigationItem {
-  to: string;
+interface NavigationItem extends NavigationTarget {
   label: string;
   icon: LucideIcon;
-  permission: PermissionCode;
-  /** Ativo apenas no caminho exato (ex.: "/it" não deve ficar ativo em "/it/tickets"). */
-  end?: boolean;
+  /** Sem permissão indicada, o item está disponível para qualquer conta com acesso. */
+  permission?: PermissionCode;
+}
+
+type SectionId = 'work' | 'team' | 'it' | 'analysis' | 'administration' | 'account';
+
+interface NavigationSection {
+  id: SectionId;
+  title: string;
+  items: NavigationItem[];
 }
 
 // Área de gestão de equipa: apresentada a gestores, sempre condicionada à permissão.
@@ -87,35 +97,92 @@ const ADMINISTRATION_ITEMS: NavigationItem[] = [
   { to: '/settings', label: 'Configurações', icon: Settings, permission: 'SYSTEM_SETTINGS_READ' },
 ];
 
+const ACCOUNT_ITEMS: NavigationItem[] = [
+  { to: '/profile', label: 'Meu Perfil', icon: UserCircle },
+  { to: '/notifications', label: 'Notificações', icon: Bell },
+];
+
+// Preferência de interface (não sensível): sobrevive à navegação e a novas sessões neste browser.
+const OPEN_SECTIONS_STORAGE_KEY = 'tsheetgrt.sidebar.open-sections';
+
+function readStoredOpenSections(): OpenSections {
+  try {
+    return parseOpenSections(window.localStorage.getItem(OPEN_SECTIONS_STORAGE_KEY));
+  } catch {
+    return {};
+  }
+}
+
+function storeOpenSections(openSections: OpenSections): void {
+  try {
+    window.localStorage.setItem(OPEN_SECTIONS_STORAGE_KEY, JSON.stringify(openSections));
+  } catch {
+    // Armazenamento indisponível (modo privado, bloqueado): o menu funciona sem memória.
+  }
+}
+
+// Contorno de foco branco: o verde do foco global não tem contraste suficiente sobre o fundo do menu.
+const FOCUS_CLASS = 'focus-visible:outline-white';
+
 function navigationLinkClass({ isActive }: { isActive: boolean }): string {
-  return `flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+  return `flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${FOCUS_CLASS} ${
     isActive ? 'bg-primary text-on-primary' : 'text-sidebar-muted hover:bg-sidebar-hover hover:text-white'
   }`;
 }
 
-interface SidebarLinkProps {
-  to: string;
-  label: string;
-  icon: LucideIcon;
-  end?: boolean;
+const CountBadge: React.FC<{ value: number; label: string }> = ({ value, label }) => (
+  <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1.5 text-[11px] font-bold text-sidebar">
+    {value > 99 ? '99+' : value}
+    <span className="sr-only"> {label}</span>
+  </span>
+);
+
+interface SidebarLinkProps extends NavigationItem {
+  badge?: number;
   onNavigate?: () => void;
 }
 
-const SidebarLink: React.FC<SidebarLinkProps> = ({ to, label, icon: Icon, end, onNavigate }) => (
+const SidebarLink: React.FC<SidebarLinkProps> = ({ to, label, icon: Icon, end, badge = 0, onNavigate }) => (
   <li>
     <NavLink to={to} end={end} className={navigationLinkClass} onClick={onNavigate}>
       <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-      <span>{label}</span>
+      <span className="min-w-0 truncate">{label}</span>
+      {badge > 0 && <CountBadge value={badge} label="por ler" />}
     </NavLink>
   </li>
 );
 
-const SidebarSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-  <div className="border-t border-white/15 pt-4">
-    <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-sidebar-muted">{title}</p>
-    <ul className="space-y-1">{children}</ul>
-  </div>
-);
+interface SidebarSectionProps {
+  id: SectionId;
+  title: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  /** Total a destacar no título quando a secção está recolhida (ex.: notificações por ler). */
+  badge: number;
+  children: React.ReactNode;
+}
+
+const SidebarSection: React.FC<SidebarSectionProps> = ({ id, title, isOpen, onToggle, badge, children }) => {
+  const listId = `menu-seccao-${id}`;
+  return (
+    <div className="border-t border-white/15 pt-2">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={isOpen}
+        aria-controls={listId}
+        className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-sidebar-muted hover:bg-sidebar-hover hover:text-white ${FOCUS_CLASS}`}
+      >
+        <ChevronRight className={`h-3.5 w-3.5 shrink-0 transition-transform ${isOpen ? 'rotate-90' : ''}`} aria-hidden="true" />
+        <span className="flex-1">{title}</span>
+        {!isOpen && badge > 0 && <CountBadge value={badge} label="por ler" />}
+      </button>
+      <ul id={listId} hidden={!isOpen} className="mt-1 space-y-1">
+        {children}
+      </ul>
+    </div>
+  );
+};
 
 interface SidebarProps {
   onNavigate?: () => void;
@@ -123,16 +190,47 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ onNavigate }) => {
   const { currentUser, role, hasPermission, signOut } = useAuth();
+  const { unreadCount } = useNotifications();
+  const { pathname } = useLocation();
 
   // Gestão de equipa: o gestor gere a equipa direta; o Manager supervisiona os gestores e as suas equipas.
   const isTeamManager = role === 'MANAGER' || role === 'GESTOR';
   const showOwnTimesheet = (role === 'EMPLOYEE' || role === 'MANAGER' || role === 'GESTOR') && hasPermission('SELF_TIMESHEET_READ');
-  const visibleTeamItems = isTeamManager ? TEAM_ITEMS.filter((item) => hasPermission(item.permission)) : [];
   const showSupportRequests = hasPermission('IT_TICKET_CREATE');
-  const visibleWorkItems = WORK_ITEMS.filter((item) => hasPermission(item.permission));
-  const visibleItItems = IT_ITEMS.filter((item) => hasPermission(item.permission));
-  const visibleAnalysisItems = ANALYSIS_ITEMS.filter((item) => hasPermission(item.permission));
-  const visibleAdministrationItems = ADMINISTRATION_ITEMS.filter((item) => hasPermission(item.permission));
+  const allowed = (items: NavigationItem[]) => items.filter((item) => !item.permission || hasPermission(item.permission));
+
+  const candidateSections: NavigationSection[] = [
+    { id: 'work', title: 'Trabalho', items: allowed(WORK_ITEMS) },
+    { id: 'team', title: 'Gestão de equipa', items: isTeamManager ? allowed(TEAM_ITEMS) : [] },
+    { id: 'it', title: 'Suporte IT', items: allowed(IT_ITEMS) },
+    { id: 'analysis', title: 'Análise', items: allowed(ANALYSIS_ITEMS) },
+    { id: 'administration', title: 'Administração', items: allowed(ADMINISTRATION_ITEMS) },
+    { id: 'account', title: 'Conta', items: ACCOUNT_ITEMS },
+  ];
+  const sections = candidateSections.filter((section) => section.items.length > 0);
+
+  const badges: Partial<Record<string, number>> = { '/notifications': unreadCount };
+  const activeSectionId = findActiveSection(sections, pathname);
+
+  // A secção da página atual começa aberta; as restantes ficam como o utilizador as deixou.
+  const [openSections, setOpenSections] = useState<OpenSections>(() => {
+    const stored = readStoredOpenSections();
+    return activeSectionId ? { ...stored, [activeSectionId]: true } : stored;
+  });
+
+  // Ao chegar a outra página (pelo menu, um atalho ou uma notificação), abre a secção que a contém.
+  // Só reage à mudança de página: o utilizador pode recolher a secção atual sem que ela volte a abrir.
+  useEffect(() => {
+    if (!activeSectionId) return;
+    setOpenSections((previous) => (previous[activeSectionId] ? previous : { ...previous, [activeSectionId]: true }));
+  }, [activeSectionId, pathname]);
+
+  useEffect(() => {
+    storeOpenSections(openSections);
+  }, [openSections]);
+
+  const toggleSection = (sectionId: SectionId) =>
+    setOpenSections((previous) => ({ ...previous, [sectionId]: !previous[sectionId] }));
 
   return (
     <aside className="flex h-full w-64 shrink-0 flex-col bg-sidebar text-white">
@@ -140,8 +238,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNavigate }) => {
         <BrandMark inverted />
       </div>
 
-      <nav aria-label="Navegação principal" className="flex-1 space-y-4 overflow-y-auto px-3 py-4 custom-scrollbar">
-        <ul className="space-y-1">
+      <nav aria-label="Navegação principal" className="flex-1 space-y-2 overflow-y-auto px-3 py-4 custom-scrollbar">
+        <ul className="space-y-1 pb-2">
           <SidebarLink to="/dashboard" label="Dashboard" icon={LayoutDashboard} onNavigate={onNavigate} />
 
           {showOwnTimesheet && (
@@ -153,50 +251,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNavigate }) => {
           )}
         </ul>
 
-        {visibleWorkItems.length > 0 && (
-          <SidebarSection title="Trabalho">
-            {visibleWorkItems.map((item) => (
-              <SidebarLink key={item.to} {...item} onNavigate={onNavigate} />
+        {sections.map((section) => (
+          <SidebarSection
+            key={section.id}
+            id={section.id}
+            title={section.title}
+            isOpen={openSections[section.id] ?? false}
+            onToggle={() => toggleSection(section.id)}
+            badge={section.items.reduce((total, item) => total + (badges[item.to] ?? 0), 0)}
+          >
+            {section.items.map((item) => (
+              <SidebarLink key={item.to} {...item} badge={badges[item.to]} onNavigate={onNavigate} />
             ))}
           </SidebarSection>
-        )}
-
-        {visibleTeamItems.length > 0 && (
-          <SidebarSection title="Gestão de equipa">
-            {visibleTeamItems.map((item) => (
-              <SidebarLink key={item.to} {...item} onNavigate={onNavigate} />
-            ))}
-          </SidebarSection>
-        )}
-
-        {visibleItItems.length > 0 && (
-          <SidebarSection title="Suporte IT">
-            {visibleItItems.map((item) => (
-              <SidebarLink key={item.to} {...item} onNavigate={onNavigate} />
-            ))}
-          </SidebarSection>
-        )}
-
-        {visibleAnalysisItems.length > 0 && (
-          <SidebarSection title="Análise">
-            {visibleAnalysisItems.map((item) => (
-              <SidebarLink key={item.to} {...item} onNavigate={onNavigate} />
-            ))}
-          </SidebarSection>
-        )}
-
-        {visibleAdministrationItems.length > 0 && (
-          <SidebarSection title="Administração">
-            {visibleAdministrationItems.map((item) => (
-              <SidebarLink key={item.to} {...item} onNavigate={onNavigate} />
-            ))}
-          </SidebarSection>
-        )}
-
-        <SidebarSection title="Conta">
-          <SidebarLink to="/profile" label="Meu Perfil" icon={UserCircle} onNavigate={onNavigate} />
-          <SidebarLink to="/notifications" label="Notificações" icon={Bell} onNavigate={onNavigate} />
-        </SidebarSection>
+        ))}
       </nav>
 
       {currentUser && (
@@ -210,7 +278,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNavigate }) => {
             onClick={() => signOut()}
             aria-label="Terminar sessão"
             title="Terminar sessão"
-            className="shrink-0 rounded-md p-2 text-sidebar-muted hover:bg-sidebar-hover hover:text-white"
+            className={`shrink-0 rounded-md p-2 text-sidebar-muted hover:bg-sidebar-hover hover:text-white ${FOCUS_CLASS}`}
           >
             <LogOut className="h-4 w-4" aria-hidden="true" />
           </button>

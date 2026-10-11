@@ -1,6 +1,6 @@
 import { supabase } from '../../lib/supabase/client';
 import { toServiceError } from '../../lib/errors';
-import type { MeetingDetail, MeetingPerson, MeetingStatus, MeetingSummary, WorkEvent } from '../../types/work';
+import type { MeetingDetail, MeetingPerson, MeetingStatus, MeetingSummary, ScheduleConflict, WorkEvent } from '../../types/work';
 import { isMeetingStatus } from '../../types/work';
 import { isPresent } from '../mappers';
 import { toIlikePattern } from '../../utils/validation';
@@ -158,6 +158,40 @@ export async function updateMeeting(meetingId: string, input: MeetingInput, expe
     p_expected_updated_at: expectedUpdatedAt,
   });
   if (error) throw toServiceError(error, 'Não foi possível guardar a reunião.');
+}
+
+export interface ConflictQuery {
+  profileIds: string[];
+  startsAt: string;
+  endsAt: string;
+  /** Na edição, a própria reunião não conta como conflito. */
+  excludeMeetingId?: string | null;
+  links?: { taskId?: string | null; opportunityId?: string | null };
+}
+
+/**
+ * Reuniões ativas e ausências aprovadas que se sobrepõem ao intervalo. O servidor só consulta pessoas que
+ * quem organiza pode convidar e só devolve o título das reuniões que essa pessoa pode ver.
+ */
+export async function getScheduleConflicts(query: ConflictQuery): Promise<ScheduleConflict[]> {
+  const { data, error } = await supabase.rpc('get_schedule_conflicts', {
+    p_profile_ids: query.profileIds,
+    p_starts_at: query.startsAt,
+    p_ends_at: query.endsAt,
+    p_exclude_meeting_id: query.excludeMeetingId ?? null,
+    p_task_id: query.links?.taskId ?? null,
+    p_opportunity_id: query.links?.opportunityId ?? null,
+  });
+  if (error) throw toServiceError(error, 'Não foi possível verificar a disponibilidade dos participantes.');
+  return data.map((row) => ({
+    profileId: row.profile_id,
+    fullName: row.full_name,
+    kind: row.conflict_type === 'ABSENCE' ? 'ABSENCE' : 'MEETING',
+    meetingId: row.meeting_id,
+    title: row.title,
+    startsAt: row.starts_at,
+    endsAt: row.ends_at,
+  }));
 }
 
 export async function confirmMeeting(meetingId: string): Promise<void> {
