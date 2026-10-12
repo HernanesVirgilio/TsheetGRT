@@ -35,7 +35,7 @@ const COLUMNS: DataTableColumn<AuditEventWithActor>[] = translatedFields([
 ], ['header']);
 
 /** Registo de auditoria dos timesheets da equipa (a RLS limita os eventos ao âmbito do gestor). */
-export const TeamActivityPage: React.FC = () => {
+export const TeamActivityPage: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const [action, setAction] = useState('');
   const [actorSearch, setActorSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -52,7 +52,11 @@ export const TeamActivityPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={t('Atividade da equipa')} subtitle={t('Criação, submissão e decisões sobre os timesheets da sua equipa.')} />
+      {embedded ? (
+        <p className="text-sm text-text-secondary">{t('Criação, submissão e decisões sobre os timesheets da sua equipa.')}</p>
+      ) : (
+        <PageHeader title={t('Atividade da equipa')} subtitle={t('Criação, submissão e decisões sobre os timesheets da sua equipa.')} />
+      )}
 
       <Panel flush>
         <div className="grid grid-cols-1 gap-3 border-b border-border p-4 sm:grid-cols-2">

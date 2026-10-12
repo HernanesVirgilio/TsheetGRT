@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertCircle, CheckCircle2, ClipboardCheck, Network, Users } from 'lucide-react';
+import { AlertCircle, BarChart3, CalendarPlus, CheckCircle2, ClipboardCheck, Network, Users } from 'lucide-react';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import { listMyScopes, listTeamTimesheets } from '../../services/managerService';
@@ -10,7 +10,8 @@ import { listTeamAbsences } from '../../services/work/absenceService';
 import { listApprovalRequests } from '../../services/work/opportunityService';
 import { listDepartments } from '../../services/departmentService';
 import type { SupervisionRow } from '../../types/work';
-import { PageHeader } from '../../components/ui/PageHeader';
+import { DashboardHeader } from '../../components/layout/DashboardHeader';
+import { HeaderLink, ReviewApprovalsLink } from '../../components/work/ReviewApprovalsLink';
 import { Panel } from '../../components/ui/Panel';
 import { Alert } from '../../components/ui/Alert';
 import { StatCard } from '../../components/ui/StatCard';
@@ -55,7 +56,7 @@ const PendingDecisionsPanel: React.FC<{ viewerId: string; directIds: Set<string>
           {(absences.data ?? []).length > 0 && (
             <section className="px-5 py-3">
               <h3 className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-text-secondary">
-                {t('Ausências validadas pelos gestores')} <PanelLink to="/timesheet/absences?tab=TEAM">{t('Decidir')}</PanelLink>
+                {t('Ausências validadas pelos gestores')} <PanelLink to="/approvals?tab=absences">{t('Decidir')}</PanelLink>
               </h3>
               <ul className="space-y-1.5 text-sm">
                 {(absences.data ?? []).slice(0, PREVIEW).map((request) => (
@@ -72,7 +73,7 @@ const PendingDecisionsPanel: React.FC<{ viewerId: string; directIds: Set<string>
           {myApprovals.length > 0 && (
             <section className="px-5 py-3">
               <h3 className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-text-secondary">
-                {t('Oportunidades para aprovar')} <PanelLink to="/timesheet/approvals">{t('Decidir')}</PanelLink>
+                {t('Oportunidades para aprovar')} <PanelLink to="/approvals?tab=opportunities">{t('Decidir')}</PanelLink>
               </h3>
               <ul className="space-y-1.5 text-sm">
                 {myApprovals.slice(0, PREVIEW).map((request) => (
@@ -183,11 +184,27 @@ export const ManagerDashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={t('Supervisão')} subtitle={t('Gestores, equipas supervisionadas, decisões que lhe competem e resultados do período.')} />
+      <DashboardHeader
+        message={t('As decisões que lhe competem, o estado das equipas supervisionadas e os resultados do período.')}
+        actions={
+          <>
+            <HeaderLink to="/timesheet/meetings" icon={CalendarPlus}>
+              {t('Agendar reunião')}
+            </HeaderLink>
+            <HeaderLink to="/team" icon={Users}>
+              {t('Ver equipa')}
+            </HeaderLink>
+            <HeaderLink to="/reports" icon={BarChart3}>
+              {t('Relatórios')}
+            </HeaderLink>
+            <ReviewApprovalsLink />
+          </>
+        }
+      />
 
       {scopes.data && scopes.data.length === 0 && (
-        <Alert variant="warning" title={t('Sem gestores atribuídos')}>
-          {t('Ainda não lhe foram atribuídos gestores ou equipas. Contacte a administração.')}
+        <Alert variant="warning" title={t('Sem equipa configurada')}>
+          {t('Ainda não lhe foram atribuídos gestores nem colaboradores. A atribuição é feita por um administrador autorizado.')}
         </Alert>
       )}
 
@@ -231,7 +248,7 @@ export const ManagerDashboard: React.FC = () => {
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <div className="space-y-6 xl:col-span-2">
-          <Panel title={t('Gestores e equipas')} actions={<PanelLink to="/timesheet/team">{t('Carga da equipa')}</PanelLink>} flush>
+          <Panel title={t('Gestores e equipas')} actions={<PanelLink to="/team?tab=workload">{t('Carga de trabalho')}</PanelLink>} flush>
             {supervision.error && (
               <div className="p-4">
                 <ErrorState message={supervision.error} onRetry={supervision.reload} />
@@ -239,7 +256,7 @@ export const ManagerDashboard: React.FC = () => {
             )}
             {supervision.isLoading && !supervision.data && <LoadingState label={t('A carregar as equipas...')} />}
             {supervision.data && supervision.data.length === 0 && (
-              <EmptyState bordered={false} icon={Network} title={t('Ainda não supervisiona gestores.')} message={t('A atribuição de gestores é feita pela administração.')} />
+              <EmptyState bordered={false} icon={Network} title={t('Sem equipas configuradas.')} message={t('A atribuição de gestores e colaboradores é feita por um administrador autorizado.')} />
             )}
             {supervision.data && supervision.data.length > 0 && (
               <DataTable caption={t('Gestores e equipas supervisionadas')} columns={supervisionColumns} rows={supervision.data} getRowKey={(row) => row.leadId ?? 'direct'} />

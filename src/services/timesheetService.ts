@@ -181,3 +181,41 @@ export async function listActiveActivities(): Promise<Activity[]> {
   if (error) throw toServiceError(error, t('Não foi possível carregar as atividades.'));
   return data;
 }
+
+export type TimesheetHistoryAction =
+  | 'timesheet.created'
+  | 'timesheet.submitted'
+  | 'timesheet.approved'
+  | 'timesheet.rejected'
+  | 'timesheet.reopened'
+  | 'timesheet.locked';
+
+export interface TimesheetHistoryEvent {
+  id: string;
+  action: TimesheetHistoryAction;
+  actorName: string | null;
+  comment: string | null;
+  createdAt: string;
+}
+
+const HISTORY_ACTIONS: readonly string[] = [
+  'timesheet.created',
+  'timesheet.submitted',
+  'timesheet.approved',
+  'timesheet.rejected',
+  'timesheet.reopened',
+  'timesheet.locked',
+];
+
+const isHistoryAction = (value: string): value is TimesheetHistoryAction => HISTORY_ACTIONS.includes(value);
+
+/** Histórico guardado do timesheet (auditoria e decisões), por ordem cronológica. Nunca é reconstruído. */
+export async function getTimesheetHistory(timesheetId: string): Promise<TimesheetHistoryEvent[]> {
+  const { data, error } = await supabase.rpc('get_timesheet_history', { p_timesheet_id: timesheetId });
+  if (error) throw toServiceError(error, t('Não foi possível carregar o histórico do timesheet.'));
+  return data.flatMap((row) =>
+    isHistoryAction(row.action)
+      ? [{ id: row.event_id, action: row.action, actorName: row.actor_name, comment: row.comment, createdAt: row.created_at }]
+      : []
+  );
+}

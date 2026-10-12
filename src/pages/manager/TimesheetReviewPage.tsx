@@ -16,7 +16,7 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import { TimesheetEntriesTable } from '../../components/timesheets/TimesheetEntriesTable';
 import { TimesheetStatusNotice } from '../../components/timesheets/TimesheetStatusNotice';
 import { PeriodAbsencesNotice } from '../../components/work/PeriodAbsencesNotice';
-import { DecisionHistory } from '../../components/timesheets/DecisionHistory';
+import { TimesheetApprovalPanel } from '../../components/timesheets/ApprovalFlow';
 import { ReviewDecisionModal } from '../../components/manager/ReviewDecisionModal';
 import { formatMinutesAsHours, formatPeriod } from '../../utils/format';
 import { isUuid } from '../../utils/validation';
@@ -98,6 +98,7 @@ export const TimesheetReviewPage: React.FC = () => {
         </Alert>
       )}
       <TimesheetStatusNotice summary={summary} decisions={decisions} audience="reviewer" />
+      <TimesheetApprovalPanel summary={summary} />
       <PeriodAbsencesNotice employeeId={summary.employeeId} from={summary.periodStart} to={summary.periodEnd} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -110,7 +111,6 @@ export const TimesheetReviewPage: React.FC = () => {
         <TimesheetEntriesTable entries={entries} emptyMessage={t('Este timesheet não tem registos.')} />
       </Panel>
 
-      <DecisionHistory decisions={decisions} />
 
       <ReviewDecisionModal
         timesheet={decision ? summary : null}

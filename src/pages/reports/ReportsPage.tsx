@@ -94,7 +94,14 @@ const GROUP_HEADERS: Partial<Record<ReportTab, string>> = {
   BY_PERIOD: 'Período',
 };
 
-export const ReportsPage: React.FC = () => {
+interface ReportsPageProps {
+  /** Dentro do centro de relatórios: sem cabeçalho próprio e com o período escolhido na barra comum. */
+  embedded?: boolean;
+  period?: { from: string; to: string };
+}
+
+/** Timesheets do período por colaborador, departamento e estado (separador "Timesheets"). */
+export const ReportsPage: React.FC<ReportsPageProps> = ({ embedded = false, period }) => {
   const { hasPermission } = useAuth();
   const canExport = hasPermission('REPORTS_EXPORT');
 
@@ -102,8 +109,10 @@ export const ReportsPage: React.FC = () => {
   const [departmentId, setDepartmentId] = useState(ALL);
   const [employeeId, setEmployeeId] = useState(ALL);
   const [status, setStatus] = useState(ALL);
-  const [periodFrom, setPeriodFrom] = useState('');
-  const [periodTo, setPeriodTo] = useState('');
+  const [ownFrom, setPeriodFrom] = useState('');
+  const [ownTo, setPeriodTo] = useState('');
+  const periodFrom = period?.from ?? ownFrom;
+  const periodTo = period?.to ?? ownTo;
 
   const isStatusFixed = activeTab === 'PENDING_APPROVALS' || activeTab === 'MISSING_SUBMISSIONS';
   const filters: ReportFilters = {
@@ -163,17 +172,28 @@ export const ReportsPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={t('Relatórios')}
-        subtitle={t('Consolidação dos timesheets visíveis para o seu perfil.')}
-        actions={
-          canExport && (
+      {embedded ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-text-secondary">{t('Timesheets cujo período coincide com o período escolhido.')}</p>
+          {canExport && (
             <Button variant="secondary" icon={Download} onClick={handleExport} disabled={rows.length === 0}>
               {t('Exportar CSV')}
             </Button>
-          )
-        }
-      />
+          )}
+        </div>
+      ) : (
+        <PageHeader
+          title={t('Relatórios')}
+          subtitle={t('Consolidação dos timesheets visíveis para o seu perfil.')}
+          actions={
+            canExport && (
+              <Button variant="secondary" icon={Download} onClick={handleExport} disabled={rows.length === 0}>
+                {t('Exportar CSV')}
+              </Button>
+            )
+          }
+        />
+      )}
 
       <div role="tablist" aria-label={t('Tipo de relatório')} className="flex gap-1 overflow-x-auto border-b border-border custom-scrollbar">
         {TABS.map((tab) => (
@@ -195,7 +215,7 @@ export const ReportsPage: React.FC = () => {
       </div>
 
       <Panel>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${period ? 'lg:grid-cols-3' : 'lg:grid-cols-5'}`}>
           <SelectField label={t('Departamento')} value={departmentId} onChange={(event) => setDepartmentId(event.target.value)}>
             <option value={ALL}>{t('Todos')}</option>
             {departments.map((department) => (
@@ -218,15 +238,19 @@ export const ReportsPage: React.FC = () => {
             disabled={isStatusFixed}
             onChange={(event) => setStatus(event.target.value)}
           >
-            <option value={ALL}>{isStatusFixed ? t('Definido pelo relatório') : 'Todos'}</option>
+            <option value={ALL}>{isStatusFixed ? t('Definido pelo relatório') : t('Todos')}</option>
             {Object.entries(STATUS_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
               </option>
             ))}
           </SelectField>
-          <TextField label={t('Período a partir de')} type="date" value={periodFrom} onChange={(event) => setPeriodFrom(event.target.value)} />
-          <TextField label={t('Período até')} type="date" value={periodTo} onChange={(event) => setPeriodTo(event.target.value)} />
+          {!period && (
+            <>
+              <TextField label={t('Período a partir de')} type="date" value={periodFrom} onChange={(event) => setPeriodFrom(event.target.value)} />
+              <TextField label={t('Período até')} type="date" value={periodTo} onChange={(event) => setPeriodTo(event.target.value)} />
+            </>
+          )}
         </div>
         {filterOptions.error && <p className="mt-3 text-sm text-danger">{filterOptions.error}</p>}
       </Panel>

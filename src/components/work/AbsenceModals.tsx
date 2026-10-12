@@ -4,7 +4,7 @@ import { Button } from '../ui/Button';
 import { Alert } from '../ui/Alert';
 import { SelectField, TextAreaField, TextField } from '../ui/FormField';
 import { getErrorMessage } from '../../lib/errors';
-import { decideAbsence, saveAbsence, validateAbsence } from '../../services/work/absenceService';
+import { communicateAbsence, decideAbsence, saveAbsence, validateAbsence } from '../../services/work/absenceService';
 import type { AbsenceDecision, AbsenceRequest, AbsenceType, AbsenceValidation } from '../../types/work';
 import type { AbsenceFormField, AbsenceFormValues } from '../../utils/work';
 import { daysBetween, validateAbsenceForm, validateReason } from '../../utils/work';
@@ -18,11 +18,17 @@ interface AbsenceFormModalProps {
   /** Null = novo pedido; caso contrário, rascunho a corrigir. */
   request: AbsenceRequest | null;
   types: AbsenceType[];
+  /**
+   * REQUEST: pedido formal (rascunho → validação → decisão).
+   * NOTICE: comunicar indisponibilidade, sem aprovação; fica registada como comunicada, nunca como aprovada.
+   */
+  mode?: 'REQUEST' | 'NOTICE';
   onClose: () => void;
   onSaved: (requestId: string) => void;
 }
 
-export const AbsenceFormModal: React.FC<AbsenceFormModalProps> = ({ isOpen, request, types, onClose, onSaved }) => {
+export const AbsenceFormModal: React.FC<AbsenceFormModalProps> = ({ isOpen, request, types, mode = 'REQUEST', onClose, onSaved }) => {
+  const isNotice = mode === 'NOTICE';
   const [values, setValues] = useState<AbsenceFormValues>({ absenceTypeId: '', startDate: '', endDate: '', reason: '' });
   const [fieldErrors, setFieldErrors] = useState<FieldErrors<AbsenceFormField>>({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -56,15 +62,16 @@ export const AbsenceFormModal: React.FC<AbsenceFormModalProps> = ({ isOpen, requ
     if (hasErrors(errors)) return;
     setIsSubmitting(true);
     try {
-      const requestId = await saveAbsence(request?.id ?? null, {
+      const input = {
         absenceTypeId: values.absenceTypeId,
         startDate: values.startDate,
         endDate: values.endDate,
         reason: values.reason.trim(),
-      });
+      };
+      const requestId = isNotice ? await communicateAbsence(input) : await saveAbsence(request?.id ?? null, input);
       onSaved(requestId);
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, t('Não foi possível guardar o pedido.')));
+      setErrorMessage(getErrorMessage(error, isNotice ? t('Não foi possível comunicar a ausência.') : t('Não foi possível guardar o pedido.')));
     } finally {
       setIsSubmitting(false);
     }
@@ -74,8 +81,12 @@ export const AbsenceFormModal: React.FC<AbsenceFormModalProps> = ({ isOpen, requ
   return (
     <Modal
       isOpen={isOpen}
-      title={request ? t('Corrigir {reference}', { reference: request.reference }) : t('Novo pedido de ausência')}
-      description={t('O pedido fica em rascunho até o submeter. Segue para o gestor da equipa (validação) e depois para o Manager (decisão).')}
+      title={isNotice ? t('Comunicar ausência') : request ? t('Corrigir {reference}', { reference: request.reference }) : t('Solicitar ausência')}
+      description={
+        isNotice
+          ? t('Informa as suas chefias configuradas e a sua equipa direta. Fica registada como ausência comunicada, sem aprovação formal.')
+          : t('O pedido fica em rascunho até o submeter. Segue para o gestor da equipa (validação) e depois para o Manager (decisão).')
+      }
       isBusy={isSubmitting}
       onClose={onClose}
       footer={
@@ -84,7 +95,7 @@ export const AbsenceFormModal: React.FC<AbsenceFormModalProps> = ({ isOpen, requ
             {t('Cancelar')}
           </Button>
           <Button type="submit" form={formId} isLoading={isSubmitting}>
-            {t('Guardar rascunho')}
+            {isNotice ? t('Comunicar') : t('Guardar rascunho')}
           </Button>
         </>
       }
@@ -103,10 +114,10 @@ export const AbsenceFormModal: React.FC<AbsenceFormModalProps> = ({ isOpen, requ
             </option>
           ))}
         </SelectField>
-        {selectedType && !selectedType.requiresManagerApproval && (
+        {!isNotice && selectedType && !selectedType.requiresManagerApproval && (
           <Alert variant="info">{t('Este tipo de ausência fica aprovado com a validação do gestor da equipa.')}</Alert>
         )}
-        {selectedType?.requiresAttachment && (
+        {!isNotice && selectedType?.requiresAttachment && (
           <Alert variant="info">{t('Este tipo exige um comprovativo: anexe-o ao pedido antes de o submeter.')}</Alert>
         )}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

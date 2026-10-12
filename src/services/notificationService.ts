@@ -32,6 +32,15 @@ export async function refreshDeadlineAlerts(): Promise<void> {
   if (error) throw toServiceError(error, t('Não foi possível atualizar os alertas de prazo.'));
 }
 
+/**
+ * Lembretes por regra, gerados no servidor sem duplicados: aprovações pendentes há mais dias do que o
+ * configurado (APPROVAL_REMINDER_DAYS) e timesheets com o período terminado ainda por submeter.
+ */
+export async function refreshApprovalReminders(): Promise<void> {
+  const { error } = await supabase.rpc('refresh_approval_reminders');
+  if (error) throw toServiceError(error, t('Não foi possível atualizar os lembretes.'));
+}
+
 export async function markNotificationAsRead(notificationId: string): Promise<void> {
   const { error } = await supabase
     .from('notifications')

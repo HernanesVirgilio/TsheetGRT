@@ -3,7 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-route
 import { AuthProvider } from './lib/auth/AuthContext';
 import { PreferencesProvider } from './lib/preferences/PreferencesContext';
 import { consumeAuthRedirect } from './lib/supabase/client';
-import { ROUTE_PERMISSIONS } from './lib/auth/routeAccess';
+import { LEGACY_REDIRECTS, ROUTE_PERMISSIONS } from './lib/auth/routeAccess';
 import type { PermissionRoutePath } from './lib/auth/routeAccess';
 import { AppShell } from './components/layout/AppShell';
 import { ProtectedRoute } from './components/layout/ProtectedRoute';
@@ -23,15 +23,14 @@ import { NotificationsPage } from './pages/notifications/NotificationsPage';
 import { TimesheetListPage } from './pages/timesheets/TimesheetListPage';
 import { TimesheetDetailPage } from './pages/timesheets/TimesheetDetailPage';
 
-// Gestão de equipa (Manager)
-import { TeamPage } from './pages/manager/TeamPage';
+// Equipa, aprovações e relatórios (módulos consolidados)
+import { TeamHubPage } from './pages/team/TeamHubPage';
 import { TeamMemberPage } from './pages/manager/TeamMemberPage';
-import { ApprovalsPage } from './pages/manager/ApprovalsPage';
+import { ApprovalsCenterPage } from './pages/approvals/ApprovalsCenterPage';
 import { TimesheetReviewPage } from './pages/manager/TimesheetReviewPage';
-import { TeamActivityPage } from './pages/manager/TeamActivityPage';
+import { ReportsCenterPage } from './pages/reports/ReportsCenterPage';
 
 // Trabalho (Timesheet Core)
-import { WorkCenterPage } from './pages/work/WorkCenterPage';
 import { TasksPage } from './pages/work/TasksPage';
 import { TaskDetailPage } from './pages/work/TaskDetailPage';
 import { WorkLogPage } from './pages/work/WorkLogPage';
@@ -42,9 +41,6 @@ import { AbsencesPage } from './pages/work/AbsencesPage';
 import { OpportunitiesPage } from './pages/work/OpportunitiesPage';
 import { OpportunityDetailPage } from './pages/work/OpportunityDetailPage';
 import { CompaniesPage } from './pages/work/CompaniesPage';
-import { TeamWorkPage } from './pages/work/TeamWorkPage';
-import { TeamReportsPage } from './pages/work/TeamReportsPage';
-import { ApprovalRequestsPage } from './pages/work/ApprovalRequestsPage';
 
 // Suporte IT
 import { SupportTicketsPage } from './pages/it/SupportTicketsPage';
@@ -56,7 +52,6 @@ import { AssetDetailPage } from './pages/it/AssetDetailPage';
 import { InterventionsPage } from './pages/it/InterventionsPage';
 
 // Administração
-import { ReportsPage } from './pages/reports/ReportsPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { UserDetailPage } from './pages/admin/UserDetailPage';
 import { DepartmentsPage } from './pages/admin/DepartmentsPage';
@@ -79,7 +74,6 @@ interface PermissionRoute {
 const PERMISSION_ROUTES: PermissionRoute[] = [
   { path: '/timesheets', element: <TimesheetListPage /> },
   { path: '/timesheets/:id', element: <TimesheetDetailPage /> },
-  { path: '/timesheet', element: <WorkCenterPage /> },
   { path: '/timesheet/tasks', element: <TasksPage /> },
   { path: '/timesheet/tasks/:id', element: <TaskDetailPage /> },
   { path: '/timesheet/activities', element: <WorkLogPage /> },
@@ -90,14 +84,10 @@ const PERMISSION_ROUTES: PermissionRoute[] = [
   { path: '/timesheet/opportunities', element: <OpportunitiesPage /> },
   { path: '/timesheet/opportunities/:id', element: <OpportunityDetailPage /> },
   { path: '/timesheet/companies', element: <CompaniesPage /> },
-  { path: '/timesheet/team', element: <TeamWorkPage /> },
-  { path: '/timesheet/reports', element: <TeamReportsPage /> },
-  { path: '/timesheet/approvals', element: <ApprovalRequestsPage /> },
-  { path: '/team', element: <TeamPage /> },
+  { path: '/team', element: <TeamHubPage /> },
   { path: '/team/:id', element: <TeamMemberPage /> },
-  { path: '/approvals', element: <ApprovalsPage /> },
+  { path: '/approvals', element: <ApprovalsCenterPage /> },
   { path: '/approvals/:id', element: <TimesheetReviewPage /> },
-  { path: '/activity', element: <TeamActivityPage /> },
   { path: '/support', element: <SupportTicketsPage /> },
   { path: '/support/:id', element: <TicketDetailPage context="support" /> },
   { path: '/it', element: <ITDashboardPage /> },
@@ -106,7 +96,7 @@ const PERMISSION_ROUTES: PermissionRoute[] = [
   { path: '/it/assets', element: <AssetsPage /> },
   { path: '/it/assets/:id', element: <AssetDetailPage /> },
   { path: '/it/interventions', element: <InterventionsPage /> },
-  { path: '/reports', element: <ReportsPage /> },
+  { path: '/reports', element: <ReportsCenterPage /> },
   { path: '/users', element: <UsersPage /> },
   { path: '/users/:id', element: <UserDetailPage /> },
   { path: '/departments', element: <DepartmentsPage /> },
@@ -149,6 +139,11 @@ export const App: React.FC = () => (
                 path={route.path}
                 element={<ProtectedRoute requiredPermission={ROUTE_PERMISSIONS[route.path]}>{route.element}</ProtectedRoute>}
               />
+            ))}
+
+            {/* Endereços antigos consolidados noutros módulos (favoritos e notificações já enviadas). */}
+            {Object.entries(LEGACY_REDIRECTS).map(([from, to]) => (
+              <Route key={from} path={from} element={<Navigate to={to} replace />} />
             ))}
 
             <Route path="/403" element={<UnauthorizedPage />} />

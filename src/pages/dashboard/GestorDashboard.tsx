@@ -1,13 +1,14 @@
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { AlertCircle, CheckCircle2, ClipboardList, Plus, Users } from 'lucide-react';
+import { AlertCircle, BarChart3, CheckCircle2, ClipboardList, Plus, Users } from 'lucide-react';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import { listMyScopes } from '../../services/managerService';
 import { getTeamDashboard } from '../../services/work/teamService';
 import { getTeamWorkOverview, listWorkPeople } from '../../services/work/calendarService';
 import type { TeamMemberWorkload } from '../../types/work';
-import { PageHeader } from '../../components/ui/PageHeader';
+import { DashboardHeader } from '../../components/layout/DashboardHeader';
+import { HeaderLink, ReviewApprovalsLink } from '../../components/work/ReviewApprovalsLink';
 import { Panel } from '../../components/ui/Panel';
 import { Alert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
@@ -34,7 +35,7 @@ const TREND_DAYS = 56;
 
 /** Equipa: quem é, o que faz e o que tem em mãos. */
 const TeamPanel: React.FC<{ members: TeamMemberWorkload[] }> = ({ members }) => (
-  <Panel title={t('A minha equipa')} actions={<PanelLink to="/team">{t('Ver equipa')}</PanelLink>} flush>
+  <Panel title={t('Equipa')} actions={<PanelLink to="/team">{t('Ver equipa')}</PanelLink>} flush>
     {members.length === 0 ? (
       <EmptyState bordered={false} icon={Users} title={t('Ainda não tem colaboradores no seu âmbito.')} message={t('A equipa é atribuída pela administração.')} />
     ) : (
@@ -87,21 +88,31 @@ export const GestorDashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={t('Painel da equipa')}
-        subtitle={t('O trabalho da sua equipa hoje: execução, prazos, pedidos e o que precisa da sua atenção.')}
+      <DashboardHeader
+        message={t('O trabalho da sua equipa hoje: decisões pendentes, prazos e o que precisa da sua atenção.')}
         actions={
-          canCreateTask && (
-            <Button icon={Plus} onClick={() => setIsTaskFormOpen(true)} disabled={!assignees.data}>
-              {t('Atribuir tarefa')}
-            </Button>
-          )
+          <>
+            {canCreateTask && (
+              <Button variant="secondary" icon={Plus} onClick={() => setIsTaskFormOpen(true)} disabled={!assignees.data}>
+                {t('Atribuir tarefa')}
+              </Button>
+            )}
+            <HeaderLink to="/team" icon={Users}>
+              {t('Ver equipa')}
+            </HeaderLink>
+            {hasPermission('REPORTS_READ') && (
+              <HeaderLink to="/reports" icon={BarChart3}>
+                {t('Relatórios')}
+              </HeaderLink>
+            )}
+            <ReviewApprovalsLink />
+          </>
         }
       />
 
       {scopes.data && scopes.data.length === 0 && (
         <Alert variant="warning" title={t('Sem equipa atribuída')}>
-          {t('Ainda não lhe foi atribuído nenhum departamento ou colaborador. Contacte a administração.')}
+          {t('A equipa ainda não foi configurada. A atribuição de departamentos ou colaboradores é feita por um administrador autorizado.')}
         </Alert>
       )}
       {scopes.data && scopes.data.length > 0 && (
@@ -134,9 +145,9 @@ export const GestorDashboard: React.FC = () => {
             items={[
               { label: t('Tarefas bloqueadas'), count: summary.tasksBlocked, to: '/timesheet/tasks?scope=TEAM&status=BLOCKED', hint: t('Impedimentos a resolver'), tone: 'danger' },
               { label: t('Conclusões por acompanhar'), count: summary.tasksPendingFollowUp, to: '/timesheet/tasks?scope=FOLLOW_UP', hint: t('Concluídas e ainda não validadas'), tone: 'warning' },
-              { label: t('Ausências por validar'), count: summary.absencesToValidate, to: '/timesheet/absences?tab=TEAM', hint: t('Pedidos da equipa a aguardar a sua validação'), tone: 'warning' },
-              { label: t('Ausências no Manager'), count: summary.absencesAwaitingDecision, to: '/timesheet/absences?tab=TEAM', hint: t('Validadas, a aguardar a decisão do Manager') },
-              { label: t('Oportunidades por aprovar'), count: summary.opportunityApprovalsPending, to: '/timesheet/approvals', hint: t('Pedidos enviados ao Manager') },
+              { label: t('Ausências por validar'), count: summary.absencesToValidate, to: '/approvals?tab=absences', hint: t('Pedidos da equipa a aguardar a sua validação'), tone: 'warning' },
+              { label: t('Ausências no Manager'), count: summary.absencesAwaitingDecision, to: '/approvals?tab=absences', hint: t('Validadas, a aguardar a decisão do Manager') },
+              { label: t('Oportunidades por aprovar'), count: summary.opportunityApprovalsPending, to: '/approvals?tab=opportunities', hint: t('Pedidos enviados ao Manager') },
             ]}
           />
           <UpcomingMeetingsPanel viewerId={viewerId} />

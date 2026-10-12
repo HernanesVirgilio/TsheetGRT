@@ -4,7 +4,7 @@ import { Activity, BarChart3, ChevronRight, Clock3, FileClock, LifeBuoy, Refresh
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { canAccessPath } from '../../lib/auth/routeAccess';
-import { PageHeader } from '../../components/ui/PageHeader';
+import { DashboardHeader } from '../../components/layout/DashboardHeader';
 import { Panel } from '../../components/ui/Panel';
 import { Alert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
@@ -19,7 +19,7 @@ interface Shortcut {
 
 // Áreas que não têm painel próprio; cada atalho só aparece se a rota for acessível ao utilizador.
 const SHORTCUTS: Shortcut[] = translatedFields([
-  { to: '/timesheets', label: 'Meu Timesheet', description: 'Registar horas e submeter o período para aprovação.', icon: Clock3 },
+  { to: '/timesheets', label: 'Timesheet', description: 'Registar horas e submeter o período para aprovação.', icon: Clock3 },
   { to: '/support', label: 'Pedidos de suporte', description: 'Pedir ajuda à equipa de IT e acompanhar os seus pedidos.', icon: LifeBuoy },
   { to: '/reports', label: 'Relatórios', description: 'Consultar indicadores de horas e timesheets.', icon: BarChart3 },
   { to: '/users', label: 'Utilizadores', description: 'Consultar as contas registadas.', icon: Users },
@@ -68,7 +68,7 @@ export const StartDashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={t('Início')} subtitle={t('As áreas do TsheetGRT disponíveis para o seu perfil.')} />
+      <DashboardHeader message={t('As áreas do TsheetGRT disponíveis para o seu perfil.')} />
       {shortcuts.length === 0 ? (
         <AwaitingAccess />
       ) : (

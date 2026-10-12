@@ -23,7 +23,7 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import { TimesheetEntriesTable } from '../../components/timesheets/TimesheetEntriesTable';
 import { TimesheetStatusNotice } from '../../components/timesheets/TimesheetStatusNotice';
 import { PeriodAbsencesNotice } from '../../components/work/PeriodAbsencesNotice';
-import { DecisionHistory } from '../../components/timesheets/DecisionHistory';
+import { TimesheetApprovalPanel } from '../../components/timesheets/ApprovalFlow';
 import { EntryFormModal } from '../../components/timesheets/EntryFormModal';
 import { formatMinutesAsHours, formatPeriod, pluralize } from '../../utils/format';
 import { isUuid } from '../../utils/validation';
@@ -32,7 +32,7 @@ import { t } from '../../lib/i18n';
 const BackLink: React.FC = () => (
   <Link to="/timesheets" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary-hover hover:underline">
     <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-    {t('Voltar a Meu Timesheet')}
+    {t('Voltar ao Timesheet')}
   </Link>
 );
 
@@ -139,6 +139,7 @@ export const TimesheetDetailPage: React.FC = () => {
       {actionError && <Alert variant="error">{actionError}</Alert>}
       {activities.error && <ErrorState message={activities.error} onRetry={activities.reload} />}
       <TimesheetStatusNotice summary={summary} decisions={decisions} audience="owner" />
+      <TimesheetApprovalPanel summary={summary} />
       <PeriodAbsencesNotice employeeId={summary.employeeId} from={summary.periodStart} to={summary.periodEnd} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -176,7 +177,6 @@ export const TimesheetDetailPage: React.FC = () => {
         />
       </Panel>
 
-      <DecisionHistory decisions={decisions} />
 
       {activities.data && (
         <EntryFormModal

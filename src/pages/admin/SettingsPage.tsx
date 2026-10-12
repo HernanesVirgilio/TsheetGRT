@@ -14,7 +14,9 @@ import { ErrorState, LoadingState } from '../../components/ui/States';
 import type { FieldErrors, SettingsFormField, SettingsFormValues } from '../../utils/validation';
 import {
   hasErrors,
+  MAX_APPROVAL_REMINDER_DAYS,
   MAX_DAILY_TARGET_HOURS,
+  MIN_APPROVAL_REMINDER_DAYS,
   MIN_DAILY_TARGET_HOURS,
   validateSettingsForm,
 } from '../../utils/validation';
@@ -27,6 +29,7 @@ const SETTING_KEYS = {
   periodType: 'TIMESHEET_PERIOD_TYPE',
   dailyTargetHours: 'TIMESHEET_DAILY_TARGET_HOURS',
   allowWeekendEntries: 'ALLOW_WEEKEND_ENTRIES',
+  approvalReminderDays: 'APPROVAL_REMINDER_DAYS',
 } as const;
 
 const PERIOD_TYPE_LABELS: Record<string, string> = translated({
@@ -45,6 +48,7 @@ function toFormValues(settings: SystemSetting[]): SettingsFormValues {
     periodType: settingValue(settings, SETTING_KEYS.periodType),
     dailyTargetHours: settingValue(settings, SETTING_KEYS.dailyTargetHours),
     allowWeekendEntries: settingValue(settings, SETTING_KEYS.allowWeekendEntries) === 'true',
+    approvalReminderDays: settingValue(settings, SETTING_KEYS.approvalReminderDays),
   };
 }
 
@@ -57,6 +61,9 @@ function changedSettings(original: SettingsFormValues, current: SettingsFormValu
   }
   if (current.allowWeekendEntries !== original.allowWeekendEntries) {
     changes[SETTING_KEYS.allowWeekendEntries] = String(current.allowWeekendEntries);
+  }
+  if (current.approvalReminderDays !== original.approvalReminderDays) {
+    changes[SETTING_KEYS.approvalReminderDays] = current.approvalReminderDays;
   }
   return changes;
 }
@@ -188,6 +195,24 @@ export const SettingsPage: React.FC = () => {
                 {t('Permitir registo de horas ao fim de semana')}
               </label>
             </div>
+          </div>
+        </Panel>
+
+        <Panel title={t('Lembretes automáticos')} description={t('Os lembretes são gerados por regra quando a pessoa abre a aplicação, sem duplicados.')}>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <TextField
+              label={t('Lembrar aprovações pendentes após (dias)')}
+              type="number"
+              inputMode="numeric"
+              min={MIN_APPROVAL_REMINDER_DAYS}
+              max={MAX_APPROVAL_REMINDER_DAYS}
+              required
+              disabled={!canManage}
+              value={values.approvalReminderDays}
+              error={fieldErrors.approvalReminderDays}
+              hint={t('Quem decide recebe um lembrete por timesheet ou ausência pendente há mais tempo do que este prazo.')}
+              onChange={(event) => updateValue('approvalReminderDays', event.target.value)}
+            />
           </div>
         </Panel>
 

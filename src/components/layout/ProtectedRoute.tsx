@@ -1,14 +1,16 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../lib/auth/AuthContext';
-import type { PermissionCode } from '../../types';
+import { meetsRequirement } from '../../lib/auth/routeAccess';
+import type { RouteRequirement } from '../../lib/auth/routeAccess';
 import { LoadingState } from '../ui/States';
 import { UnauthorizedPage } from '../../pages/UnauthorizedPage';
 import { t } from '../../lib/i18n';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  requiredPermission?: PermissionCode;
+  /** Uma permissão, ou uma lista em que basta uma delas. */
+  requiredPermission?: RouteRequirement;
 }
 
 /**
@@ -29,7 +31,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requir
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (requiredPermission && !hasPermission(requiredPermission)) {
+  if (!meetsRequirement(requiredPermission, hasPermission)) {
     return <UnauthorizedPage />;
   }
 

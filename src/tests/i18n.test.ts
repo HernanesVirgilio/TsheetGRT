@@ -47,7 +47,6 @@ function blockFrom(source: string, start: number): string {
 
 /** Constantes com texto português traduzido no ponto de utilização (ficheiro → constante → campos). */
 const TRANSLATED_AT_USE: { file: string; constant: string; fields: string[] | 'values' }[] = [
-  { file: 'components/layout/Sidebar.tsx', constant: '_ITEMS', fields: ['label'] },
   { file: 'pages/profile/ProfilePage.tsx', constant: 'THEME_OPTIONS', fields: ['label'] },
   { file: 'pages/reports/ReportsPage.tsx', constant: 'GROUP_HEADERS', fields: 'values' },
   { file: 'lib/errors.ts', constant: '_MESSAGE', fields: 'values' },

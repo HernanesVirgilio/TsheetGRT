@@ -84,10 +84,10 @@ const createMeeting = (authId: string, title: string, participants: string[]) =>
     inHours(25),
     participants,
   ]);
-check((await createMeeting(ana.authId, 'Reunião do colaborador', [rui.profileId])).code === '42501', '1. colaborador não agenda reuniões');
+check(!(await createMeeting(ana.authId, 'Reunião do colaborador', [rui.profileId])).error, '1. colaborador agenda reunião com um colega, sem aprovação');
 check(
-  (await db.asUser(ana.authId, "SELECT * FROM public.list_work_people('MEETING')")).code === '42501',
-  '1. colaborador não obtém a lista de convidáveis'
+  (await db.asUser<{ profile_id: string }>(ana.authId, "SELECT * FROM public.list_work_people('MEETING')")).rows.every((row) => row.profile_id !== bruno.profileId),
+  '1. a lista de convidáveis do colaborador não inclui pessoas de outra equipa'
 );
 const gestorMeeting = await createMeeting(gestor.authId, 'Reunião semanal da equipa', [ana.profileId, rui.profileId, manager.profileId]);
 check(!gestorMeeting.error, `3. gestor agenda reunião com a equipa e o seu Manager ${gestorMeeting.error ?? ''}`);

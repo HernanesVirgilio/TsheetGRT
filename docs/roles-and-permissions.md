@@ -74,6 +74,7 @@
 | `TEAM_JOB_DESCRIPTION_UPDATE` | team | Atualizar a descrição da função dos colaboradores do âmbito |
 | `TIMESHEET_ABSENCE_VALIDATE` | work | Validar e encaminhar ao Manager as ausências da equipa direta |
 | `TIMESHEET_OPPORTUNITY_APPROVE` | work | Decidir os pedidos de aprovação de oportunidades do âmbito |
+| `TIMESHEET_ABSENCE_NOTIFY` | work | Comunicar indisponibilidade sem pedido formal (registo "comunicada", nunca aprovada) |
 
 ---
 
@@ -83,12 +84,12 @@
   - `SELF_ACCESS`, `SELF_PROFILE_READ`, `SELF_PROFILE_UPDATE`
   - `SELF_TIMESHEET_READ`, `SELF_TIMESHEET_CREATE`, `SELF_TIMESHEET_UPDATE`, `SELF_TIMESHEET_SUBMIT`
   - `IT_TICKET_CREATE`
-  - Trabalho: `TIMESHEET_TASK_READ`, `TIMESHEET_TASK_UPDATE`, `TIMESHEET_CALENDAR_READ`, `TIMESHEET_MEETING_READ`, `TIMESHEET_ABSENCE_CREATE`, `TIMESHEET_OPPORTUNITY_READ`, `TIMESHEET_OPPORTUNITY_UPDATE`, `TIMESHEET_ATTACHMENT_CREATE` (recebe reuniões, mas não as agenda)
+  - Trabalho: `TIMESHEET_TASK_READ`, `TIMESHEET_TASK_UPDATE`, `TIMESHEET_CALENDAR_READ`, `TIMESHEET_MEETING_READ`, `TIMESHEET_ABSENCE_CREATE`, `TIMESHEET_OPPORTUNITY_READ`, `TIMESHEET_OPPORTUNITY_UPDATE`, `TIMESHEET_ATTACHMENT_CREATE`, `TIMESHEET_MEETING_CREATE` (agenda reuniões com colegas, sem aprovação)
 
 - **GESTOR:**
   - Uso pessoal: `SELF_*`, `IT_TICKET_CREATE`
   - Equipa direta: `TEAM_READ`, `TEAM_TIMESHEET_READ`, `TEAM_TIMESHEET_REVIEW`, `TEAM_TIMESHEET_APPROVE`, `TEAM_TIMESHEET_REJECT`, `REPORTS_READ`
-  - Trabalho: `TIMESHEET_TASK_*` (ler, executar, criar, atribuir, reabrir), `TIMESHEET_CALENDAR_READ`, `TIMESHEET_MEETING_READ`, `TIMESHEET_MEETING_CREATE`, `TIMESHEET_ABSENCE_CREATE`, `TIMESHEET_ABSENCE_READ`, `TIMESHEET_ABSENCE_VALIDATE`, `TIMESHEET_OPPORTUNITY_READ`, `TIMESHEET_OPPORTUNITY_UPDATE`, `TIMESHEET_OPPORTUNITY_CREATE`, `TIMESHEET_OPPORTUNITY_MANAGE`, `TIMESHEET_ATTACHMENT_CREATE`, `TIMESHEET_ATTACHMENT_DELETE`
+  - Trabalho: `TIMESHEET_TASK_*` (ler, executar, criar, atribuir, reabrir), `TIMESHEET_CALENDAR_READ`, `TIMESHEET_MEETING_READ`, `TIMESHEET_MEETING_CREATE`, `TIMESHEET_ABSENCE_CREATE`, `TIMESHEET_ABSENCE_READ`, `TIMESHEET_ABSENCE_VALIDATE`, `TIMESHEET_OPPORTUNITY_READ`, `TIMESHEET_OPPORTUNITY_UPDATE`, `TIMESHEET_OPPORTUNITY_CREATE`, `TIMESHEET_OPPORTUNITY_MANAGE`, `TIMESHEET_ATTACHMENT_CREATE`, `TIMESHEET_ATTACHMENT_DELETE`, `TIMESHEET_ABSENCE_NOTIFY`
   - Sem decisão final de ausências, sem aprovação de oportunidades, sem supervisão de outros gestores
 
 - **MANAGER:**
@@ -97,13 +98,13 @@
   - `REPORTS_READ`
   - (`IT_TICKET_CREATE` incluída nas permissões de `EMPLOYEE`)
   - As 18 permissões `TIMESHEET_*` do Timesheet Core e `TIMESHEET_OPPORTUNITY_APPROVE` (sem `TIMESHEET_ABSENCE_VALIDATE`: decide diretamente)
-  - `TEAM_SUPERVISE` e `TEAM_JOB_DESCRIPTION_UPDATE`
+  - `TEAM_SUPERVISE`, `TEAM_JOB_DESCRIPTION_UPDATE` e `TIMESHEET_ABSENCE_NOTIFY`
 
 - **IT:**
   - `SELF_ACCESS`, `SELF_PROFILE_READ`, `SELF_PROFILE_UPDATE`
   - `USERS_READ`, `SYSTEM_HEALTH_READ`, `AUDIT_READ`
   - `IT_TICKET_CREATE`, `IT_TICKETS_READ`, `IT_TICKETS_MANAGE`, `IT_TICKETS_ASSIGN`, `IT_ASSETS_READ`, `IT_ASSETS_MANAGE`
-  - Uso pessoal do trabalho (sem gestão, oportunidades nem agendamento de reuniões): `TIMESHEET_TASK_READ`, `TIMESHEET_TASK_UPDATE`, `TIMESHEET_CALENDAR_READ`, `TIMESHEET_MEETING_READ`, `TIMESHEET_ABSENCE_CREATE`, `TIMESHEET_ATTACHMENT_CREATE`
+  - Uso pessoal do trabalho (sem gestão nem oportunidades): `TIMESHEET_TASK_READ`, `TIMESHEET_TASK_UPDATE`, `TIMESHEET_CALENDAR_READ`, `TIMESHEET_MEETING_READ`, `TIMESHEET_MEETING_CREATE`, `TIMESHEET_ABSENCE_CREATE`, `TIMESHEET_ATTACHMENT_CREATE`
 
 - **ADMIN:**
   - Todas as permissões anteriores + `USERS_CREATE`, `USERS_UPDATE`, `USERS_DISABLE`, `USERS_ASSIGN_ROLE`, `ROLES_READ`, `ROLES_MANAGE`, `PERMISSIONS_READ`, `PERMISSIONS_MANAGE`, `DEPARTMENTS_READ`, `DEPARTMENTS_MANAGE`, `SYSTEM_SETTINGS_READ`, `SYSTEM_SETTINGS_MANAGE`, `REPORTS_EXPORT`, `ADMIN_ACCESS`
@@ -129,16 +130,16 @@
 | `/audit` | `AUDIT_READ` | — |
 | `/system-health` | `SYSTEM_HEALTH_READ` | — |
 | `/settings` | `SYSTEM_SETTINGS_READ` | alterar: `SYSTEM_SETTINGS_MANAGE` |
-| `/reports` | `REPORTS_READ` | exportar CSV: `REPORTS_EXPORT` (os dados respeitam sempre o âmbito) |
+| `/reports` | `REPORTS_READ` ou `TEAM_READ` | separadores por permissão; exportar CSV: `REPORTS_EXPORT` (os dados respeitam sempre o âmbito) |
 
 ## 6. Navegação do Manager e do timesheet próprio
 
 | Rota | Permissão exigida | Ações adicionais |
 | :--- | :--- | :--- |
 | `/timesheets`, `/timesheets/:id` | `SELF_TIMESHEET_READ` | criar período: `SELF_TIMESHEET_CREATE`; registar horas: `SELF_TIMESHEET_UPDATE`; submeter: `SELF_TIMESHEET_SUBMIT` |
-| `/team`, `/team/:id` | `TEAM_READ` | apenas leitura (dados administrativos são do Admin) |
-| `/approvals`, `/approvals/:id` | `TEAM_TIMESHEET_REVIEW` | aprovar (incl. em massa): `TEAM_TIMESHEET_APPROVE`; rejeitar: `TEAM_TIMESHEET_REJECT` |
-| `/activity` | `TEAM_TIMESHEET_READ` | — |
+| `/team`, `/team/:id` | `TEAM_READ` | separadores Pessoas, Carga de trabalho, Disponibilidade e Atividade (`TEAM_TIMESHEET_READ`) |
+| `/approvals` | uma permissão de decisão (ver `navegacao-e-fluxos.md`) | separadores Timesheets (`TEAM_TIMESHEET_REVIEW`), Ausências, Oportunidades e Reuniões |
+| `/approvals/:id` | `TEAM_TIMESHEET_REVIEW` | aprovar (incl. em massa): `TEAM_TIMESHEET_APPROVE`; rejeitar: `TEAM_TIMESHEET_REJECT` |
 
 Os dados destas páginas são sempre limitados ao `manager_scopes` do gestor pelo servidor.
 
@@ -160,16 +161,14 @@ A secção **Suporte IT** da barra lateral e a entrada **Pedidos de suporte** s�
 
 | Rota | Permissão exigida | Ações adicionais |
 | :--- | :--- | :--- |
-| `/timesheet` | `TIMESHEET_TASK_READ` | Centro de trabalho; é também a dashboard do perfil EMPLOYEE |
+| `/timesheet` | — | redireciona para `/dashboard` (o centro de trabalho é a dashboard do perfil EMPLOYEE) |
 | `/timesheet/tasks`, `/timesheet/tasks/:id` | `TIMESHEET_TASK_READ` | executar: `TIMESHEET_TASK_UPDATE`; criar: `TIMESHEET_TASK_CREATE`; atribuir, editar e cancelar: `TIMESHEET_TASK_ASSIGN`; reabrir: `TIMESHEET_TASK_REOPEN`; separador "Equipa": `TEAM_READ` |
 | `/timesheet/activities` | `SELF_TIMESHEET_READ` | registar tempo: `SELF_TIMESHEET_UPDATE` |
 | `/timesheet/calendar` | `TIMESHEET_CALENDAR_READ` | eventos internos: `TIMESHEET_CALENDAR_MANAGE`; vista "Equipa": `TEAM_READ` |
-| `/timesheet/meetings`, `/timesheet/meetings/:id` | `TIMESHEET_MEETING_READ` | organizar: `TIMESHEET_MEETING_CREATE` |
-| `/timesheet/absences` | `TIMESHEET_ABSENCE_CREATE` | separador "Aprovações": `TIMESHEET_ABSENCE_APPROVE` |
+| `/timesheet/meetings`, `/timesheet/meetings/:id` | `TIMESHEET_MEETING_READ` | agendar: `TIMESHEET_MEETING_CREATE`; solicitar reunião a uma chefia: qualquer utilizador com chefia configurada |
+| `/timesheet/absences` | `TIMESHEET_ABSENCE_CREATE` | Disponibilidade; comunicar ausência: `TIMESHEET_ABSENCE_NOTIFY`; decisões da equipa em `/approvals?tab=absences` |
 | `/timesheet/opportunities`, `/timesheet/opportunities/:id`, `/timesheet/companies` | `TIMESHEET_OPPORTUNITY_READ` | criar: `TIMESHEET_OPPORTUNITY_CREATE`; trabalhar: `TIMESHEET_OPPORTUNITY_UPDATE`; cancelar, reabrir e mudar o responsável: `TIMESHEET_OPPORTUNITY_MANAGE` |
-| `/timesheet/team` | `TEAM_READ` | — |
-| `/timesheet/reports` | `TEAM_READ` | filtro por gestor: `TEAM_SUPERVISE`; exportar CSV: `REPORTS_EXPORT` |
-| `/timesheet/approvals` | `TIMESHEET_OPPORTUNITY_READ` | decidir: `TIMESHEET_OPPORTUNITY_APPROVE` (nunca os próprios pedidos) |
+| `/timesheet/team`, `/timesheet/reports`, `/timesheet/approvals`, `/activity` | — | endereços antigos: redirecionam para Equipa, Relatórios e Aprovações |
 | `/team/:id` | `TEAM_READ` | editar a descrição da função: `TEAM_JOB_DESCRIPTION_UPDATE` |
 
 **Hierarquia (ver [hierarquia-e-gestor.md](hierarquia-e-gestor.md)):**

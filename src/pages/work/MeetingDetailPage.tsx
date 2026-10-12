@@ -1,10 +1,18 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Ban, CheckCircle2, Clock3, ClipboardCheck, ExternalLink, ListPlus, Pencil } from 'lucide-react';
+import { ArrowLeft, Ban, CalendarClock, CheckCircle2, Clock3, ClipboardCheck, ExternalLink, ListPlus, Pencil, XCircle } from 'lucide-react';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import { getErrorMessage } from '../../lib/errors';
-import { cancelMeeting, confirmMeeting, getMeeting, getMeetingPeople, listMeetingEvents } from '../../services/work/meetingService';
+import {
+  cancelMeeting,
+  confirmMeeting,
+  decideMeetingRequest,
+  getMeeting,
+  getMeetingPeople,
+  listMeetingEvents,
+  respondToMeeting,
+} from '../../services/work/meetingService';
 import { listRelatedTasks } from '../../services/work/taskService';
 import { getWorkTimeTotals } from '../../services/work/workLogService';
 import { listWorkPeople } from '../../services/work/calendarService';
@@ -20,15 +28,31 @@ import { WorkTimeline } from '../../components/work/WorkTimeline';
 import { AttachmentsPanel } from '../../components/work/AttachmentsPanel';
 import { MeetingFormModal } from '../../components/work/MeetingFormModal';
 import { MeetingOutcomeModal } from '../../components/work/MeetingOutcomeModal';
+import { MeetingRequestModal } from '../../components/work/MeetingRequestModal';
+import { BADGE_TONE_CLASSES } from '../../components/ui/badgeTones';
+import type { BadgeTone } from '../../components/ui/badgeTones';
 import { TaskFormModal } from '../../components/work/TaskFormModal';
 import { WorkLogFormModal } from '../../components/work/WorkLogFormModal';
-import type { MeetingDetail } from '../../types/work';
+import type { MeetingDetail, MeetingResponse } from '../../types/work';
 import { toDateInput, toTimeInput } from '../../utils/work';
 import { formatDateTime, formatMinutesAsHours, dateTimeFormatter } from '../../utils/format';
 import { isUuid } from '../../utils/validation';
-import { t } from '../../lib/i18n';
+import { t, translated } from '../../lib/i18n';
 
-type ModalKind = 'edit' | 'cancel' | 'task' | 'logTime' | null;
+type ModalKind = 'edit' | 'cancel' | 'task' | 'logTime' | 'decline' | 'rejectRequest' | 'proposeAgain' | null;
+
+const RESPONSE_LABELS: Record<MeetingResponse, string> = translated({
+  PENDING: 'Por responder',
+  ACCEPTED: 'Aceite',
+  DECLINED: 'Recusado',
+});
+const RESPONSE_TONES: Record<MeetingResponse, BadgeTone> = { PENDING: 'neutral', ACCEPTED: 'success', DECLINED: 'danger' };
+
+const ResponseBadge: React.FC<{ response: MeetingResponse }> = ({ response }) => (
+  <span className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${BADGE_TONE_CLASSES[RESPONSE_TONES[response]]}`}>
+    {RESPONSE_LABELS[response]}
+  </span>
+);
 
 async function loadMeeting(meetingId: string) {
   if (!isUuid(meetingId)) return null;
@@ -92,6 +116,39 @@ export const MeetingDetailPage: React.FC = () => {
   const hasStarted = new Date(meeting.startsAt).getTime() <= Date.now();
   const canLogTime = hasPermission('SELF_TIMESHEET_UPDATE') && (isOrganizer || isParticipant) && meeting.status !== 'CANCELLED' && hasStarted;
   const durationMinutes = Math.round((new Date(meeting.endsAt).getTime() - new Date(meeting.startsAt).getTime()) / 60000);
+  // Pedido de reunião a uma chefia: só a pessoa a quem foi pedido decide; um convite normal recebe resposta.
+  const isPendingRequest = meeting.requestStatus === 'PENDING' && meeting.status === 'PLANNED';
+  const decidesRequest = isPendingRequest && meeting.requestedWith === viewerId;
+  const requestedPerson = people.find((person) => person.profileId === meeting.requestedWith) ?? null;
+  const myInvitation = people.find((person) => person.profileId === viewerId && !person.isOrganizer) ?? null;
+  const canRespond = myInvitation !== null && isOpen && !isPendingRequest && new Date(meeting.endsAt).getTime() > Date.now();
+  const canProposeAgain = isOrganizer && meeting.requestStatus === 'REJECTED';
+
+  const runRespond = async (response: 'ACCEPTED' | 'DECLINED', comment: string | null) => {
+    setIsPending(true);
+    setActionError(null);
+    try {
+      await respondToMeeting(meeting.id, response, comment);
+      afterAction(response === 'ACCEPTED' ? t('Presença confirmada. O organizador foi notificado.') : t('Convite recusado. O organizador foi notificado.'));
+    } catch (error) {
+      setActionError(getErrorMessage(error, t('Não foi possível registar a resposta.')));
+    } finally {
+      setIsPending(false);
+    }
+  };
+
+  const runAcceptRequest = async () => {
+    setIsPending(true);
+    setActionError(null);
+    try {
+      await decideMeetingRequest(meeting.id, 'ACCEPTED', null);
+      afterAction(t('Pedido aceite. A reunião ficou confirmada e quem pediu foi notificado.'));
+    } catch (error) {
+      setActionError(getErrorMessage(error, t('Não foi possível registar a decisão.')));
+    } finally {
+      setIsPending(false);
+    }
+  };
 
   const afterAction = (text: string) => {
     setModal(null);
@@ -122,7 +179,32 @@ export const MeetingDetailPage: React.FC = () => {
         subtitle={`${formatDateTime(meeting.startsAt)}–${timeFormatter().format(new Date(meeting.endsAt))} · ${formatMinutesAsHours(durationMinutes)}`}
         actions={
           <>
-            {managesMeeting && meeting.status === 'PLANNED' && (
+            {decidesRequest && (
+              <>
+                <Button variant="danger" icon={XCircle} onClick={() => setModal('rejectRequest')}>
+                  {t('Recusar pedido')}
+                </Button>
+                <Button icon={CheckCircle2} isLoading={isPending} onClick={runAcceptRequest}>
+                  {t('Aceitar pedido')}
+                </Button>
+              </>
+            )}
+            {canRespond && myInvitation.response !== 'DECLINED' && (
+              <Button variant="secondary" icon={XCircle} onClick={() => setModal('decline')}>
+                {t('Recusar convite')}
+              </Button>
+            )}
+            {canRespond && myInvitation.response !== 'ACCEPTED' && (
+              <Button icon={CheckCircle2} isLoading={isPending} onClick={() => runRespond('ACCEPTED', null)}>
+                {t('Aceitar convite')}
+              </Button>
+            )}
+            {canProposeAgain && (
+              <Button icon={CalendarClock} onClick={() => setModal('proposeAgain')}>
+                {t('Propor outro horário')}
+              </Button>
+            )}
+            {managesMeeting && meeting.status === 'PLANNED' && !isPendingRequest && (
               <Button variant="secondary" icon={CheckCircle2} isLoading={isPending} onClick={runConfirm}>
                 {t('Confirmar')}
               </Button>
@@ -150,10 +232,31 @@ export const MeetingDetailPage: React.FC = () => {
           {actionError}
         </Alert>
       )}
-      {meeting.status === 'CANCELLED' && meeting.cancelReason && (
-        <Alert variant="info" title={t('Reunião cancelada')}>
-          {meeting.cancelReason}
+      {isPendingRequest && (
+        <Alert variant="info" title={decidesRequest ? t('Pedido de reunião para si') : t('Pedido de reunião pendente')}>
+          {decidesRequest
+            ? t('Aceite para confirmar a reunião, ou recuse indicando o motivo.')
+            : t('A aguardar a resposta de {name}. A reunião só fica confirmada depois de aceite.', { name: requestedPerson?.fullName ?? '—' })}
         </Alert>
+      )}
+      {meeting.requestStatus === 'ACCEPTED' && (
+        <Alert variant="success" title={t('Pedido aceite')}>
+          {t('{name} aceitou o pedido em {date}.', { name: requestedPerson?.fullName ?? '—', date: formatDateTime(meeting.requestDecidedAt) })}
+          {meeting.requestDecisionComment ? ` ${meeting.requestDecisionComment}` : ''}
+        </Alert>
+      )}
+      {meeting.requestStatus === 'REJECTED' ? (
+        <Alert variant="error" title={t('Pedido recusado')}>
+          {meeting.requestDecisionComment}
+          {isOrganizer && ` ${t('Pode propor outro horário.')}`}
+        </Alert>
+      ) : (
+        meeting.status === 'CANCELLED' &&
+        meeting.cancelReason && (
+          <Alert variant="info" title={t('Reunião cancelada')}>
+            {meeting.cancelReason}
+          </Alert>
+        )
       )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -290,11 +393,15 @@ export const MeetingDetailPage: React.FC = () => {
           >
             <ul className="divide-y divide-border">
               {people.map((person) => (
-                <li key={person.profileId} className="px-5 py-3 text-sm">
-                  <p className="font-medium text-text">
-                    {person.fullName} {person.isOrganizer && <span className="text-xs font-normal text-text-muted">{t('(organização)')}</span>}
-                  </p>
-                  {person.jobTitle && <p className="text-xs text-text-muted">{person.jobTitle}</p>}
+                <li key={person.profileId} className="flex items-start justify-between gap-3 px-5 py-3 text-sm">
+                  <span className="min-w-0">
+                    <span className="block font-medium text-text">
+                      {person.fullName} {person.isOrganizer && <span className="text-xs font-normal text-text-muted">{t('(organização)')}</span>}
+                    </span>
+                    {person.jobTitle && <span className="block text-xs text-text-muted">{person.jobTitle}</span>}
+                    {person.responseComment && <span className="mt-0.5 block text-xs text-text-secondary">“{person.responseComment}”</span>}
+                  </span>
+                  {!person.isOrganizer && <ResponseBadge response={person.response} />}
                 </li>
               ))}
             </ul>
@@ -342,6 +449,41 @@ export const MeetingDetailPage: React.FC = () => {
         onSaved={(_meetingId, text) => afterAction(text)}
       />
       <MeetingOutcomeModal meeting={outcomeFor} onClose={() => setOutcomeFor(null)} onSaved={afterAction} />
+      <TicketNoteModal
+        isOpen={modal === 'decline'}
+        title={t('Recusar convite')}
+        description={t('O organizador é notificado. Pode voltar a aceitar mais tarde.')}
+        note={{ label: t('Comentário (opcional)'), maxLength: 500 }}
+        confirmLabel={t('Recusar convite')}
+        variant="danger"
+        onClose={() => setModal(null)}
+        onConfirm={async (comment) => {
+          await respondToMeeting(meeting.id, 'DECLINED', comment);
+          afterAction(t('Convite recusado. O organizador foi notificado.'));
+        }}
+      />
+      <TicketNoteModal
+        isOpen={modal === 'rejectRequest'}
+        title={t('Recusar pedido de reunião')}
+        description={t('Quem pediu é notificado com o motivo e pode propor outro horário.')}
+        note={{ label: t('Motivo da recusa'), minLength: 5, maxLength: 1000 }}
+        confirmLabel={t('Recusar pedido')}
+        variant="danger"
+        onClose={() => setModal(null)}
+        onConfirm={async (reason) => {
+          await decideMeetingRequest(meeting.id, 'REJECTED', reason);
+          afterAction(t('Pedido recusado. Quem pediu foi notificado.'));
+        }}
+      />
+      <MeetingRequestModal
+        isOpen={modal === 'proposeAgain'}
+        basedOn={meeting}
+        onClose={() => setModal(null)}
+        onSent={(meetingId) => {
+          setModal(null);
+          navigate(`/timesheet/meetings/${meetingId}`);
+        }}
+      />
       <TicketNoteModal
         isOpen={modal === 'cancel'}
         title={t('Cancelar reunião')}

@@ -92,7 +92,12 @@ export interface SettingsFormValues {
   periodType: string;
   dailyTargetHours: string;
   allowWeekendEntries: boolean;
+  /** Dias de espera até lembrar quem decide de uma aprovação pendente (espelha APPROVAL_REMINDER_DAYS). */
+  approvalReminderDays: string;
 }
+
+export const MIN_APPROVAL_REMINDER_DAYS = 1;
+export const MAX_APPROVAL_REMINDER_DAYS = 30;
 
 export type SettingsFormField = keyof SettingsFormValues;
 
@@ -110,6 +115,10 @@ export function validateSettingsForm(values: SettingsFormValues): FieldErrors<Se
   const hours = Number(values.dailyTargetHours);
   if (!/^\d{1,2}$/.test(values.dailyTargetHours) || hours < MIN_DAILY_TARGET_HOURS || hours > MAX_DAILY_TARGET_HOURS) {
     errors.dailyTargetHours = t('Indique um número inteiro entre {MIN_DAILY_TARGET_HOURS} e {MAX_DAILY_TARGET_HOURS}.', { MIN_DAILY_TARGET_HOURS, MAX_DAILY_TARGET_HOURS });
+  }
+  const reminderDays = Number(values.approvalReminderDays);
+  if (!/^\d{1,2}$/.test(values.approvalReminderDays) || reminderDays < MIN_APPROVAL_REMINDER_DAYS || reminderDays > MAX_APPROVAL_REMINDER_DAYS) {
+    errors.approvalReminderDays = t('Indique um número inteiro de dias entre {min} e {max}.', { min: MIN_APPROVAL_REMINDER_DAYS, max: MAX_APPROVAL_REMINDER_DAYS });
   }
   return errors;
 }

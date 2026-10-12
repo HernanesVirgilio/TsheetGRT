@@ -44,7 +44,8 @@ interface BulkOutcome {
   failures: (BulkApprovalResult & { label: string })[];
 }
 
-export const ApprovalsPage: React.FC = () => {
+/** Aprovação de timesheets (separador "Timesheets" do centro de aprovações). */
+export const ApprovalsPage: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const { hasPermission } = useAuth();
   const canApprove = hasPermission('TEAM_TIMESHEET_APPROVE');
   const canReject = hasPermission('TEAM_TIMESHEET_REJECT');
@@ -159,20 +160,22 @@ export const ApprovalsPage: React.FC = () => {
     },
   ];
 
+  const bulkAction = canApprove && activeTab === 'SUBMITTED' && (
+    <Button icon={CheckCheck} disabled={selectedIds.size === 0} onClick={() => setIsBulkConfirmOpen(true)}>
+      {t('Aprovar selecionados ({count})', { count: selectedIds.size })}
+    </Button>
+  );
+
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={t('Aprovações')}
-        subtitle={t('Timesheets dos colaboradores no seu âmbito de gestão.')}
-        actions={
-          canApprove &&
-          activeTab === 'SUBMITTED' && (
-            <Button icon={CheckCheck} disabled={selectedIds.size === 0} onClick={() => setIsBulkConfirmOpen(true)}>
-              {t('Aprovar selecionados ({count})', { count: selectedIds.size })}
-            </Button>
-          )
-        }
-      />
+      {embedded ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-text-secondary">{t('Timesheets dos colaboradores no seu âmbito de gestão.')}</p>
+          {bulkAction}
+        </div>
+      ) : (
+        <PageHeader title={t('Aprovações')} subtitle={t('Timesheets dos colaboradores no seu âmbito de gestão.')} actions={bulkAction} />
+      )}
 
       {successMessage && (
         <Alert variant="success" onDismiss={() => setSuccessMessage(null)}>

@@ -1,107 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import {
-  Activity,
-  BarChart3,
-  Briefcase,
-  CalendarDays,
-  CalendarOff,
-  ChevronRight,
-  History,
-  Bell,
-  Building2,
-  ClipboardCheck,
-  Clock3,
-  FileClock,
-  Gauge,
-  LayoutDashboard,
-  LayoutGrid,
-  LifeBuoy,
-  LineChart,
-  ListChecks,
-  ListTodo,
-  LogOut,
-  MessagesSquare,
-  Monitor,
-  Settings,
-  ShieldCheck,
-  Stamp,
-  Timer,
-  UserCircle,
-  Users,
-  UsersRound,
-  Wrench,
-} from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
+import { ChevronRight, LogOut } from 'lucide-react';
 import { useAuth } from '../../lib/auth/AuthContext';
-import { useNotifications } from '../../lib/notifications/NotificationsContext';
-import type { PermissionCode } from '../../types';
-import { findActiveSection, parseOpenSections } from '../../utils/navigation';
-import type { NavigationTarget, OpenSections } from '../../utils/navigation';
+import { parseOpenSections } from '../../utils/navigation';
+import type { OpenSections } from '../../utils/navigation';
 import { BrandMark } from './BrandMark';
+import { UserAvatar } from '../ui/UserAvatar';
+import { currentLocation, isItemCurrent, visibleNavigation } from './navigationConfig';
+import type { NavigationItem, NavigationSection } from './navigationConfig';
 import { t } from '../../lib/i18n';
-
-interface NavigationItem extends NavigationTarget {
-  label: string;
-  icon: LucideIcon;
-  /** Sem permissão indicada, o item está disponível para qualquer conta com acesso. */
-  permission?: PermissionCode;
-}
-
-type SectionId = 'work' | 'team' | 'it' | 'analysis' | 'administration' | 'account';
-
-interface NavigationSection {
-  id: SectionId;
-  title: string;
-  items: NavigationItem[];
-}
-
-// Área de gestão de equipa: apresentada a gestores, sempre condicionada à permissão.
-const TEAM_ITEMS: NavigationItem[] = [
-  { to: '/team', label: 'Minha Equipa', icon: Users, permission: 'TEAM_READ' },
-  { to: '/approvals', label: 'Aprovações', icon: ClipboardCheck, permission: 'TEAM_TIMESHEET_REVIEW' },
-  { to: '/activity', label: 'Atividade', icon: History, permission: 'TEAM_TIMESHEET_READ' },
-  { to: '/timesheet/reports', label: 'Relatórios da equipa', icon: LineChart, permission: 'TEAM_READ' },
-];
-
-// Trabalho (Timesheet Core): cada entrada depende da permissão correspondente.
-const WORK_ITEMS: NavigationItem[] = [
-  { to: '/timesheet', label: 'Centro de trabalho', icon: LayoutGrid, permission: 'TIMESHEET_TASK_READ', end: true },
-  { to: '/timesheet/tasks', label: 'Tarefas', icon: ListTodo, permission: 'TIMESHEET_TASK_READ' },
-  { to: '/timesheet/calendar', label: 'Calendário', icon: CalendarDays, permission: 'TIMESHEET_CALENDAR_READ' },
-  { to: '/timesheet/meetings', label: 'Reuniões', icon: MessagesSquare, permission: 'TIMESHEET_MEETING_READ' },
-  { to: '/timesheet/activities', label: 'Atividades', icon: Timer, permission: 'SELF_TIMESHEET_READ' },
-  { to: '/timesheet/absences', label: 'Ausências', icon: CalendarOff, permission: 'TIMESHEET_ABSENCE_CREATE' },
-  { to: '/timesheet/opportunities', label: 'Oportunidades', icon: Briefcase, permission: 'TIMESHEET_OPPORTUNITY_READ' },
-  { to: '/timesheet/approvals', label: 'Pedidos de aprovação', icon: Stamp, permission: 'TIMESHEET_OPPORTUNITY_READ' },
-  { to: '/timesheet/team', label: 'Carga da equipa', icon: UsersRound, permission: 'TEAM_READ' },
-];
-
-// Área da equipa de IT: cada entrada depende da permissão correspondente.
-const IT_ITEMS: NavigationItem[] = [
-  { to: '/it', label: 'Visão geral', icon: Gauge, permission: 'IT_TICKETS_READ', end: true },
-  { to: '/it/tickets', label: 'Solicitações', icon: ListChecks, permission: 'IT_TICKETS_READ' },
-  { to: '/it/assets', label: 'Ativos', icon: Monitor, permission: 'IT_ASSETS_READ' },
-  { to: '/it/interventions', label: 'Intervenções', icon: Wrench, permission: 'IT_TICKETS_READ' },
-];
-
-const ANALYSIS_ITEMS: NavigationItem[] = [
-  { to: '/reports', label: 'Relatórios', icon: BarChart3, permission: 'REPORTS_READ' },
-];
-
-const ADMINISTRATION_ITEMS: NavigationItem[] = [
-  { to: '/users', label: 'Utilizadores', icon: Users, permission: 'USERS_READ' },
-  { to: '/departments', label: 'Departamentos', icon: Building2, permission: 'DEPARTMENTS_READ' },
-  { to: '/roles', label: 'Roles e Permissões', icon: ShieldCheck, permission: 'ROLES_READ' },
-  { to: '/audit', label: 'Auditoria', icon: FileClock, permission: 'AUDIT_READ' },
-  { to: '/system-health', label: 'Saúde do Sistema', icon: Activity, permission: 'SYSTEM_HEALTH_READ' },
-  { to: '/settings', label: 'Configurações', icon: Settings, permission: 'SYSTEM_SETTINGS_READ' },
-];
-
-const ACCOUNT_ITEMS: NavigationItem[] = [
-  { to: '/profile', label: 'Meu Perfil', icon: UserCircle },
-  { to: '/notifications', label: 'Notificações', icon: Bell },
-];
 
 // Preferência de interface (não sensível): sobrevive à navegação e a novas sessões neste browser.
 const OPEN_SECTIONS_STORAGE_KEY = 'tsheetgrt.sidebar.open-sections';
@@ -125,61 +32,74 @@ function storeOpenSections(openSections: OpenSections): void {
 // Contorno de foco branco: o verde do foco global não tem contraste suficiente sobre o fundo do menu.
 const FOCUS_CLASS = 'focus-visible:outline-white';
 
-function navigationLinkClass({ isActive }: { isActive: boolean }): string {
-  return `flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${FOCUS_CLASS} ${
-    isActive ? 'bg-primary text-on-primary' : 'text-sidebar-muted hover:bg-sidebar-hover hover:text-white'
-  }`;
-}
-
-const CountBadge: React.FC<{ value: number; label: string }> = ({ value, label }) => (
-  <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1.5 text-[11px] font-bold text-sidebar">
-    {value > 99 ? '99+' : value}
-    <span className="sr-only"> {label}</span>
-  </span>
-);
-
-interface SidebarLinkProps extends NavigationItem {
-  badge?: number;
+interface SidebarLinkProps {
+  item: NavigationItem;
+  isCurrent: boolean;
   onNavigate?: () => void;
 }
 
-const SidebarLink: React.FC<SidebarLinkProps> = ({ to, label, icon: Icon, end, badge = 0, onNavigate }) => (
-  <li>
-    <NavLink to={to} end={end} className={navigationLinkClass} onClick={onNavigate}>
-      <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-      <span className="min-w-0 truncate">{label}</span>
-      {badge > 0 && <CountBadge value={badge} label={t('por ler')} />}
-    </NavLink>
-  </li>
-);
+const SidebarLink: React.FC<SidebarLinkProps> = ({ item, isCurrent, onNavigate }) => {
+  const Icon = item.icon;
+  return (
+    <li>
+      <NavLink
+        to={item.to}
+        end={item.end}
+        onClick={onNavigate}
+        aria-current={isCurrent ? 'page' : undefined}
+        className={`relative flex items-center gap-3 rounded-md py-1.5 pl-3 pr-2 text-sm transition-colors ${FOCUS_CLASS} ${
+          isCurrent ? 'bg-white/15 font-semibold text-white' : 'font-medium text-sidebar-muted hover:bg-sidebar-hover hover:text-white'
+        }`}
+      >
+        {/* Indicador da página atual: barra verde à esquerda (não depende só da cor do fundo). */}
+        {isCurrent && <span aria-hidden="true" className="absolute inset-y-1 left-0 w-1 rounded-r bg-primary" />}
+        <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+        <span className="min-w-0 truncate">{item.label}</span>
+      </NavLink>
+    </li>
+  );
+};
 
-interface SidebarSectionProps {
-  id: SectionId;
-  title: string;
+interface SidebarGroupProps {
+  section: NavigationSection;
+  pathname: string;
   isOpen: boolean;
   onToggle: () => void;
-  /** Total a destacar no título quando a secção está recolhida (ex.: notificações por ler). */
-  badge: number;
-  children: React.ReactNode;
+  onNavigate?: () => void;
 }
 
-const SidebarSection: React.FC<SidebarSectionProps> = ({ id, title, isOpen, onToggle, badge, children }) => {
-  const listId = `menu-seccao-${id}`;
+/**
+ * Grupo do menu. Com vários destinos, o título recolhe e expande o grupo; com um só destino
+ * (Aprovações, Relatórios) o título é apenas uma legenda e o destino está sempre visível.
+ */
+const SidebarGroup: React.FC<SidebarGroupProps> = ({ section, pathname, isOpen, onToggle, onNavigate }) => {
+  const listId = `menu-grupo-${section.id}`;
+  const hasCurrent = section.items.some((item) => isItemCurrent(item, pathname));
+  const isCollapsible = section.items.length > 1;
+  const showItems = !isCollapsible || isOpen;
+
   return (
-    <div className="border-t border-white/15 pt-2">
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={isOpen}
-        aria-controls={listId}
-        className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-sidebar-muted hover:bg-sidebar-hover hover:text-white ${FOCUS_CLASS}`}
-      >
-        <ChevronRight className={`h-3.5 w-3.5 shrink-0 transition-transform ${isOpen ? 'rotate-90' : ''}`} aria-hidden="true" />
-        <span className="flex-1">{title}</span>
-        {!isOpen && badge > 0 && <CountBadge value={badge} label={t('por ler')} />}
-      </button>
-      <ul id={listId} hidden={!isOpen} className="mt-1 space-y-1">
-        {children}
+    <div className="pt-3">
+      {isCollapsible ? (
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={isOpen}
+          aria-controls={listId}
+          className={`flex w-full items-center gap-1.5 rounded-md px-3 py-1 text-left text-[11px] font-semibold uppercase tracking-wider hover:text-white ${FOCUS_CLASS} ${
+            hasCurrent && !isOpen ? 'text-white' : 'text-sidebar-muted/80'
+          }`}
+        >
+          <span className="flex-1">{section.title}</span>
+          <ChevronRight className={`h-3.5 w-3.5 shrink-0 transition-transform ${isOpen ? 'rotate-90' : ''}`} aria-hidden="true" />
+        </button>
+      ) : (
+        <p className="px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-sidebar-muted/80">{section.title}</p>
+      )}
+      <ul id={listId} hidden={!showItems} className="mt-1 space-y-0.5">
+        {section.items.map((item) => (
+          <SidebarLink key={item.to} item={item} isCurrent={isItemCurrent(item, pathname)} onNavigate={onNavigate} />
+        ))}
       </ul>
     </div>
   );
@@ -190,37 +110,20 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ onNavigate }) => {
-  const { currentUser, role, hasPermission, signOut } = useAuth();
-  const { unreadCount } = useNotifications();
+  const { currentUser, hasPermission, signOut } = useAuth();
   const { pathname } = useLocation();
 
-  // Gestão de equipa: o gestor gere a equipa direta; o Manager supervisiona os gestores e as suas equipas.
-  const isTeamManager = role === 'MANAGER' || role === 'GESTOR';
-  const showOwnTimesheet = (role === 'EMPLOYEE' || role === 'MANAGER' || role === 'GESTOR') && hasPermission('SELF_TIMESHEET_READ');
-  const showSupportRequests = hasPermission('IT_TICKET_CREATE');
-  const allowed = (items: NavigationItem[]) => items.filter((item) => !item.permission || hasPermission(item.permission));
+  const sections = visibleNavigation(hasPermission);
+  const [home, ...groups] = sections[0]?.id === 'home' ? sections : [null, ...sections];
+  const activeSectionId = currentLocation(sections, pathname)?.section.id ?? null;
 
-  const candidateSections: NavigationSection[] = [
-    { id: 'work', title: t('Trabalho'), items: allowed(WORK_ITEMS) },
-    { id: 'team', title: t('Gestão de equipa'), items: isTeamManager ? allowed(TEAM_ITEMS) : [] },
-    { id: 'it', title: t('Suporte IT'), items: allowed(IT_ITEMS) },
-    { id: 'analysis', title: t('Análise'), items: allowed(ANALYSIS_ITEMS) },
-    { id: 'administration', title: t('Administração'), items: allowed(ADMINISTRATION_ITEMS) },
-    { id: 'account', title: t('Conta'), items: ACCOUNT_ITEMS },
-  ];
-  const sections = candidateSections.filter((section) => section.items.length > 0);
-
-  const badges: Partial<Record<string, number>> = { '/notifications': unreadCount };
-  const activeSectionId = findActiveSection(sections, pathname);
-
-  // A secção da página atual começa aberta; as restantes ficam como o utilizador as deixou.
+  // Trabalho começa aberto; o grupo da página atual abre-se sempre; os restantes ficam como o utilizador os deixou.
   const [openSections, setOpenSections] = useState<OpenSections>(() => {
-    const stored = readStoredOpenSections();
+    const stored = { work: true, collaboration: true, ...readStoredOpenSections() };
     return activeSectionId ? { ...stored, [activeSectionId]: true } : stored;
   });
 
-  // Ao chegar a outra página (pelo menu, um atalho ou uma notificação), abre a secção que a contém.
-  // Só reage à mudança de página: o utilizador pode recolher a secção atual sem que ela volte a abrir.
+  // Ao chegar a outra página (pelo menu, um atalho ou uma notificação), abre o grupo que a contém.
   useEffect(() => {
     if (!activeSectionId) return;
     setOpenSections((previous) => (previous[activeSectionId] ? previous : { ...previous, [activeSectionId]: true }));
@@ -230,48 +133,40 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNavigate }) => {
     storeOpenSections(openSections);
   }, [openSections]);
 
-  const toggleSection = (sectionId: SectionId) =>
-    setOpenSections((previous) => ({ ...previous, [sectionId]: !previous[sectionId] }));
-
   return (
-    <aside className="flex h-full w-64 shrink-0 flex-col bg-sidebar text-white">
-      <div className="border-b border-white/15 px-5 py-4">
+    <aside className="flex h-full w-60 shrink-0 flex-col bg-sidebar text-white">
+      <div className="flex h-16 items-center border-b border-white/15 px-4">
         <BrandMark inverted />
       </div>
 
-      <nav aria-label={t('Navegação principal')} className="flex-1 space-y-2 overflow-y-auto px-3 py-4 custom-scrollbar">
-        <ul className="space-y-1 pb-2">
-          <SidebarLink to="/dashboard" label={t('Dashboard')} icon={LayoutDashboard} onNavigate={onNavigate} />
-
-          {showOwnTimesheet && (
-            <SidebarLink to="/timesheets" label={t('Meu Timesheet')} icon={Clock3} onNavigate={onNavigate} />
-          )}
-
-          {showSupportRequests && (
-            <SidebarLink to="/support" label={t('Pedidos de suporte')} icon={LifeBuoy} onNavigate={onNavigate} />
-          )}
-        </ul>
-
-        {sections.map((section) => (
-          <SidebarSection
-            key={section.id}
-            id={section.id}
-            title={section.title}
-            isOpen={openSections[section.id] ?? false}
-            onToggle={() => toggleSection(section.id)}
-            badge={section.items.reduce((total, item) => total + (badges[item.to] ?? 0), 0)}
-          >
-            {section.items.map((item) => (
-              <SidebarLink key={item.to} {...item} label={t(item.label)} badge={badges[item.to]} onNavigate={onNavigate} />
+      <nav aria-label={t('Navegação principal')} className="flex-1 overflow-y-auto px-2 pb-4 pt-3 custom-scrollbar">
+        {home && (
+          <ul className="space-y-0.5">
+            {home.items.map((item) => (
+              <SidebarLink key={item.to} item={item} isCurrent={isItemCurrent(item, pathname)} onNavigate={onNavigate} />
             ))}
-          </SidebarSection>
-        ))}
+          </ul>
+        )}
+        {groups.map(
+          (section) =>
+            section && (
+              <SidebarGroup
+                key={section.id}
+                section={section}
+                pathname={pathname}
+                isOpen={openSections[section.id] ?? false}
+                onToggle={() => setOpenSections((previous) => ({ ...previous, [section.id]: !previous[section.id] }))}
+                onNavigate={onNavigate}
+              />
+            )
+        )}
       </nav>
 
       {currentUser && (
-        <div className="flex items-center justify-between gap-2 border-t border-white/15 px-4 py-3">
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-white">{currentUser.full_name}</p>
+        <div className="flex items-center gap-2.5 border-t border-white/15 px-3 py-3">
+          <UserAvatar name={currentUser.full_name} size="sm" />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium text-white">{currentUser.display_name ?? currentUser.full_name}</p>
             <p className="truncate text-xs text-sidebar-muted">{currentUser.role?.name ?? t('Sem perfil de acesso')}</p>
           </div>
           <button

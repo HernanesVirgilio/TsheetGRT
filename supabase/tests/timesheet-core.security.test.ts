@@ -51,11 +51,11 @@ const workPermissions = (roleCode: string) =>
     "SELECT count(*)::int AS value FROM public.role_permissions rp JOIN public.roles r ON r.id = rp.role_id JOIN public.permissions p ON p.id = rp.permission_id WHERE r.code = $1 AND p.module = 'work'",
     [roleCode]
   );
-check((await workPermissions('EMPLOYEE')) === 8, 'EMPLOYEE: 8 permissões de trabalho (sem agendar reuniões, criar, atribuir ou aprovar)');
-check((await workPermissions('MANAGER')) === 19, 'MANAGER: 18 permissões de trabalho originais + aprovar oportunidades');
-check((await workPermissions('GESTOR')) === 17, 'GESTOR: gestão da equipa direta, sem decisão final de ausências nem aprovação de oportunidades');
-check((await workPermissions('IT')) === 6, 'IT: apenas uso pessoal (sem agendar reuniões, oportunidades nem gestão)');
-check((await workPermissions('ADMIN')) === 20, 'ADMIN: todas as permissões de trabalho');
+check((await workPermissions('EMPLOYEE')) === 9, 'EMPLOYEE: 9 permissões de trabalho (reuniões com colegas, sem criar, atribuir ou aprovar)');
+check((await workPermissions('MANAGER')) === 20, 'MANAGER: 18 permissões de trabalho originais + aprovar oportunidades + comunicar ausências');
+check((await workPermissions('GESTOR')) === 18, 'GESTOR: gestão da equipa direta e comunicar ausências, sem decisão final de ausências nem aprovação de oportunidades');
+check((await workPermissions('IT')) === 7, 'IT: uso pessoal e reuniões com colegas (sem oportunidades nem gestão)');
+check((await workPermissions('ADMIN')) === 21, 'ADMIN: todas as permissões de trabalho');
 
 // =============================================================================
 report.section('Tarefas: criação, âmbito e visibilidade');
@@ -330,8 +330,8 @@ const meetingResult = await db.asUser<{ id: string }>(
 );
 check(!meetingResult.error, `gestor organiza reunião com a equipa ${meetingResult.error ?? ''}`);
 check(
-  (await db.asUser(ana.authId, "SELECT public.create_meeting('Reunião do colaborador', $1::timestamptz, $2::timestamptz)", [inHours(24), inHours(25)])).code === '42501',
-  'colaborador comum não agenda reuniões'
+  !(await db.asUser(ana.authId, "SELECT public.create_meeting('Reunião do colaborador', $1::timestamptz, $2::timestamptz)", [inHours(24), inHours(25)])).error,
+  'colaborador agenda uma reunião sem aprovação'
 );
 const meetingId = meetingResult.rows[0]?.id ?? '';
 check((await notificationsOf(rui.profileId, 'MEETING_INVITED')) === 1, 'participante notificado do convite');

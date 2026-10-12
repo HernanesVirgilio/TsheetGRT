@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { CalendarPlus, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { CalendarPlus, ChevronLeft, ChevronRight, Plus, UserCheck } from 'lucide-react';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import { getErrorMessage } from '../../lib/errors';
@@ -18,6 +18,7 @@ import { ErrorState, LoadingState } from '../../components/ui/States';
 import { BADGE_TONE_CLASSES } from '../../components/ui/badgeTones';
 import type { BadgeTone } from '../../components/ui/badgeTones';
 import { MeetingFormModal } from '../../components/work/MeetingFormModal';
+import { MeetingRequestModal } from '../../components/work/MeetingRequestModal';
 import { CalendarTimeGrid } from '../../components/work/CalendarTimeGrid';
 import {
   addDays,
@@ -142,6 +143,7 @@ const ItemChip: React.FC<{ item: CalendarItem; compact?: boolean; onOpen: (item:
 
 export const CalendarPage: React.FC = () => {
   const navigate = useNavigate();
+  const [isRequestOpen, setIsRequestOpen] = useState(false);
   const { currentUser, hasPermission } = useAuth();
   const canSeeTeam = hasPermission('TEAM_READ') || hasPermission('ADMIN_ACCESS');
   const canManageEvents = hasPermission('TIMESHEET_CALENDAR_MANAGE');
@@ -244,9 +246,12 @@ export const CalendarPage: React.FC = () => {
         subtitle={t('Tarefas, prazos, reuniões, ausências, atividades e eventos num só lugar.')}
         actions={
           <>
+            <Button variant="secondary" icon={UserCheck} onClick={() => setIsRequestOpen(true)}>
+              {t('Solicitar reunião')}
+            </Button>
             {canCreateMeeting && (
               <Button variant="secondary" icon={CalendarPlus} onClick={() => openMeetingForm(null)} disabled={!people.data}>
-                {t('Nova reunião')}
+                {t('Agendar reunião')}
               </Button>
             )}
             {canManageEvents && (
@@ -417,6 +422,14 @@ export const CalendarPage: React.FC = () => {
           setIsEventFormOpen(false);
           setMessage(t('Evento interno criado.'));
           items.reload();
+        }}
+      />
+      <MeetingRequestModal
+        isOpen={isRequestOpen}
+        onClose={() => setIsRequestOpen(false)}
+        onSent={(meetingId) => {
+          setIsRequestOpen(false);
+          navigate(`/timesheet/meetings/${meetingId}`);
         }}
       />
       <MeetingFormModal

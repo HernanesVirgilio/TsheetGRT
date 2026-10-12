@@ -18,7 +18,7 @@ export type MeetingStatus = (typeof MEETING_STATUSES)[number];
 export const isMeetingStatus = (value: string): value is MeetingStatus => isOneOf(MEETING_STATUSES, value);
 
 /** SUBMITTED: a aguardar a validação do gestor. PENDING_APPROVAL: a aguardar a decisão do Manager. */
-export const ABSENCE_STATUSES = ['DRAFT', 'SUBMITTED', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'CANCELLED'] as const;
+export const ABSENCE_STATUSES = ['DRAFT', 'SUBMITTED', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'CANCELLED', 'COMMUNICATED'] as const;
 export type AbsenceStatus = (typeof ABSENCE_STATUSES)[number];
 export const isAbsenceStatus = (value: string): value is AbsenceStatus => isOneOf(ABSENCE_STATUSES, value);
 
@@ -117,7 +117,18 @@ export interface MeetingSummary {
   status: MeetingStatus;
   organizerId: string;
   organizerName: string | null;
+  /** Pedido de reunião a uma chefia (null numa reunião normal, que não passa por aprovação). */
+  requestStatus: MeetingRequestStatus | null;
+  requestedWith: string | null;
 }
+
+export const MEETING_REQUEST_STATUSES = ['PENDING', 'ACCEPTED', 'REJECTED'] as const;
+export type MeetingRequestStatus = (typeof MEETING_REQUEST_STATUSES)[number];
+export const isMeetingRequestStatus = (value: string): value is MeetingRequestStatus => isOneOf(MEETING_REQUEST_STATUSES, value);
+
+export const MEETING_RESPONSES = ['PENDING', 'ACCEPTED', 'DECLINED'] as const;
+export type MeetingResponse = (typeof MEETING_RESPONSES)[number];
+export const isMeetingResponse = (value: string): value is MeetingResponse => isOneOf(MEETING_RESPONSES, value);
 
 export interface MeetingDetail extends MeetingSummary {
   description: string;
@@ -127,6 +138,8 @@ export interface MeetingDetail extends MeetingSummary {
   decisions: string | null;
   nextSteps: string | null;
   cancelReason: string | null;
+  requestDecidedAt: string | null;
+  requestDecisionComment: string | null;
   task: { id: string; reference: string; title: string } | null;
   opportunity: { id: string; reference: string; title: string } | null;
   updatedAt: string;
@@ -137,6 +150,17 @@ export interface MeetingPerson {
   fullName: string;
   jobTitle: string | null;
   isOrganizer: boolean;
+  response: MeetingResponse;
+  respondedAt: string | null;
+  responseComment: string | null;
+}
+
+/** Chefia configurada de quem pede (a quem se pode pedir uma reunião). */
+export interface MeetingLead {
+  profileId: string;
+  fullName: string;
+  jobTitle: string | null;
+  relation: 'LEAD' | 'SUPERVISOR';
 }
 
 export interface AbsenceType {
@@ -159,6 +183,8 @@ export interface AbsenceRequest {
   endDate: string;
   reason: string;
   status: AbsenceStatus;
+  /** REQUEST: pedido formal (validação e decisão); NOTICE: indisponibilidade comunicada, nunca aprovada. */
+  kind: 'REQUEST' | 'NOTICE';
   submittedAt: string | null;
   validatedAt: string | null;
   validationComment: string | null;

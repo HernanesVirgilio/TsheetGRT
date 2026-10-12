@@ -7,7 +7,7 @@ import { mapWorkEvent, WORK_EVENT_COLUMNS } from './workEvents';
 import { t } from '../../lib/i18n';
 
 const ABSENCE_SELECT =
-  'id, reference, employee_id, absence_type_id, start_date, end_date, reason, status, submitted_at, validated_at, validation_comment, decided_at, decision_comment, created_at, employee:profiles!absence_requests_employee_id_fkey(full_name), type:absence_types(name, requires_attachment)' as const;
+  'id, reference, employee_id, absence_type_id, start_date, end_date, reason, status, kind, submitted_at, validated_at, validation_comment, decided_at, decision_comment, created_at, employee:profiles!absence_requests_employee_id_fkey(full_name), type:absence_types(name, requires_attachment)' as const;
 
 interface AbsenceRow {
   id: string;
@@ -18,6 +18,7 @@ interface AbsenceRow {
   end_date: string;
   reason: string;
   status: string;
+  kind: string;
   submitted_at: string | null;
   validated_at: string | null;
   validation_comment: string | null;
@@ -42,6 +43,7 @@ function mapAbsence(row: AbsenceRow): AbsenceRequest | null {
     endDate: row.end_date,
     reason: row.reason,
     status: row.status,
+    kind: row.kind === 'NOTICE' ? 'NOTICE' : 'REQUEST',
     submittedAt: row.submitted_at,
     validatedAt: row.validated_at,
     validationComment: row.validation_comment,
@@ -79,7 +81,7 @@ export async function listMyAbsences(employeeId: string): Promise<AbsenceRequest
 }
 
 /** Pedidos da equipa (RLS: âmbito do gestor ou do Manager com TIMESHEET_ABSENCE_READ, ou administração). */
-export async function listTeamAbsences(viewerId: string, statuses: AbsenceStatus[]): Promise<AbsenceRequest[]> {
+export async function listTeamAbsences(viewerId: string, statuses: AbsenceStatus[], endingFrom?: string): Promise<AbsenceRequest[]> {
   let request = supabase
     .from('absence_requests')
     .select(ABSENCE_SELECT)
@@ -87,6 +89,7 @@ export async function listTeamAbsences(viewerId: string, statuses: AbsenceStatus
     .order('submitted_at', { ascending: true, nullsFirst: false })
     .limit(200);
   if (statuses.length > 0) request = request.in('status', statuses);
+  if (endingFrom) request = request.gte('end_date', endingFrom);
   const { data, error } = await request;
   if (error) throw toServiceError(error, t('Não foi possível carregar os pedidos da equipa.'));
   return data.map(mapAbsence).filter(isPresent);
@@ -133,6 +136,18 @@ export async function saveAbsence(requestId: string | null, input: AbsenceInput)
     p_reason: input.reason,
   });
   if (error) throw toServiceError(error, t('Não foi possível guardar o pedido.'));
+  return data;
+}
+
+/** Comunicar indisponibilidade (sem pedido formal): fica registada como comunicada, nunca como aprovada. */
+export async function communicateAbsence(input: AbsenceInput): Promise<string> {
+  const { data, error } = await supabase.rpc('communicate_absence', {
+    p_absence_type_id: input.absenceTypeId,
+    p_start_date: input.startDate,
+    p_end_date: input.endDate,
+    p_reason: input.reason,
+  });
+  if (error) throw toServiceError(error, t('Não foi possível comunicar a ausência.'));
   return data;
 }
 

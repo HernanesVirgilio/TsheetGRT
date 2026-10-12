@@ -15,7 +15,7 @@ import { formatMinutesAsHours } from '../../utils/format';
 import { t } from '../../lib/i18n';
 
 /** Carga de trabalho da equipa do âmbito (dados agregados pelo servidor, sem expor detalhes). */
-export const TeamWorkPage: React.FC = () => {
+export const TeamWorkPage: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const overview = useAsyncData(getTeamWorkOverview, []);
   const members = [...(overview.data ?? [])].sort(
     (first, second) => second.tasksOverdue - first.tasksOverdue || second.tasksBlocked - first.tasksBlocked || second.tasksOpen - first.tasksOpen
@@ -50,16 +50,20 @@ export const TeamWorkPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={t('Carga da equipa')}
-        subtitle={t('O que a equipa tem em mãos: tarefas em aberto, atrasos, bloqueios, horas e ausências.')}
-        actions={
-          <Link to="/timesheet/tasks?scope=TEAM" className="text-sm font-medium text-primary-hover hover:underline">
-            {t('Tarefas da equipa')}
-          </Link>
-        }
-      />
-      {absent.length > 0 && (
+      {embedded ? (
+        <p className="text-sm text-text-secondary">{t('O que a equipa tem em mãos: tarefas em aberto, atrasos, bloqueios, horas e ausências.')}</p>
+      ) : (
+        <PageHeader
+          title={t('Carga de trabalho')}
+          subtitle={t('O que a equipa tem em mãos: tarefas em aberto, atrasos, bloqueios, horas e ausências.')}
+          actions={
+            <Link to="/timesheet/tasks?scope=TEAM" className="text-sm font-medium text-primary-hover hover:underline">
+              {t('Tarefas da equipa')}
+            </Link>
+          }
+        />
+      )}
+      {!embedded && absent.length > 0 && (
         <Panel title={t('Ausentes hoje')}>
           <p className="text-sm text-text-secondary">{absent.map((member) => `${member.fullName} (${member.absenceToday})`).join(' · ')}</p>
         </Panel>

@@ -52,6 +52,7 @@ export const ABSENCE_STATUS_LABELS: Record<AbsenceStatus, string> = translated({
   APPROVED: 'Aprovada',
   REJECTED: 'Rejeitada',
   CANCELLED: 'Cancelada',
+  COMMUNICATED: 'Comunicada (sem aprovação)',
 });
 
 export const OPPORTUNITY_STATUS_LABELS: Record<OpportunityStatus, string> = translated({
@@ -445,7 +446,8 @@ export function describeConflict(conflict: ScheduleConflict): string {
   if (conflict.kind === 'ABSENCE') {
     // A ausência termina no início do dia seguinte ao último dia ausente.
     const lastDay = new Date(end.getTime() - 1);
-    return isSameDay(start, lastDay) ? t('Ausência aprovada ({start})', { start: shortDate(start) }) : t('Ausência aprovada ({start} a {lastDay})', { start: shortDate(start), lastDay: shortDate(lastDay) });
+    // Aprovada ou comunicada: em ambos os casos a pessoa não está disponível.
+    return isSameDay(start, lastDay) ? t('Ausente ({start})', { start: shortDate(start) }) : t('Ausente ({start} a {lastDay})', { start: shortDate(start), lastDay: shortDate(lastDay) });
   }
   const period = isSameDay(start, end) ? `${toTimeInput(start)}–${toTimeInput(end)}` : t('{start} até {end} {end2}', { start: toTimeInput(start), end: shortDate(end), end2: toTimeInput(end) });
   return `${conflict.title ?? t('Ocupado noutra reunião')} · ${period}`;

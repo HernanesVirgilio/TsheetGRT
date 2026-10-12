@@ -43,11 +43,16 @@ const IT_REQUESTER_TYPES: readonly string[] = ['IT_TICKET_UPDATED', 'IT_TICKET_W
  * notificações anteriores aos módulos com ligação). Por ordem de preferência.
  */
 function fallbackPaths(type: string): string[] {
-  if (type === 'APPROVAL_REQUIRED') return ['/approvals'];
+  if (type === 'APPROVAL_REQUIRED' || type === 'APPROVAL_REMINDER') return ['/approvals'];
+  if (type === 'MEETING_REQUEST') return ['/approvals?tab=meetings', '/timesheet/meetings'];
+  if (type === 'ABSENCE_COMMUNICATED') return ['/team?tab=availability', '/timesheet/calendar'];
   if (type.startsWith('TIMESHEET_')) return ['/timesheets'];
   if (type.startsWith('IT_TICKET_')) return IT_REQUESTER_TYPES.includes(type) ? ['/support', '/it/tickets'] : ['/it/tickets', '/support'];
   if (type.startsWith('TASK_') || type.startsWith('TEAM_TASK_')) return ['/timesheet/tasks'];
   if (type.startsWith('MEETING_')) return ['/timesheet/meetings'];
+  if (type === 'ABSENCE_VALIDATION_REQUIRED' || type === 'ABSENCE_APPROVAL_REQUIRED' || type === 'ABSENCE_DECIDED') {
+    return ['/approvals?tab=absences', '/timesheet/absences'];
+  }
   if (type.startsWith('ABSENCE_')) return ['/timesheet/absences'];
   if (type.startsWith('OPPORTUNITY_')) return ['/timesheet/opportunities'];
   return [];

@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ChevronDown, KeyRound, LogOut, Menu, User } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Bell, ChevronDown, ChevronRight, KeyRound, LogOut, Menu, User } from 'lucide-react';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { t } from '../../lib/i18n';
 import { NotificationDropdown } from './NotificationDropdown';
 import { LanguageSwitcher, ThemeToggle } from './PreferenceControls';
 import { UserAvatar } from '../ui/UserAvatar';
+import { currentLocation, visibleNavigation } from './navigationConfig';
 
 interface HeaderProps {
   onOpenMobileMenu: () => void;
@@ -15,7 +16,9 @@ const MENU_ITEM_CLASS =
   'flex w-full items-center gap-2.5 px-4 py-2 text-left text-sm text-text-secondary hover:bg-surface-muted hover:text-text';
 
 export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
-  const { currentUser, signOut } = useAuth();
+  const { currentUser, hasPermission, signOut } = useAuth();
+  const { pathname } = useLocation();
+  const location = currentLocation(visibleNavigation(hasPermission), pathname);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -52,9 +55,18 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
         >
           <Menu className="h-5 w-5" aria-hidden="true" />
         </button>
-        <p className="hidden text-sm text-text-secondary sm:block">
-          <span className="font-semibold text-text">SI Holdings</span> · {t('Operações e Timesheets')}
-        </p>
+        {/* Onde o utilizador está (grupo › destino); a identidade da empresa fica só no menu lateral. */}
+        {location && (
+          <p className="flex min-w-0 items-center gap-1.5 text-sm">
+            {location.section.id !== 'home' && location.section.title !== location.item.label && (
+              <>
+                <span className="hidden text-text-muted sm:inline">{location.section.title}</span>
+                <ChevronRight className="hidden h-3.5 w-3.5 text-text-muted sm:inline" aria-hidden="true" />
+              </>
+            )}
+            <span className="truncate font-semibold text-text">{location.item.label}</span>
+          </p>
+        )}
       </div>
 
       <div className="flex items-center gap-1 sm:gap-2">
@@ -94,7 +106,11 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
                 </div>
                 <button type="button" role="menuitem" className={MENU_ITEM_CLASS} onClick={() => goTo('/profile')}>
                   <User className="h-4 w-4" aria-hidden="true" />
-                  {t('Meu perfil')}
+                  {t('Perfil')}
+                </button>
+                <button type="button" role="menuitem" className={MENU_ITEM_CLASS} onClick={() => goTo('/notifications')}>
+                  <Bell className="h-4 w-4" aria-hidden="true" />
+                  {t('Notificações')}
                 </button>
                 <button
                   type="button"

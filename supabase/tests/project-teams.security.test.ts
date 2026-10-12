@@ -167,7 +167,7 @@ const meetingAsManager = await conflicts(manager.authId, [ana.profileId], at(3, 
 check(meetingAsManager.rows.length === 1, 'Manager vê o conflito da equipa supervisionada');
 const fromFinance = await conflicts(gestorFin.authId, [ana.profileId, bruno.profileId], at(3, 9), at(3, 10));
 check(fromFinance.rows.length === 0, 'pessoas fora do âmbito de quem organiza não são consultadas');
-check((await conflicts(ana.authId, [rui.profileId], at(3, 9), at(3, 10))).code === '42501', 'quem não organiza reuniões não consulta conflitos');
+check((await conflicts(ana.authId, [bruno.profileId], at(3, 9), at(3, 10))).rows.length === 0, 'colaborador não consulta a agenda de pessoas de outra equipa');
 check((await conflicts(gestor.authId, [ana.profileId], at(3, 11), at(3, 10))).error?.includes('terminar depois') ?? false, 'intervalo invertido recusado');
 check(
   (await conflicts(gestor.authId, [ana.profileId], at(1, 9), at(30, 9))).error?.includes('24 horas') ?? false,

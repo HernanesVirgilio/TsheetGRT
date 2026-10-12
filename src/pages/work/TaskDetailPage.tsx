@@ -191,9 +191,7 @@ export const TaskDetailPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <nav aria-label={t('Caminho')} className="text-sm text-text-muted">
-        <Link to="/timesheet" className="hover:underline">
-          {t('Trabalho')}
-        </Link>{' '}
+        <span>{t('Trabalho')}</span>{' '}
         /{' '}
         <Link to="/timesheet/tasks" className="hover:underline">
           {t('Tarefas')}

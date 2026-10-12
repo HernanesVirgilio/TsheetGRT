@@ -168,11 +168,12 @@ Um gestor não pode pedir o relatório de outro gestor. Um Manager só filtra pe
 
 ## 6. Reuniões e calendário
 
-- **Quem agenda:** é preciso `TIMESHEET_MEETING_CREATE` (GESTOR, MANAGER, ADMIN). O colaborador comum e o IT recebem convites, mas não agendam. O backend recusa (`create_meeting`) e a interface esconde as ações.
+- **Quem agenda:** é preciso `TIMESHEET_MEETING_CREATE`. Desde `20261015000000`, todos os perfis agendam reuniões com colegas sem aprovação, e os pedidos de tempo a uma chefia seguem um fluxo de aceitação (ver [navegacao-e-fluxos.md](navegacao-e-fluxos.md) §4).
 - **Quem pode ser convidado** (`private.can_invite_to_meeting`):
   - a equipa de quem organiza (dois níveis para o Manager);
   - as chefias de quem organiza;
   - os envolvidos na tarefa ou oportunidade ligada;
+  - os colegas (mesmo departamento ou mesma chefia direta);
   - qualquer pessoa, se for a administração.
   - Quem já participa mantém-se ao editar. A lista de convidáveis vem de `list_work_people('MEETING')`.
 - **Quem altera ou cancela:** só quem gere a reunião (o organizador, o gestor do organizador ou a administração).

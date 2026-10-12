@@ -31,7 +31,8 @@ interface TeamRow {
 
 const ALL_TIMESHEETS = { status: null, employeeId: null, periodFrom: null, periodTo: null };
 
-export const TeamPage: React.FC = () => {
+/** Pessoas da equipa (separador "Pessoas" do módulo Equipa). */
+export const TeamPage: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const team = useAsyncData(() => Promise.all([listTeamMembers(), listTeamTimesheets(ALL_TIMESHEETS)]), []);
   const [search, setSearch] = useState('');
   const [departmentId, setDepartmentId] = useState(ALL);
@@ -132,7 +133,7 @@ export const TeamPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={t('Minha Equipa')} subtitle={t('Colaboradores no seu âmbito de gestão e o estado dos respetivos timesheets.')} />
+      {!embedded && <PageHeader title={t('Equipa')} subtitle={t('Colaboradores no seu âmbito de gestão e o estado dos respetivos timesheets.')} />}
 
       <Panel flush>
         <div className="grid grid-cols-1 gap-3 border-b border-border p-4 sm:grid-cols-3">

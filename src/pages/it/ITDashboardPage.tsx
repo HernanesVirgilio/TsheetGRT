@@ -1,10 +1,13 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, CheckCircle2, CircleDot, Clock, Hourglass, PauseCircle, UserX, Wrench } from 'lucide-react';
+import { AlertTriangle, Clock, Hourglass, ListChecks, UserX } from 'lucide-react';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import { getDashboardSummary, listActiveTickets, listRecentTicketEvents } from '../../services/itTicketService';
 import type { TicketSummary } from '../../types/it';
 import { PageHeader } from '../../components/ui/PageHeader';
+import { DashboardHeader } from '../../components/layout/DashboardHeader';
+import { SystemHealthStrip } from '../../components/work/SystemHealthStrip';
+import { useAuth } from '../../lib/auth/AuthContext';
 import { Panel } from '../../components/ui/Panel';
 import { StatCard } from '../../components/ui/StatCard';
 import { ErrorState, LoadingState } from '../../components/ui/States';
@@ -45,7 +48,9 @@ function buildAttentionList(tickets: TicketSummary[], waitingAlertDays: number, 
     .sort((first, second) => compareTicketsByUrgency(first.ticket, second.ticket));
 }
 
-export const ITDashboardPage: React.FC = () => {
+/** Painel do suporte IT. Com `asDashboard`, é o painel inicial do perfil IT (saudação e saúde do sistema). */
+export const ITDashboardPage: React.FC<{ asDashboard?: boolean }> = ({ asDashboard = false }) => {
+  const { hasPermission } = useAuth();
   const dashboard = useAsyncData(
     () => Promise.all([getDashboardSummary(), listActiveTickets(), listRecentTicketEvents(RECENT_ACTIVITY_LIMIT)]),
     []
@@ -57,33 +62,28 @@ export const ITDashboardPage: React.FC = () => {
   }
 
   const [summary, activeTickets, recentEvents] = dashboard.data;
+  const queueLink = (
+    <Link
+      to="/it/tickets"
+      className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-on-primary hover:bg-primary-hover hover:text-on-primary-hover"
+    >
+      <ListChecks className="h-4 w-4" aria-hidden="true" />
+      {t('Abrir fila de suporte')}
+    </Link>
+  );
   const now = new Date();
   const attention = buildAttentionList(activeTickets, summary.waitingAlertDays, now);
   const dueSoonCount = activeTickets.filter((ticket) => isTicketDueSoon(ticket, now)).length;
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={t('Suporte IT')}
-        subtitle={t('Estado atual dos pedidos de suporte e do trabalho da equipa.')}
-        actions={
-          <Link
-            to="/it/tickets"
-            className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-sm font-semibold text-on-primary hover:bg-primary-hover hover:text-on-primary-hover"
-          >
-            {t('Abrir fila de pedidos')}
-          </Link>
-        }
-      />
+      {asDashboard ? (
+        <DashboardHeader message={t('Pedidos de suporte, prazos, equipamentos e o estado dos serviços.')} actions={queueLink} />
+      ) : (
+        <PageHeader title={t('Suporte IT')} subtitle={t('Estado atual dos pedidos de suporte e do trabalho da equipa.')} actions={queueLink} />
+      )}
 
       {dashboard.error && <ErrorState message={dashboard.error} onRetry={dashboard.reload} />}
-
-      <section aria-label={t('Pedidos por estado')} className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label={t('Abertos')} value={summary.openCount} icon={CircleDot} supporting={t('Ainda sem atendimento iniciado')} />
-        <StatCard label={t('Em atendimento')} value={summary.inProgressCount} icon={Wrench} supporting={t('Com técnico a trabalhar no pedido')} />
-        <StatCard label={t('A aguardar colaborador')} value={summary.waitingUserCount} icon={PauseCircle} supporting={t('Dependem de resposta do colaborador')} />
-        <StatCard label={t('Resolvidos')} value={summary.resolvedCount} icon={CheckCircle2} supporting={t('A aguardar confirmação do colaborador')} />
-      </section>
 
       <section aria-label={t('Indicadores de atenção')} className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label={t('Críticos em curso')} value={summary.criticalCount} icon={AlertTriangle} supporting={t('Prioridade crítica ainda por concluir')} />
@@ -147,8 +147,19 @@ export const ITDashboardPage: React.FC = () => {
               </p>
             )}
           </Panel>
+          <p className="mt-3 text-sm text-text-secondary" aria-label={t('Pedidos por estado')}>
+            <span className="font-medium text-text">{t('Fila:')}</span>{' '}
+            {t('{open} abertos · {inProgress} em atendimento · {waiting} a aguardar o colaborador · {resolved} resolvidos por confirmar', {
+              open: summary.openCount,
+              inProgress: summary.inProgressCount,
+              waiting: summary.waitingUserCount,
+              resolved: summary.resolvedCount,
+            })}
+          </p>
         </div>
 
+        <div className="space-y-6">
+        {hasPermission('SYSTEM_HEALTH_READ') && <SystemHealthStrip />}
         <Panel title={t('Atividade recente')} flush>
           {recentEvents.length === 0 ? (
             <p className="px-5 py-6 text-sm text-text-secondary">{t('Ainda não existe atividade registada.')}</p>
@@ -170,6 +181,7 @@ export const ITDashboardPage: React.FC = () => {
             </ul>
           )}
         </Panel>
+        </div>
       </div>
     </div>
   );

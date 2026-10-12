@@ -22,7 +22,7 @@ import { t } from '../../lib/i18n';
 type Tab = 'TO_DECIDE' | 'HISTORY';
 
 /** Pedidos de aprovação de oportunidades: decisões do Manager e acompanhamento por quem pediu. */
-export const ApprovalRequestsPage: React.FC = () => {
+export const ApprovalRequestsPage: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const { currentUser, hasPermission } = useAuth();
   const viewerId = currentUser?.id ?? '';
   const canDecide = hasPermission('TIMESHEET_OPPORTUNITY_APPROVE');
@@ -107,7 +107,11 @@ export const ApprovalRequestsPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={t('Pedidos de aprovação')} subtitle={t('Oportunidades que precisam da decisão do Manager antes de avançar para proposta.')} />
+      {embedded ? (
+        <p className="text-sm text-text-secondary">{t('Oportunidades que precisam da decisão do Manager antes de avançar para proposta.')}</p>
+      ) : (
+        <PageHeader title={t('Oportunidades')} subtitle={t('Oportunidades que precisam da decisão do Manager antes de avançar para proposta.')} />
+      )}
       {canDecide && (
         <div role="tablist" aria-label={t('Pedidos de aprovação')} className="flex gap-2">
           <Button role="tab" size="sm" aria-selected={tab === 'TO_DECIDE'} variant={tab === 'TO_DECIDE' ? 'primary' : 'secondary'} onClick={() => setTab('TO_DECIDE')}>

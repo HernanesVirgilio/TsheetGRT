@@ -373,11 +373,19 @@ export type MeetingRow = Timestamps & {
   cancel_reason: string | null;
   task_id: string | null;
   opportunity_id: string | null;
+  /** Pedido de reunião a uma chefia (NULL numa reunião normal). */
+  request_status: string | null;
+  requested_with: string | null;
+  request_decided_at: string | null;
+  request_decision_comment: string | null;
 };
 
 export type MeetingParticipantRow = {
   meeting_id: string;
   profile_id: string;
+  response: string;
+  responded_at: string | null;
+  response_comment: string | null;
   created_at: string;
 };
 
@@ -411,6 +419,8 @@ export type AbsenceRequestRow = Timestamps & {
   validated_by: string | null;
   validation_comment: string | null;
   cancelled_at: string | null;
+  /** REQUEST: pedido formal; NOTICE: comunicação de indisponibilidade (nunca aprovada). */
+  kind: string;
 };
 
 export type AbsenceEventRow = WorkEventColumns & { absence_request_id: string };
@@ -1167,7 +1177,70 @@ export type Database = {
       refresh_deadline_alerts: { Args: NoArgs; Returns: number };
       get_meeting_people: {
         Args: { p_meeting_id: string };
-        Returns: { profile_id: string; full_name: string; job_title: string | null; is_organizer: boolean }[];
+        Returns: {
+          profile_id: string;
+          full_name: string;
+          job_title: string | null;
+          is_organizer: boolean;
+          response: string;
+          responded_at: string | null;
+          response_comment: string | null;
+        }[];
+      };
+      respond_to_meeting: { Args: { p_meeting_id: string; p_response: string; p_comment?: string | null }; Returns: undefined };
+      request_meeting: {
+        Args: {
+          p_lead_id: string;
+          p_title: string;
+          p_starts_at: string;
+          p_ends_at: string;
+          p_agenda?: string;
+          p_location?: string | null;
+          p_meeting_url?: string | null;
+        };
+        Returns: string;
+      };
+      decide_meeting_request: { Args: { p_meeting_id: string; p_decision: string; p_comment?: string | null }; Returns: undefined };
+      list_my_leads: { Args: NoArgs; Returns: { profile_id: string; full_name: string; job_title: string | null; relation: string }[] };
+      communicate_absence: {
+        Args: { p_absence_type_id: string; p_start_date: string; p_end_date: string; p_reason?: string };
+        Returns: string;
+      };
+      get_timesheet_history: {
+        Args: { p_timesheet_id: string };
+        Returns: { event_id: string; action: string; actor_name: string | null; comment: string | null; created_at: string }[];
+      };
+      refresh_approval_reminders: { Args: NoArgs; Returns: number };
+      get_hours_report: {
+        Args: { p_from: string; p_to: string; p_department_id?: string | null; p_employee_id?: string | null };
+        Returns: {
+          employee_id: string;
+          employee_name: string | null;
+          department_id: string | null;
+          department_name: string | null;
+          activity_name: string;
+          minutes: number;
+          entries: number;
+          days_worked: number;
+        }[];
+      };
+      get_hours_trend: {
+        Args: { p_from: string; p_to: string; p_bucket: string; p_department_id?: string | null; p_employee_id?: string | null };
+        Returns: { bucket_start: string; minutes: number; people: number }[];
+      };
+      get_approval_report: {
+        Args: { p_from: string; p_to: string; p_department_id?: string | null };
+        Returns: {
+          approved_count: number;
+          rejected_count: number;
+          avg_decision_hours: number | null;
+          decisions_measured: number;
+          resubmitted_approved: number;
+          pending_now: number;
+          pending_over_threshold: number;
+          threshold_days: number;
+          oldest_pending_at: string | null;
+        }[];
       };
       get_opportunity_people: {
         Args: { p_opportunity_id: string };

@@ -70,7 +70,7 @@ export const MyTasksPanel: React.FC<{ viewerId: string }> = ({ viewerId }) => {
   const now = new Date();
   const ordered = [...(tasks.data ?? [])].sort((first, second) => compareTasksForToday(first, second, now)).slice(0, 5);
   return (
-    <Panel title={t('As minhas tarefas')} actions={<PanelLink to="/timesheet/tasks">{t('Ver todas')}</PanelLink>} flush>
+    <Panel title={t('Tarefas atribuídas a si')} actions={<PanelLink to="/timesheet/tasks">{t('Ver todas')}</PanelLink>} flush>
       {tasks.error && <p className="px-5 py-4 text-sm text-danger">{tasks.error}</p>}
       {tasks.isLoading && !tasks.data && <LoadingState label={t('A carregar tarefas...')} />}
       {tasks.data && ordered.length === 0 && <EmptyState bordered={false} icon={ListTodo} title={t('Não tem tarefas em aberto.')} />}
@@ -229,7 +229,7 @@ export const ReportSummaryPanel: React.FC<{ filters: ReportFilters; members: Tea
       detail: t('{minutesThisWeek} registadas esta semana', { minutesThisWeek: formatMinutesAsHours(member.minutesThisWeek) }),
     }));
   return (
-    <Panel title={t('Relatórios')} description={t('Resumo do período; a análise detalhada está na página de relatórios.')} actions={<PanelLink to="/timesheet/reports">{t('Abrir relatórios')}</PanelLink>}>
+    <Panel title={t('Relatórios')} description={t('Resumo do período; a análise detalhada está na página de relatórios.')} actions={<PanelLink to="/reports?tab=team">{t('Abrir relatórios')}</PanelLink>}>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="space-y-6">
           {trend.error && <ErrorState message={trend.error} onRetry={trend.reload} />}

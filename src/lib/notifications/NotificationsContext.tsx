@@ -73,7 +73,10 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
     if (deadlineAlertsRequestedRef.current && now - lastDeadlineAlertsAtRef.current >= DEADLINE_ALERTS_MIN_INTERVAL_MS) {
       lastDeadlineAlertsAtRef.current = now;
       // Uma falha na geração dos alertas não impede a leitura das notificações.
-      await notificationService.refreshDeadlineAlerts().catch(() => undefined);
+      await Promise.all([
+        notificationService.refreshDeadlineAlerts().catch(() => undefined),
+        notificationService.refreshApprovalReminders().catch(() => undefined),
+      ]);
     }
     deadlineAlertsRequestedRef.current = false;
 

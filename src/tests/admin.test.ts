@@ -43,11 +43,13 @@ assert(Boolean(validateDepartmentForm({ code: 'R H', name: 'X', description: '' 
 assert(Boolean(validateDepartmentForm({ code: 'RH', name: '  ', description: '' }).name), 'nome vazio é rejeitado');
 
 section('Configurações');
-const validSettings = { companyName: 'SI Holdings', periodType: 'MONTHLY', dailyTargetHours: '8', allowWeekendEntries: true };
+const validSettings = { companyName: 'SI Holdings', periodType: 'MONTHLY', dailyTargetHours: '8', allowWeekendEntries: true, approvalReminderDays: '3' };
 assert(!hasErrors(validateSettingsForm(validSettings)), 'configurações válidas');
 assert(Boolean(validateSettingsForm({ ...validSettings, dailyTargetHours: '13' }).dailyTargetHours), 'meta acima de 12 horas é rejeitada');
 assert(Boolean(validateSettingsForm({ ...validSettings, dailyTargetHours: '7.5' }).dailyTargetHours), 'meta decimal é rejeitada');
 assert(Boolean(validateSettingsForm({ ...validSettings, periodType: 'DAILY' }).periodType), 'ciclo desconhecido é rejeitado');
+assert(Boolean(validateSettingsForm({ ...validSettings, approvalReminderDays: '0' }).approvalReminderDays), 'lembrete de aprovação com 0 dias é rejeitado');
+assert(Boolean(validateSettingsForm({ ...validSettings, approvalReminderDays: '31' }).approvalReminderDays), 'lembrete de aprovação acima de 30 dias é rejeitado');
 
 section('Palavra-passe');
 assert(Boolean(validateNewPassword({ newPassword: 'curta', confirmPassword: 'curta' }).newPassword), 'menos de 12 carateres é rejeitado');

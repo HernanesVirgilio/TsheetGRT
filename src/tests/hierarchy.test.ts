@@ -105,8 +105,8 @@ const meetingConflict = { profileId: 'a', fullName: 'Ana', kind: 'MEETING' as co
 assert(describeConflict(meetingConflict) === 'Reunião semanal · 09:00–11:00', 'conflito com o título e o período');
 assert(describeConflict({ ...meetingConflict, meetingId: null, title: null }) === 'Ocupado noutra reunião · 09:00–11:00', 'reunião não visível aparece só como período ocupado');
 const absenceConflict = { ...meetingConflict, kind: 'ABSENCE' as const, title: null, startsAt: new Date(2026, 9, 14).toISOString(), endsAt: new Date(2026, 9, 16).toISOString() };
-assert(describeConflict(absenceConflict) === 'Ausência aprovada (14/10 a 15/10)', 'ausência de vários dias, sem o tipo de ausência');
-assert(describeConflict({ ...absenceConflict, endsAt: new Date(2026, 9, 15).toISOString() }) === 'Ausência aprovada (14/10)', 'ausência de um dia');
+assert(describeConflict(absenceConflict) === 'Ausente (14/10 a 15/10)', 'ausência de vários dias, sem o tipo de ausência');
+assert(describeConflict({ ...absenceConflict, endsAt: new Date(2026, 9, 15).toISOString() }) === 'Ausente (14/10)', 'ausência de um dia');
 
 console.log('\nNotificações');
 assert(isNotificationCategory('APPROVAL_REQUEST') && !isNotificationCategory('OUTRA'), 'categorias reconhecidas');

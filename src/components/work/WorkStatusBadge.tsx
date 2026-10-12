@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertCircle, Ban, CheckCircle2, CircleDot, Clock, Lock, PauseCircle, PlayCircle, Trophy, UserCheck, XCircle } from 'lucide-react';
+import { AlertCircle, Ban, CheckCircle2, CircleDot, Clock, Lock, Megaphone, PauseCircle, PlayCircle, Trophy, UserCheck, XCircle } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { BADGE_TONE_CLASSES } from '../ui/badgeTones';
 import type { BadgeTone } from '../ui/badgeTones';
@@ -39,6 +39,7 @@ const ABSENCE: Record<AbsenceStatus, Presentation> = {
   APPROVED: { tone: 'success', icon: CheckCircle2 },
   REJECTED: { tone: 'danger', icon: XCircle },
   CANCELLED: { tone: 'neutral', icon: Ban },
+  COMMUNICATED: { tone: 'info', icon: Megaphone },
 };
 
 const OPPORTUNITY: Record<OpportunityStatus, Presentation> = {

@@ -16,9 +16,9 @@ const countAudit = (action: string) => db.countAudit(action);
 
 // =============================================================================
 report.section('Seed');
-check((await db.scalar<number>('SELECT count(*)::int AS value FROM public.permissions')) === 58, '58 permissões (30 base + 6 do módulo IT + 18 do Timesheet Core + 4 da hierarquia)');
+check((await db.scalar<number>('SELECT count(*)::int AS value FROM public.permissions')) === 59, '59 permissões (30 base + 6 do módulo IT + 18 do Timesheet Core + 4 da hierarquia + comunicar ausências)');
 check(
-  (await db.scalar<number>("SELECT count(*)::int AS value FROM public.role_permissions rp JOIN public.roles r ON r.id = rp.role_id WHERE r.code = 'ADMIN'")) === 58,
+  (await db.scalar<number>("SELECT count(*)::int AS value FROM public.role_permissions rp JOIN public.roles r ON r.id = rp.role_id WHERE r.code = 'ADMIN'")) === 59,
   'ADMIN mantém todas as permissões, incluindo as do IT e do Timesheet Core'
 );
 check((await db.scalar<number>('SELECT count(*)::int AS value FROM public.profiles')) === 0, 'seed não cria utilizadores');

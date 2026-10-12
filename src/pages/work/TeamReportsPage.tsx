@@ -49,13 +49,22 @@ const COMPLETION_SERIES: [{ label: string; swatchClass: string }, { label: strin
 ];
 
 /** Relatórios operacionais da equipa do âmbito (gestor) ou das equipas supervisionadas (Manager). */
-export const TeamReportsPage: React.FC = () => {
+interface TeamReportsPageProps {
+  /** Dentro do centro de relatórios: sem cabeçalho próprio e com o período escolhido na barra comum. */
+  embedded?: boolean;
+  period?: { from: string; to: string };
+}
+
+/** Resultados da equipa no período: conclusões, atrasos, carga e horas (separador "Equipa e tarefas"). */
+export const TeamReportsPage: React.FC<TeamReportsPageProps> = ({ embedded = false, period }) => {
   const { hasPermission } = useAuth();
   const canSupervise = hasPermission('TEAM_SUPERVISE');
   const canExport = hasPermission('REPORTS_EXPORT');
   const initial = useMemo(() => recentPeriod(30, new Date()), []);
-  const [from, setFrom] = useState(initial.from);
-  const [to, setTo] = useState(initial.to);
+  const [ownFrom, setFrom] = useState(initial.from);
+  const [ownTo, setTo] = useState(initial.to);
+  const from = period?.from ?? ownFrom;
+  const to = period?.to ?? ownTo;
   const [departmentId, setDepartmentId] = useState(ALL);
   const [leadId, setLeadId] = useState(ALL);
   const [memberFilter, setMemberFilter] = useState<MemberFilter>('ALL');
@@ -122,6 +131,15 @@ export const TeamReportsPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {embedded ? (
+        canExport && (
+          <div className="flex justify-end">
+            <Button variant="secondary" icon={Download} onClick={exportCsv} disabled={rows.length === 0}>
+              {t('Exportar CSV')}
+            </Button>
+          </div>
+        )
+      ) : (
       <PageHeader
         title={t('Relatórios da equipa')}
         subtitle={canSupervise ? t('Resultados das equipas supervisionadas: conclusões, atrasos, carga e horas.') : t('Resultados da sua equipa: conclusões, atrasos, carga e horas.')}
@@ -133,11 +151,16 @@ export const TeamReportsPage: React.FC = () => {
           )
         }
       />
+      )}
 
       <Panel>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <TextField label={t('De')} type="date" value={from} error={periodError} onChange={(event) => setFrom(event.target.value)} />
-          <TextField label={t('Até')} type="date" value={to} onChange={(event) => setTo(event.target.value)} />
+          {!period && (
+            <>
+              <TextField label={t('De')} type="date" value={from} error={periodError} onChange={(event) => setFrom(event.target.value)} />
+              <TextField label={t('Até')} type="date" value={to} onChange={(event) => setTo(event.target.value)} />
+            </>
+          )}
           <label className="space-y-1 text-sm font-medium text-text">
             <span className="block">{t('Departamento')}</span>
             <FilterSelect label={t('Departamento')} value={departmentId} onChange={(event) => setDepartmentId(event.target.value)}>

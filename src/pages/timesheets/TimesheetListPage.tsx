@@ -160,7 +160,7 @@ export const TimesheetListPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={t('Meu Timesheet')}
+        title={t('Timesheet')}
         subtitle={t('Os seus períodos de registo de horas e o respetivo estado de aprovação.')}
         actions={
           canCreate && (

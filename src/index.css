@@ -58,9 +58,11 @@
   --color-info: #0F7A6B;
   --color-info-soft: #E6F4F2;
 
-  /* Gráficos: ordem categórica fixa, validada para daltonismo (ΔE CVD 24,7; ≥ 3:1 sobre branco) */
-  --color-chart-1: #2A78D6;
-  --color-chart-2: #EB6834;
+  /* Gráficos: ordem categórica fixa na identidade GRT (verde-folha, âmbar); o âmbar marca atrasos.
+     Validado (dataviz validate_palette): ΔE protan 12,6, normal ≥ 20. O âmbar fica abaixo de 3:1 sobre
+     branco: os gráficos têm sempre legenda, tooltip e tabela com os valores. */
+  --color-chart-1: #0B8043;
+  --color-chart-2: #D9901A;
   --color-chart-grid: #E6EAEE;
 }
 
@@ -107,8 +109,9 @@
   --color-info: #5FCDBB;
   --color-info-soft: #12302C;
 
-  --color-chart-1: #5E9FEE;
-  --color-chart-2: #F2925F;
+  /* Passos próprios do tema escuro, validados sobre #171D21 (todas as verificações passam). */
+  --color-chart-1: #1F7A36;
+  --color-chart-2: #C4862C;
   --color-chart-grid: #2B353B;
 }
 

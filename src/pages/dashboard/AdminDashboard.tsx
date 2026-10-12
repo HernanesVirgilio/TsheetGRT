@@ -1,10 +1,12 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Building2, CheckCircle2, ClipboardCheck, Users } from 'lucide-react';
+import { ArrowRight, Building2, CheckCircle2, ClipboardCheck, UserPlus, Users } from 'lucide-react';
+import { useAuth } from '../../lib/auth/AuthContext';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import { getAdminOverview } from '../../services/dashboardService';
 import type { AdminOverview } from '../../services/dashboardService';
-import { PageHeader } from '../../components/ui/PageHeader';
+import { DashboardHeader } from '../../components/layout/DashboardHeader';
+import { SystemHealthStrip } from '../../components/work/SystemHealthStrip';
 import { StatCard } from '../../components/ui/StatCard';
 import { Panel } from '../../components/ui/Panel';
 import { ErrorState, LoadingState } from '../../components/ui/States';
@@ -27,8 +29,8 @@ function buildAttentionItems(overview: AdminOverview): AttentionItem[] {
     items.push({
       id: 'submitted',
       message: t('{timesheets} aprovação.', { timesheets: pluralize(overview.submittedTimesheets, 'timesheet aguarda', 'timesheets aguardam') }),
-      to: '/reports',
-      linkLabel: t('Ver relatório'),
+      to: '/approvals?tab=timesheets',
+      linkLabel: t('Rever aprovações'),
     });
   }
   if (overview.usersNeverSignedIn > 0) {
@@ -62,12 +64,35 @@ const PanelLink: React.FC<{ to: string; children: React.ReactNode }> = ({ to, ch
 );
 
 export const AdminDashboard: React.FC = () => {
+  const { hasPermission } = useAuth();
   const { data: overview, error, isLoading, reload } = useAsyncData(getAdminOverview, []);
   const attentionItems = overview ? buildAttentionItems(overview) : [];
 
   return (
     <div className="space-y-6">
-      <PageHeader title={t('Administração')} subtitle={t('Estado atual de utilizadores, departamentos e timesheets.')} />
+      <DashboardHeader
+        message={t('Utilizadores, departamentos, aprovações pendentes e o estado do sistema.')}
+        actions={
+          <>
+            {hasPermission('USERS_CREATE') && (
+              <Link
+                to="/users"
+                className="inline-flex h-10 items-center gap-2 rounded-md border border-border-input bg-surface px-4 text-sm font-semibold text-text hover:bg-surface-muted"
+              >
+                <UserPlus className="h-4 w-4" aria-hidden="true" />
+                {t('Gerir utilizadores')}
+              </Link>
+            )}
+            <Link
+              to="/approvals"
+              className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-on-primary hover:bg-primary-hover hover:text-on-primary-hover"
+            >
+              <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
+              {t('Rever aprovações')}
+            </Link>
+          </>
+        }
+      />
 
       {error && <ErrorState message={error} onRetry={reload} />}
       {isLoading && !overview && <LoadingState label={t('A carregar indicadores...')} />}
@@ -96,6 +121,8 @@ export const AdminDashboard: React.FC = () => {
             />
           </div>
 
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2">
           <Panel title={t('Pontos de atenção')}>
             {attentionItems.length === 0 ? (
               <p className="text-sm text-text-secondary">{t('Sem pontos de atenção de momento.')}</p>
@@ -110,6 +137,9 @@ export const AdminDashboard: React.FC = () => {
               </ul>
             )}
           </Panel>
+          </div>
+          {hasPermission('SYSTEM_HEALTH_READ') && <SystemHealthStrip />}
+          </div>
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <Panel title={t('Utilizadores recentes')} actions={<PanelLink to="/users">{t('Ver todos')}</PanelLink>} flush>

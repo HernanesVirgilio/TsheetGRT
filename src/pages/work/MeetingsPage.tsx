@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { CalendarDays, Plus } from 'lucide-react';
+import { CalendarDays, Plus, UserCheck } from 'lucide-react';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
@@ -19,6 +19,7 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState, LoadingState } from '../../components/ui/States';
 import { WorkStatusBadge } from '../../components/work/WorkStatusBadge';
 import { MeetingFormModal } from '../../components/work/MeetingFormModal';
+import { MeetingRequestModal } from '../../components/work/MeetingRequestModal';
 import { MEETING_STATUS_LABELS } from '../../utils/work';
 import { formatDateTime, dateTimeFormatter } from '../../utils/format';
 import { t } from '../../lib/i18n';
@@ -39,6 +40,7 @@ export const MeetingsPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isRequestOpen, setIsRequestOpen] = useState(false);
   const debouncedSearch = useDebouncedValue(search);
 
   const meetings = useAsyncData(
@@ -69,21 +71,38 @@ export const MeetingsPage: React.FC = () => {
       ),
     },
     { id: 'location', header: t('Local'), render: (meeting) => meeting.location ?? '—' },
-    { id: 'organizer', header: t('Organização'), render: (meeting) => (meeting.organizerId === viewerId ? 'Eu' : (meeting.organizerName ?? '—')) },
-    { id: 'status', header: t('Estado'), render: (meeting) => <WorkStatusBadge kind="meeting" status={meeting.status} /> },
+    { id: 'organizer', header: t('Organização'), render: (meeting) => (meeting.organizerId === viewerId ? t('Eu') : (meeting.organizerName ?? '—')) },
+    {
+      id: 'status',
+      header: t('Estado'),
+      render: (meeting) => (
+        <span className="flex flex-wrap items-center gap-1.5">
+          <WorkStatusBadge kind="meeting" status={meeting.status} />
+          {meeting.requestStatus === 'PENDING' && meeting.status === 'PLANNED' && (
+            <span className="text-xs font-medium text-warning">{meeting.requestedWith === viewerId ? t('Pedido para si') : t('Pedido pendente')}</span>
+          )}
+          {meeting.requestStatus === 'REJECTED' && <span className="text-xs font-medium text-danger">{t('Pedido recusado')}</span>}
+        </span>
+      ),
+    },
   ];
 
   return (
     <div className="space-y-6">
       <PageHeader
         title={t('Reuniões')}
-        subtitle={t('Reuniões em que participa, com objetivo, resultado, decisões e próximos passos.')}
+        subtitle={t('Agende reuniões com colegas sem aprovação. Para pedir tempo à sua chefia, use "Solicitar reunião".')}
         actions={
-          canCreate && (
-            <Button icon={Plus} onClick={() => setIsCreateOpen(true)} disabled={!people.data}>
-              {t('Nova reunião')}
+          <>
+            <Button variant="secondary" icon={UserCheck} onClick={() => setIsRequestOpen(true)}>
+              {t('Solicitar reunião')}
             </Button>
-          )
+            {canCreate && (
+              <Button icon={Plus} onClick={() => setIsCreateOpen(true)} disabled={!people.data}>
+                {t('Agendar reunião')}
+              </Button>
+            )}
+          </>
         }
       />
       <div className="flex flex-wrap gap-2">
@@ -136,6 +155,14 @@ export const MeetingsPage: React.FC = () => {
         )}
       </Panel>
 
+      <MeetingRequestModal
+        isOpen={isRequestOpen}
+        onClose={() => setIsRequestOpen(false)}
+        onSent={(meetingId) => {
+          setIsRequestOpen(false);
+          navigate(`/timesheet/meetings/${meetingId}`);
+        }}
+      />
       <MeetingFormModal
         isOpen={isCreateOpen}
         meeting={null}
