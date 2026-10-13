@@ -18,7 +18,10 @@ import { t } from '../../lib/i18n';
 
 const timeFormatter = () => dateTimeFormatter({ hour: '2-digit', minute: '2-digit' });
 
-/** Pedidos de reunião dirigidos a quem consulta: aceitar confirma a reunião; recusar exige o motivo. */
+/**
+ * Pedidos de participação em reuniões dirigidos a quem consulta: aceitar junta-o como participante e confirma a
+ * reunião; recusar exige o motivo. Para propor outro horário, abre-se o detalhe da reunião.
+ */
 export const MeetingRequestsPanel: React.FC<{ viewerId: string; onChanged?: () => void }> = ({ viewerId, onChanged }) => {
   const requests = useAsyncData(() => listPendingMeetingRequests(viewerId), [viewerId]);
   const [toReject, setToReject] = useState<MeetingSummary | null>(null);
@@ -36,7 +39,7 @@ export const MeetingRequestsPanel: React.FC<{ viewerId: string; onChanged?: () =
     setMessage(null);
     try {
       await decideMeetingRequest(meeting.id, 'ACCEPTED', null);
-      done(t('Pedido aceite. A reunião ficou confirmada e quem pediu foi notificado.'));
+      done(t('Participação aceite. A reunião ficou confirmada e quem organiza foi notificado.'));
     } catch (error) {
       setMessage({ variant: 'error', text: getErrorMessage(error, t('Não foi possível registar a decisão.')) });
     } finally {
@@ -54,7 +57,7 @@ export const MeetingRequestsPanel: React.FC<{ viewerId: string; onChanged?: () =
         </Link>
       ),
     },
-    { id: 'requester', header: t('Pedido por'), render: (meeting) => meeting.organizerName ?? '—' },
+    { id: 'requester', header: t('Organizada por'), render: (meeting) => meeting.organizerName ?? '—' },
     {
       id: 'when',
       header: t('Horário proposto'),
@@ -85,7 +88,7 @@ export const MeetingRequestsPanel: React.FC<{ viewerId: string; onChanged?: () =
 
   return (
     <>
-      <p className="text-sm text-text-secondary">{t('Pedidos de tempo feitos pela sua equipa. Reuniões normais entre colegas não precisam de aprovação.')}</p>
+      <p className="text-sm text-text-secondary">{t('Reuniões em que pedem a sua participação. As reuniões normais não aparecem aqui: não precisam de aprovação.')}</p>
       {message && (
         <Alert variant={message.variant} onDismiss={() => setMessage(null)}>
           {message.text}
@@ -94,26 +97,26 @@ export const MeetingRequestsPanel: React.FC<{ viewerId: string; onChanged?: () =
       <Panel flush>
         {requests.error && (
           <div className="p-4">
-            <ErrorState message={requests.error} onRetry={requests.reload} />
+            <ErrorState message={requests.error} kind={requests.errorKind} onRetry={requests.reload} />
           </div>
         )}
         {requests.isLoading && !requests.data && <LoadingState label={t('A carregar pedidos...')} />}
-        {requests.data && requests.data.length === 0 && <EmptyState bordered={false} icon={MessagesSquare} title={t('Não há pedidos de reunião à espera da sua resposta.')} />}
-        {requests.data && requests.data.length > 0 && <DataTable caption={t('Pedidos de reunião')} columns={columns} rows={requests.data} getRowKey={(meeting) => meeting.id} />}
+        {requests.data && requests.data.length === 0 && <EmptyState bordered={false} icon={MessagesSquare} title={t('Não há pedidos de participação à espera da sua resposta.')} />}
+        {requests.data && requests.data.length > 0 && <DataTable caption={t('Pedidos de participação')} columns={columns} rows={requests.data} getRowKey={(meeting) => meeting.id} />}
       </Panel>
       <TicketNoteModal
         isOpen={toReject !== null}
-        title={t('Recusar pedido de reunião')}
-        description={t('Quem pediu é notificado com o motivo e pode propor outro horário.')}
+        title={t('Recusar participação')}
+        description={t('Quem organiza é notificado com o motivo. Se a reunião tiver outros participantes, mantém-se sem si.')}
         note={{ label: t('Motivo da recusa'), minLength: 5, maxLength: 1000 }}
-        confirmLabel={t('Recusar pedido')}
+        confirmLabel={t('Recusar')}
         variant="danger"
         onClose={() => setToReject(null)}
         onConfirm={async (reason) => {
           if (!toReject) return;
           await decideMeetingRequest(toReject.id, 'REJECTED', reason);
           setToReject(null);
-          done(t('Pedido recusado. Quem pediu foi notificado.'));
+          done(t('Participação recusada. Quem organiza foi notificado.'));
         }}
       />
     </>

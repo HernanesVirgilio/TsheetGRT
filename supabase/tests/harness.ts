@@ -59,19 +59,53 @@ const SUPABASE_STUB = `
 export class TestDatabase {
   private constructor(private readonly db: PGlite) {}
 
-  /** Cria a base de dados e aplica todas as migrations por ordem. */
-  static async create(migrationsDir: string): Promise<TestDatabase> {
+  /**
+   * Cria a base de dados e aplica todas as migrations por ordem.
+   * `beforeFile`: SQL executado antes de uma migration (ex.: reproduzir alterações feitas à mão em produção).
+   * `reapply`: migrations aplicadas uma segunda vez no fim (verifica que podem ser executadas de novo).
+   */
+  static async create(
+    migrationsDir: string,
+    options: { beforeFile?: { file: string; sql: string }; reapply?: string[]; stopBefore?: string } = {}
+  ): Promise<TestDatabase> {
     const db = new PGlite();
     await db.exec(SUPABASE_STUB);
     const files = readdirSync(migrationsDir).filter((file) => file.endsWith('.sql')).sort();
-    for (const file of files) {
+    const apply = async (file: string, label = file) => {
       try {
         await db.exec(readFileSync(join(migrationsDir, file), 'utf8'));
       } catch (error) {
-        throw new Error(`Falha ao aplicar ${file}: ${isPostgresError(error) ? error.message : String(error)}`);
+        throw new Error(`Falha ao aplicar ${label}: ${isPostgresError(error) ? error.message : String(error)}`);
       }
+    };
+    for (const file of files) {
+      // stopBefore: deixa a base de dados no estado anterior a essa migration (ex.: o estado de produção).
+      if (options.stopBefore === file) break;
+      if (options.beforeFile?.file === file) {
+        try {
+          await db.exec(options.beforeFile.sql);
+        } catch (error) {
+          throw new Error(`Falha ao preparar ${file}: ${isPostgresError(error) ? error.message : String(error)}`);
+        }
+      }
+      await apply(file);
     }
+    for (const file of options.reapply ?? []) await apply(file, `${file} (segunda aplicação)`);
     return new TestDatabase(db);
+  }
+
+  /**
+   * Executa um script com várias instruções como o SQL Editor (role postgres), tudo ou nada: as instruções
+   * correm numa única transação implícita. Devolve o erro (ou null) e os avisos (RAISE WARNING/NOTICE).
+   */
+  async execScript(sql: string): Promise<{ error: string | null; notices: string[] }> {
+    const notices: string[] = [];
+    try {
+      await this.db.exec(sql, { onNotice: (notice) => notices.push(notice.message ?? '') });
+      return { error: null, notices };
+    } catch (error) {
+      return { error: isPostgresError(error) ? error.message : String(error), notices };
+    }
   }
 
   /** Executa como o SQL Editor (role postgres, sem utilizador autenticado). */

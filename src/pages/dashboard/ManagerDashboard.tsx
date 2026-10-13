@@ -8,6 +8,7 @@ import { getSupervisionOverview, getTeamDashboard } from '../../services/work/te
 import { getTeamWorkOverview } from '../../services/work/calendarService';
 import { listTeamAbsences } from '../../services/work/absenceService';
 import { listApprovalRequests } from '../../services/work/opportunityService';
+import { listPendingMeetingRequests } from '../../services/work/meetingService';
 import { listDepartments } from '../../services/departmentService';
 import type { SupervisionRow } from '../../types/work';
 import { DashboardHeader } from '../../components/layout/DashboardHeader';
@@ -40,15 +41,28 @@ const PendingDecisionsPanel: React.FC<{ viewerId: string; directIds: Set<string>
   const absences = useAsyncData(() => listTeamAbsences(viewerId, ['PENDING_APPROVAL']), [viewerId]);
   const approvals = useAsyncData(() => listApprovalRequests(['PENDING']), []);
   const timesheets = useAsyncData(() => listTeamTimesheets({ status: 'SUBMITTED', employeeId: null, periodFrom: null, periodTo: null }), []);
+  // Só pedidos de participação dirigidos a este Manager; reuniões normais nunca são decisões pendentes.
+  const meetingRequests = useAsyncData(() => listPendingMeetingRequests(viewerId), [viewerId]);
   const myApprovals = (approvals.data ?? []).filter((request) => request.requestedBy !== viewerId);
   const directTimesheets = (timesheets.data ?? []).filter((timesheet) => directIds.has(timesheet.employeeId));
-  const isLoading = !absences.data || !approvals.data || !timesheets.data;
-  const error = absences.error ?? approvals.error ?? timesheets.error;
-  const total = (absences.data?.length ?? 0) + myApprovals.length + directTimesheets.length;
+  const isLoading = !absences.data || !approvals.data || !timesheets.data || !meetingRequests.data;
+  const error = absences.error ?? approvals.error ?? timesheets.error ?? meetingRequests.error;
+  const errorKind = absences.errorKind ?? approvals.errorKind ?? timesheets.errorKind ?? meetingRequests.errorKind;
+  const reloadAll = () => {
+    absences.reload();
+    approvals.reload();
+    timesheets.reload();
+    meetingRequests.reload();
+  };
+  const total = (absences.data?.length ?? 0) + myApprovals.length + directTimesheets.length + (meetingRequests.data?.length ?? 0);
 
   return (
     <Panel title={t('Decisões pendentes')} description={isLoading ? undefined : pluralize(total, 'pedido aguarda a sua decisão', 'pedidos aguardam a sua decisão')} flush>
-      {error && <p className="px-5 py-4 text-sm text-danger">{error}</p>}
+      {error && (
+        <div className="p-4">
+          <ErrorState message={error} kind={errorKind} onRetry={reloadAll} />
+        </div>
+      )}
       {!error && isLoading && <LoadingState label={t('A carregar decisões...')} />}
       {!error && !isLoading && total === 0 && <EmptyState bordered={false} icon={ClipboardCheck} title={t('Não há decisões pendentes.')} />}
       {!error && !isLoading && total > 0 && (
@@ -82,6 +96,25 @@ const PendingDecisionsPanel: React.FC<{ viewerId: string; directIds: Set<string>
                       {request.title}
                     </Link>
                     <span className="text-text-secondary">{request.amount === null ? t('Sem valor') : formatMoney(request.amount, request.currency ?? '')}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+          {(meetingRequests.data ?? []).length > 0 && (
+            <section className="px-5 py-3">
+              <h3 className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-text-secondary">
+                {t('Pedidos de participação em reuniões')} <PanelLink to="/approvals?tab=meetings">{t('Decidir')}</PanelLink>
+              </h3>
+              <ul className="space-y-1.5 text-sm">
+                {(meetingRequests.data ?? []).slice(0, PREVIEW).map((meeting) => (
+                  <li key={meeting.id}>
+                    <Link to={`/timesheet/meetings/${meeting.id}`} className="flex flex-wrap justify-between gap-2 hover:underline">
+                      <span className="font-medium text-text">{meeting.title}</span>
+                      <span className="text-text-secondary">
+                        {meeting.organizerName ?? '—'} · {formatDateTime(meeting.startsAt)}
+                      </span>
+                    </Link>
                   </li>
                 ))}
               </ul>

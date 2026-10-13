@@ -139,7 +139,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNavigate }) => {
         <BrandMark inverted />
       </div>
 
-      <nav aria-label={t('Navegação principal')} className="flex-1 overflow-y-auto px-2 pb-4 pt-3 custom-scrollbar">
+      <nav aria-label={t('Navegação principal')} className="relative min-h-0 flex-1 overflow-y-auto px-2 pb-4 pt-3 custom-scrollbar">
         {home && (
           <ul className="space-y-0.5">
             {home.items.map((item) => (

@@ -122,7 +122,8 @@ export interface MeetingSummary {
   requestedWith: string | null;
 }
 
-export const MEETING_REQUEST_STATUSES = ['PENDING', 'ACCEPTED', 'REJECTED'] as const;
+/** Ciclo do pedido de participação de uma chefia, independente do estado da reunião. */
+export const MEETING_REQUEST_STATUSES = ['PENDING', 'ACCEPTED', 'REJECTED', 'RESCHEDULE_PROPOSED', 'CANCELLED'] as const;
 export type MeetingRequestStatus = (typeof MEETING_REQUEST_STATUSES)[number];
 export const isMeetingRequestStatus = (value: string): value is MeetingRequestStatus => isOneOf(MEETING_REQUEST_STATUSES, value);
 
@@ -140,6 +141,8 @@ export interface MeetingDetail extends MeetingSummary {
   cancelReason: string | null;
   requestDecidedAt: string | null;
   requestDecisionComment: string | null;
+  requestProposedStartsAt: string | null;
+  requestProposedEndsAt: string | null;
   task: { id: string; reference: string; title: string } | null;
   opportunity: { id: string; reference: string; title: string } | null;
   updatedAt: string;
@@ -150,6 +153,10 @@ export interface MeetingPerson {
   fullName: string;
   jobTitle: string | null;
   isOrganizer: boolean;
+  /** Chefia a quem foi pedida a participação (não é participante enquanto não aceitar). */
+  isRequested: boolean;
+  /** Só participantes: false para a chefia com o pedido ainda por aceitar. */
+  isParticipant: boolean;
   response: MeetingResponse;
   respondedAt: string | null;
   responseComment: string | null;
@@ -369,6 +376,7 @@ export interface WorkPerson {
   fullName: string;
   jobTitle: string | null;
   departmentName: string | null;
+  departmentId?: string | null;
   /** Só preenchida para responsáveis possíveis (equipa do âmbito). */
   jobDescription?: string | null;
 }

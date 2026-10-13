@@ -6,6 +6,7 @@ import { useAsyncData } from '../../hooks/useAsyncData';
 import { listMyScopes } from '../../services/managerService';
 import { getTeamDashboard } from '../../services/work/teamService';
 import { getTeamWorkOverview, listWorkPeople } from '../../services/work/calendarService';
+import { listPendingMeetingRequests } from '../../services/work/meetingService';
 import type { TeamMemberWorkload } from '../../types/work';
 import { DashboardHeader } from '../../components/layout/DashboardHeader';
 import { HeaderLink, ReviewApprovalsLink } from '../../components/work/ReviewApprovalsLink';
@@ -79,9 +80,10 @@ export const GestorDashboard: React.FC = () => {
   const scopes = useAsyncData(() => listMyScopes(viewerId), [viewerId]);
   const dashboard = useAsyncData(() => getTeamDashboard(period.from, period.to), [period.from, period.to]);
   const team = useAsyncData(getTeamWorkOverview, []);
+  const meetingRequests = useAsyncData(() => listPendingMeetingRequests(viewerId), [viewerId]);
   const assignees = useAsyncData(() => (canCreateTask ? listWorkPeople('ASSIGNEE') : Promise.resolve([])), [canCreateTask]);
 
-  if (dashboard.error) return <ErrorState message={dashboard.error} onRetry={dashboard.reload} />;
+  if (dashboard.error) return <ErrorState message={dashboard.error} kind={dashboard.errorKind} onRetry={dashboard.reload} />;
   if (!dashboard.data) return <LoadingState label={t('A carregar o painel da equipa...')} />;
   const summary = dashboard.data;
   const members = team.data ?? [];
@@ -136,13 +138,16 @@ export const GestorDashboard: React.FC = () => {
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <div className="space-y-6 xl:col-span-2">
-          {team.error ? <ErrorState message={team.error} onRetry={team.reload} /> : team.data ? <TeamPanel members={members} /> : <LoadingState label={t('A carregar a equipa...')} />}
+          {team.error ? <ErrorState message={team.error} kind={team.errorKind} onRetry={team.reload} /> : team.data ? <TeamPanel members={members} /> : <LoadingState label={t('A carregar a equipa...')} />}
           <MyTasksPanel viewerId={viewerId} />
         </div>
         <div className="space-y-6">
           <AttentionPanel
             title={t('Precisa da sua atenção')}
             items={[
+              ...(meetingRequests.data && meetingRequests.data.length > 0
+                ? [{ label: t('Pedidos de participação'), count: meetingRequests.data.length, to: '/approvals?tab=meetings', hint: t('Reuniões que pedem a sua participação'), tone: 'warning' as const }]
+                : []),
               { label: t('Tarefas bloqueadas'), count: summary.tasksBlocked, to: '/timesheet/tasks?scope=TEAM&status=BLOCKED', hint: t('Impedimentos a resolver'), tone: 'danger' },
               { label: t('Conclusões por acompanhar'), count: summary.tasksPendingFollowUp, to: '/timesheet/tasks?scope=FOLLOW_UP', hint: t('Concluídas e ainda não validadas'), tone: 'warning' },
               { label: t('Ausências por validar'), count: summary.absencesToValidate, to: '/approvals?tab=absences', hint: t('Pedidos da equipa a aguardar a sua validação'), tone: 'warning' },
@@ -150,6 +155,8 @@ export const GestorDashboard: React.FC = () => {
               { label: t('Oportunidades por aprovar'), count: summary.opportunityApprovalsPending, to: '/approvals?tab=opportunities', hint: t('Pedidos enviados ao Manager') },
             ]}
           />
+          {/* Uma falha nos pedidos de participação não pode passar por "nenhum pedido". */}
+          {meetingRequests.error && <ErrorState message={meetingRequests.error} kind={meetingRequests.errorKind} onRetry={meetingRequests.reload} />}
           <UpcomingMeetingsPanel viewerId={viewerId} />
           <PipelinePanel />
         </div>

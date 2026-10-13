@@ -3,8 +3,9 @@
 -- 1. Reuniões entre colegas: qualquer colaborador organiza reuniões com colegas (mesmo departamento ou mesma
 --    equipa), a equipa e as chefias, sem aprovação. Os convidados respondem (aceitar/recusar) e o organizador
 --    é notificado. Um reagendamento volta a pedir resposta.
--- 2. Pedido de reunião a uma chefia: fluxo explícito de pedido → aceitar/recusar (com motivo). Só se pede
---    tempo a quem está configurado como chefia do requerente (manager_scopes); nunca se inventa hierarquia.
+-- 2. Pedir a participação de uma chefia é uma opção explícita da reunião: a chefia aceita, recusa (com motivo)
+--    ou propõe outro horário, e só passa a participante quando aceita. Só se pede a quem está configurado
+--    como chefia de quem organiza (manager_scopes); nunca se inventa hierarquia.
 -- 3. Comunicar ausência: quem gere equipa regista indisponibilidade sem ficar preso a um pedido que teria de
 --    aprovar. É um registo distinto (kind = NOTICE, estado COMMUNICATED), nunca uma ausência aprovada.
 -- 4. Histórico do timesheet a partir dos registos guardados (auditoria + decisões), para a linha temporal.
@@ -12,6 +13,74 @@
 --    (N configurável em APPROVAL_REMINDER_DAYS) e timesheets com o período terminado ainda por submeter.
 --
 -- Nenhum dado existente é alterado: as colunas novas têm valores por omissão neutros.
+--
+-- Pode ser aplicada mais de uma vez e sobre uma base de dados em que parte do esquema já existe (as quatro
+-- colunas do pedido em meetings foram acrescentadas à mão em produção): colunas com IF NOT EXISTS, funções com
+-- CREATE OR REPLACE, triggers e restrições recriados.
+
+-- =============================================================================
+-- 0. PRÉ-CONDIÇÕES (só leitura; param a migration sem aplicar nada)
+-- =============================================================================
+-- As restrições de tipos de evento e de estados das ausências são recriadas e validadas de imediato. Os conjuntos
+-- novos incluem todos os valores anteriores, por isso os dados criados pela aplicação cumprem-nos; dados
+-- alterados à mão podem não cumprir. Em vez de falhar com uma violação genérica a meio da migration, os
+-- registos incompatíveis são contados aqui e a migration para com o diagnóstico. Os dados nunca são
+-- corrigidos, convertidos nem apagados automaticamente: devem ser analisados por quem os conhece.
+-- A mesma verificação existe na pré-verificação (supabase/scripts/20261015_preflight.sql, bloco P0).
+DO $$
+DECLARE
+    v_problems TEXT[] := ARRAY[]::TEXT[];
+    v_count INTEGER;
+    v_sample TEXT;
+    v_setting TEXT;
+BEGIN
+    SELECT count(*), string_agg(id::TEXT, ', ') FILTER (WHERE rn <= 10) INTO v_count, v_sample
+    FROM (SELECT id, row_number() OVER (ORDER BY created_at) AS rn FROM public.meeting_events
+          WHERE event_type NOT IN (
+              'MEETING_CREATED', 'MEETING_UPDATED', 'MEETING_RESCHEDULED', 'MEETING_CONFIRMED', 'MEETING_COMPLETED',
+              'MEETING_OUTCOME_UPDATED', 'MEETING_CANCELLED', 'MEETING_PARTICIPANT_ADDED', 'MEETING_PARTICIPANT_REMOVED',
+              'MEETING_ATTACHMENT_ADDED', 'MEETING_ATTACHMENT_REMOVED',
+              'MEETING_RESPONDED', 'MEETING_REQUESTED', 'MEETING_REQUEST_ACCEPTED', 'MEETING_REQUEST_REJECTED',
+              'MEETING_REQUEST_RESCHEDULE_PROPOSED', 'MEETING_REQUEST_RESCHEDULE_ACCEPTED', 'MEETING_REQUEST_RESCHEDULE_DECLINED',
+              'MEETING_REQUEST_CANCELLED')) AS invalid;
+    IF v_count > 0 THEN
+        v_problems := v_problems || format('meeting_events com event_type desconhecido: %s (ids: %s)', v_count, v_sample);
+    END IF;
+
+    SELECT count(*), string_agg(id::TEXT, ', ') FILTER (WHERE rn <= 10) INTO v_count, v_sample
+    FROM (SELECT id, row_number() OVER (ORDER BY created_at) AS rn FROM public.absence_events
+          WHERE event_type NOT IN (
+              'ABSENCE_CREATED', 'ABSENCE_UPDATED', 'ABSENCE_SUBMITTED', 'ABSENCE_VALIDATED', 'ABSENCE_APPROVED', 'ABSENCE_REJECTED',
+              'ABSENCE_CHANGES_REQUESTED', 'ABSENCE_CANCELLED', 'ABSENCE_ATTACHMENT_ADDED', 'ABSENCE_ATTACHMENT_REMOVED',
+              'ABSENCE_COMMUNICATED')) AS invalid;
+    IF v_count > 0 THEN
+        v_problems := v_problems || format('absence_events com event_type desconhecido: %s (ids: %s)', v_count, v_sample);
+    END IF;
+
+    -- kind pode ainda não existir: lido como JSON, com REQUEST por omissão (o valor que a coluna nova terá).
+    SELECT count(*), string_agg(id::TEXT, ', ') FILTER (WHERE rn <= 10) INTO v_count, v_sample
+    FROM (SELECT a.id, row_number() OVER (ORDER BY a.created_at) AS rn
+          FROM public.absence_requests a
+          WHERE a.status NOT IN ('DRAFT', 'SUBMITTED', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'CANCELLED', 'COMMUNICATED')
+             OR coalesce(to_jsonb(a) ->> 'kind', 'REQUEST') NOT IN ('REQUEST', 'NOTICE')
+             OR (coalesce(to_jsonb(a) ->> 'kind', 'REQUEST') = 'NOTICE'
+                 AND (a.status NOT IN ('COMMUNICATED', 'CANCELLED') OR a.validated_by IS NOT NULL OR a.decided_by IS NOT NULL))
+             OR (coalesce(to_jsonb(a) ->> 'kind', 'REQUEST') = 'REQUEST' AND a.status = 'COMMUNICATED')) AS invalid;
+    IF v_count > 0 THEN
+        v_problems := v_problems || format('absence_requests com estado ou tipo incompatível: %s (ids: %s)', v_count, v_sample);
+    END IF;
+
+    SELECT value INTO v_setting FROM public.system_settings WHERE key = 'APPROVAL_REMINDER_DAYS';
+    IF FOUND AND NOT (CASE WHEN v_setting ~ '^[0-9]{1,2}$' THEN v_setting::INTEGER BETWEEN 1 AND 30 ELSE false END) THEN
+        v_problems := v_problems || format('APPROVAL_REMINDER_DAYS já existe com um valor inválido (%s); deve ser um inteiro de 1 a 30', v_setting);
+    END IF;
+
+    IF cardinality(v_problems) > 0 THEN
+        RAISE EXCEPTION 'Pré-condições não cumpridas; nada foi aplicado: %', array_to_string(v_problems, '; ')
+            USING HINT = 'Execute a pré-verificação (bloco P0) e analise os registos indicados antes de voltar a aplicar.';
+    END IF;
+END;
+$$;
 
 -- =============================================================================
 -- 1. PERMISSÕES
@@ -43,7 +112,7 @@ SELECT private.write_audit_event('permission.changed', 'role_permissions', NULL,
 -- 2. COLEGAS E CONVITES
 -- =============================================================================
 -- Colega: mesmo departamento ou abrangido pela mesma chefia direta (mesma equipa).
-CREATE FUNCTION private.is_colleague(p_profile_id UUID, p_viewer_id UUID)
+CREATE OR REPLACE FUNCTION private.is_colleague(p_profile_id UUID, p_viewer_id UUID)
 RETURNS BOOLEAN
 LANGUAGE sql
 STABLE
@@ -96,67 +165,232 @@ $$;
 
 
 -- =============================================================================
--- 3. RESPOSTAS AOS CONVITES E PEDIDOS DE REUNIÃO
+-- 3. RESPOSTAS AOS CONVITES E PEDIDOS DE PARTICIPAÇÃO DE UMA CHEFIA
 -- =============================================================================
+-- Uma reunião normal (com colegas, uma equipa ou um departamento) é criada diretamente, sem aprovação.
+-- Pedir a participação de uma chefia é uma opção explícita da mesma reunião: a chefia fica em
+-- meetings.requested_with e só passa a participante quando aceita. O ciclo do pedido (request_status)
+-- é independente do ciclo da reunião (status):
+--   NULL                 reunião normal, sem pedido
+--   PENDING              à espera da decisão da chefia
+--   ACCEPTED             a chefia aceitou: é participante e a reunião fica confirmada
+--   REJECTED             a chefia recusou (motivo obrigatório); a reunião com os restantes mantém-se
+--   RESCHEDULE_PROPOSED  a chefia propôs outro horário; quem organiza aceita (muda a hora) ou recusa
+--   CANCELLED            o pedido foi retirado por quem organiza ou a reunião foi cancelada
+--
+-- Idempotente: as quatro colunas do pedido podem já existir (foram acrescentadas à mão na base de dados
+-- de produção). As restrições são criadas NOT VALID e validadas a seguir, para nunca falharem por linhas
+-- antigas; se houver linhas fora da regra, a validação fica por fazer e é emitido um aviso.
 ALTER TABLE public.meeting_participants
-    ADD COLUMN response VARCHAR(10) NOT NULL DEFAULT 'PENDING'
-        CONSTRAINT meeting_participants_response_valid CHECK (response IN ('PENDING', 'ACCEPTED', 'DECLINED')),
-    ADD COLUMN responded_at TIMESTAMPTZ,
-    ADD COLUMN response_comment TEXT
-        CONSTRAINT meeting_participants_response_comment_length CHECK (length(response_comment) <= 500),
+    ADD COLUMN IF NOT EXISTS response VARCHAR(10) NOT NULL DEFAULT 'PENDING',
+    ADD COLUMN IF NOT EXISTS responded_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS response_comment TEXT;
+
+ALTER TABLE public.meeting_participants
+    DROP CONSTRAINT IF EXISTS meeting_participants_response_valid,
+    DROP CONSTRAINT IF EXISTS meeting_participants_response_comment_length,
+    DROP CONSTRAINT IF EXISTS meeting_participants_response_consistency,
+    ADD CONSTRAINT meeting_participants_response_valid CHECK (response IN ('PENDING', 'ACCEPTED', 'DECLINED')),
+    ADD CONSTRAINT meeting_participants_response_comment_length CHECK (length(response_comment) <= 500),
     ADD CONSTRAINT meeting_participants_response_consistency CHECK ((response = 'PENDING') = (responded_at IS NULL));
 
--- Pedido de reunião a uma chefia (NULL = reunião normal, sem fluxo de aprovação).
 ALTER TABLE public.meetings
-    ADD COLUMN request_status VARCHAR(10)
-        CONSTRAINT meetings_request_status_valid CHECK (request_status IN ('PENDING', 'ACCEPTED', 'REJECTED')),
-    ADD COLUMN requested_with UUID REFERENCES public.profiles(id) ON DELETE RESTRICT,
-    ADD COLUMN request_decided_at TIMESTAMPTZ,
-    ADD COLUMN request_decision_comment TEXT
-        CONSTRAINT meetings_request_comment_length CHECK (length(request_decision_comment) <= 1000),
-    ADD CONSTRAINT meetings_request_consistency CHECK ((request_status IS NULL) = (requested_with IS NULL)),
-    ADD CONSTRAINT meetings_request_not_self CHECK (requested_with IS DISTINCT FROM organizer_id),
-    ADD CONSTRAINT meetings_request_decision_consistency
-        CHECK (coalesce(request_status IN ('ACCEPTED', 'REJECTED'), false) = (request_decided_at IS NOT NULL)),
-    ADD CONSTRAINT meetings_request_rejection_reason
-        CHECK (request_status IS DISTINCT FROM 'REJECTED' OR length(btrim(coalesce(request_decision_comment, ''))) > 0);
+    ADD COLUMN IF NOT EXISTS request_status VARCHAR(20),
+    ADD COLUMN IF NOT EXISTS requested_with UUID,
+    ADD COLUMN IF NOT EXISTS request_decided_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS request_decision_comment TEXT,
+    ADD COLUMN IF NOT EXISTS request_proposed_starts_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS request_proposed_ends_at TIMESTAMPTZ;
 
-CREATE INDEX idx_meetings_requested_with ON public.meetings(requested_with) WHERE requested_with IS NOT NULL;
+-- Restrições criadas à mão com outros nomes sobre as colunas do pedido não são apagadas às cegas: a migration
+-- para (nada é aplicado) e indica quais são, para serem revistas. As desta migration são reconhecidas pelo nome.
+DO $$
+DECLARE
+    v_foreign TEXT;
+BEGIN
+    SELECT string_agg(c.conname || ' (' || pg_catalog.pg_get_constraintdef(c.oid) || ')', '; ' ORDER BY c.conname)
+    INTO v_foreign
+    FROM pg_catalog.pg_constraint c
+    WHERE c.conrelid = 'public.meetings'::regclass
+      AND c.contype IN ('c', 'f', 'u', 'x')
+      AND pg_catalog.pg_get_constraintdef(c.oid) ~ '(request_status|requested_with|request_decided_at|request_decision_comment|request_proposed_starts_at|request_proposed_ends_at)'
+      AND c.conname NOT IN (
+          'meetings_requested_with_fkey', 'meetings_request_status_valid', 'meetings_request_comment_length',
+          'meetings_request_consistency', 'meetings_request_not_self', 'meetings_request_decision_consistency',
+          'meetings_request_rejection_reason', 'meetings_request_proposal_consistency'
+      );
+    IF v_foreign IS NOT NULL THEN
+        RAISE EXCEPTION 'A tabela meetings tem restrições sobre as colunas do pedido que esta migration não conhece: %. Reveja-as (provavelmente da reparação manual) antes de aplicar.', v_foreign;
+    END IF;
+END;
+$$;
+
+-- Uma reunião normal tem as colunas do pedido a NULL: sem valor por omissão nem NOT NULL (podem ter vindo da
+-- reparação manual). Não altera nenhum valor existente.
+ALTER TABLE public.meetings
+    ALTER COLUMN request_status DROP DEFAULT,
+    ALTER COLUMN request_status DROP NOT NULL,
+    ALTER COLUMN requested_with DROP DEFAULT,
+    ALTER COLUMN requested_with DROP NOT NULL,
+    ALTER COLUMN request_decided_at DROP DEFAULT,
+    ALTER COLUMN request_decided_at DROP NOT NULL,
+    ALTER COLUMN request_decision_comment DROP DEFAULT,
+    ALTER COLUMN request_decision_comment DROP NOT NULL;
+
+-- Normaliza os tipos das colunas acrescentadas à mão (sem perder valores). Só altera o que for diferente: numa
+-- segunda aplicação os tipos já estão certos e os triggers seguintes já usam estas colunas.
+DO $$
+DECLARE
+    v_column RECORD;
+BEGIN
+    FOR v_column IN
+        SELECT a.attname AS name, format_type(a.atttypid, a.atttypmod) AS current_type, wanted.type AS wanted_type
+        FROM (VALUES ('request_status', 'character varying(20)'), ('requested_with', 'uuid'),
+                     ('request_decided_at', 'timestamp with time zone'), ('request_decision_comment', 'text')) AS wanted(name, type)
+        JOIN pg_catalog.pg_attribute a ON a.attrelid = 'public.meetings'::regclass AND a.attname = wanted.name AND NOT a.attisdropped
+        WHERE format_type(a.atttypid, a.atttypmod) <> wanted.type
+    LOOP
+        EXECUTE format('ALTER TABLE public.meetings ALTER COLUMN %I TYPE %s USING %I::%s',
+                       v_column.name, v_column.wanted_type, v_column.name, v_column.wanted_type);
+    END LOOP;
+END;
+$$;
+
+ALTER TABLE public.meetings
+    DROP CONSTRAINT IF EXISTS meetings_requested_with_fkey,
+    DROP CONSTRAINT IF EXISTS meetings_request_status_valid,
+    DROP CONSTRAINT IF EXISTS meetings_request_comment_length,
+    DROP CONSTRAINT IF EXISTS meetings_request_consistency,
+    DROP CONSTRAINT IF EXISTS meetings_request_not_self,
+    DROP CONSTRAINT IF EXISTS meetings_request_decision_consistency,
+    DROP CONSTRAINT IF EXISTS meetings_request_rejection_reason,
+    DROP CONSTRAINT IF EXISTS meetings_request_proposal_consistency;
+
+ALTER TABLE public.meetings
+    ADD CONSTRAINT meetings_requested_with_fkey FOREIGN KEY (requested_with) REFERENCES public.profiles(id) ON DELETE RESTRICT NOT VALID,
+    ADD CONSTRAINT meetings_request_status_valid
+        CHECK (request_status IN ('PENDING', 'ACCEPTED', 'REJECTED', 'RESCHEDULE_PROPOSED', 'CANCELLED')) NOT VALID,
+    ADD CONSTRAINT meetings_request_comment_length CHECK (length(request_decision_comment) <= 1000) NOT VALID,
+    ADD CONSTRAINT meetings_request_consistency CHECK ((request_status IS NULL) = (requested_with IS NULL)) NOT VALID,
+    ADD CONSTRAINT meetings_request_not_self CHECK (requested_with IS DISTINCT FROM organizer_id) NOT VALID,
+    ADD CONSTRAINT meetings_request_decision_consistency
+        CHECK (coalesce(request_status IN ('ACCEPTED', 'REJECTED', 'RESCHEDULE_PROPOSED'), false) = (request_decided_at IS NOT NULL)) NOT VALID,
+    ADD CONSTRAINT meetings_request_rejection_reason
+        CHECK (request_status IS DISTINCT FROM 'REJECTED' OR length(btrim(coalesce(request_decision_comment, ''))) > 0) NOT VALID,
+    ADD CONSTRAINT meetings_request_proposal_consistency CHECK (
+        coalesce(request_status = 'RESCHEDULE_PROPOSED', false) = (request_proposed_starts_at IS NOT NULL)
+        AND (request_proposed_starts_at IS NULL) = (request_proposed_ends_at IS NULL)
+        AND (request_proposed_ends_at IS NULL OR (request_proposed_ends_at > request_proposed_starts_at
+             AND request_proposed_ends_at - request_proposed_starts_at <= interval '24 hours'))
+    ) NOT VALID;
+
+DO $$
+DECLARE
+    v_constraint TEXT;
+BEGIN
+    FOREACH v_constraint IN ARRAY ARRAY[
+        'meetings_requested_with_fkey', 'meetings_request_status_valid', 'meetings_request_comment_length',
+        'meetings_request_consistency', 'meetings_request_not_self', 'meetings_request_decision_consistency',
+        'meetings_request_rejection_reason', 'meetings_request_proposal_consistency'
+    ] LOOP
+        BEGIN
+            EXECUTE format('ALTER TABLE public.meetings VALIDATE CONSTRAINT %I', v_constraint);
+        EXCEPTION WHEN check_violation OR foreign_key_violation THEN
+            RAISE WARNING 'Restrição % por validar: existem reuniões anteriores fora da regra. Corrija-as e execute ALTER TABLE public.meetings VALIDATE CONSTRAINT %.', v_constraint, v_constraint;
+        END;
+    END LOOP;
+END;
+$$;
+
+CREATE INDEX IF NOT EXISTS idx_meetings_requested_with ON public.meetings(requested_with) WHERE requested_with IS NOT NULL;
 
 ALTER TABLE public.meeting_events
-    DROP CONSTRAINT meeting_events_type_valid,
+    DROP CONSTRAINT IF EXISTS meeting_events_type_valid,
     ADD CONSTRAINT meeting_events_type_valid CHECK (event_type IN (
         'MEETING_CREATED', 'MEETING_UPDATED', 'MEETING_RESCHEDULED', 'MEETING_CONFIRMED', 'MEETING_COMPLETED',
         'MEETING_OUTCOME_UPDATED', 'MEETING_CANCELLED', 'MEETING_PARTICIPANT_ADDED', 'MEETING_PARTICIPANT_REMOVED',
         'MEETING_ATTACHMENT_ADDED', 'MEETING_ATTACHMENT_REMOVED',
-        'MEETING_RESPONDED', 'MEETING_REQUESTED', 'MEETING_REQUEST_ACCEPTED', 'MEETING_REQUEST_REJECTED'
+        'MEETING_RESPONDED', 'MEETING_REQUESTED', 'MEETING_REQUEST_ACCEPTED', 'MEETING_REQUEST_REJECTED',
+        'MEETING_REQUEST_RESCHEDULE_PROPOSED', 'MEETING_REQUEST_RESCHEDULE_ACCEPTED', 'MEETING_REQUEST_RESCHEDULE_DECLINED',
+        'MEETING_REQUEST_CANCELLED'
     ));
 
--- Um pedido pendente só sai desse estado pela decisão da chefia (ou pelo cancelamento de quem pediu):
--- o organizador não o confirma nem o conclui sozinho.
-CREATE FUNCTION private.guard_meeting_request()
+-- Regras do pedido em qualquer escrita (também as feitas pelas funções existentes, como update_meeting):
+--   * com um pedido em curso a reunião não fica confirmada (só a decisão da chefia a confirma);
+--   * a chefia pedida não muda enquanto o pedido está em curso;
+--   * cancelar a reunião retira o pedido em curso (e a chefia é informada pelo trigger seguinte).
+CREATE OR REPLACE FUNCTION private.guard_meeting_request()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
 AS $$
 BEGIN
-    IF OLD.request_status = 'PENDING' AND NEW.request_status = 'PENDING' AND NEW.status NOT IN ('PLANNED', 'CANCELLED') THEN
-        RAISE EXCEPTION 'O pedido de reunião aguarda a resposta de quem foi convidado.';
+    IF NEW.status = 'CANCELLED' AND NEW.request_status IN ('PENDING', 'RESCHEDULE_PROPOSED') THEN
+        NEW.request_status := 'CANCELLED';
+        NEW.request_decided_at := NULL;
+        NEW.request_proposed_starts_at := NULL;
+        NEW.request_proposed_ends_at := NULL;
+        RETURN NEW;
     END IF;
-    IF NEW.requested_with IS DISTINCT FROM OLD.requested_with THEN
-        RAISE EXCEPTION 'A pessoa a quem a reunião foi pedida não pode ser alterada.';
+    IF NEW.request_status IN ('PENDING', 'RESCHEDULE_PROPOSED') AND NEW.status = 'CONFIRMED' AND OLD.status <> 'CONFIRMED' THEN
+        RAISE EXCEPTION 'A participação pedida ainda aguarda resposta: a reunião só fica confirmada depois da decisão.';
+    END IF;
+    IF OLD.request_status IN ('PENDING', 'RESCHEDULE_PROPOSED') AND NEW.requested_with IS DISTINCT FROM OLD.requested_with THEN
+        RAISE EXCEPTION 'A pessoa a quem a participação foi pedida não pode ser alterada enquanto o pedido está em curso.';
     END IF;
     RETURN NEW;
 END;
 $$;
 
+DROP TRIGGER IF EXISTS trg_meetings_guard_request ON public.meetings;
 CREATE TRIGGER trg_meetings_guard_request
     BEFORE UPDATE ON public.meetings
     FOR EACH ROW EXECUTE FUNCTION private.guard_meeting_request();
 
+-- Pedido retirado (pela reunião cancelada ou por quem organiza): a chefia deixa de o ter em espera e é informada.
+CREATE OR REPLACE FUNCTION private.notify_meeting_request_cancelled()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+    IF OLD.request_status IN ('PENDING', 'RESCHEDULE_PROPOSED') AND NEW.request_status = 'CANCELLED' THEN
+        PERFORM private.log_meeting_event(NEW.id, 'MEETING_REQUEST_CANCELLED', 'request_status',
+            private.meeting_request_label(OLD.request_status), private.meeting_request_label('CANCELLED'), NULL);
+        PERFORM private.notify(ARRAY[NEW.requested_with], public.get_current_profile_id(), 'MEETING_UPDATED',
+            'Pedido de participação retirado', NEW.title || ' · ' || private.local_datetime_label(NEW.starts_at), NULL);
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+-- Sem "OF request_status": a mudança também pode vir do trigger BEFORE (reunião cancelada).
+DROP TRIGGER IF EXISTS trg_meetings_request_cancelled ON public.meetings;
+CREATE TRIGGER trg_meetings_request_cancelled
+    AFTER UPDATE ON public.meetings
+    FOR EACH ROW WHEN (OLD.request_status IS DISTINCT FROM NEW.request_status)
+    EXECUTE FUNCTION private.notify_meeting_request_cancelled();
+
+CREATE OR REPLACE FUNCTION private.meeting_request_label(p_status TEXT)
+RETURNS TEXT
+LANGUAGE sql
+IMMUTABLE
+SET search_path = ''
+AS $$
+    SELECT CASE p_status
+        WHEN 'PENDING' THEN 'Pendente'
+        WHEN 'ACCEPTED' THEN 'Aceite'
+        WHEN 'REJECTED' THEN 'Recusado'
+        WHEN 'RESCHEDULE_PROPOSED' THEN 'Novo horário proposto'
+        WHEN 'CANCELLED' THEN 'Retirado'
+        ELSE coalesce(p_status, '—')
+    END;
+$$;
+
 -- Reagendar volta a pedir resposta a quem já tinha respondido.
-CREATE FUNCTION private.reset_meeting_responses()
+CREATE OR REPLACE FUNCTION private.reset_meeting_responses()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -170,13 +404,356 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS trg_meeting_events_reset_responses ON public.meeting_events;
 CREATE TRIGGER trg_meeting_events_reset_responses
     AFTER INSERT ON public.meeting_events
     FOR EACH ROW WHEN (NEW.event_type = 'MEETING_RESCHEDULED')
     EXECUTE FUNCTION private.reset_meeting_responses();
 
--- Resposta de um convidado. O organizador é notificado.
-CREATE FUNCTION public.respond_to_meeting(p_meeting_id UUID, p_response TEXT, p_comment TEXT DEFAULT NULL)
+-- Valida e regista um pedido de participação (usado ao criar a reunião e para voltar a pedir).
+-- A chefia tem de ser uma chefia configurada de quem organiza (mesma regra de get_profile_leads).
+CREATE OR REPLACE FUNCTION private.open_meeting_request(p_meeting_id UUID, p_lead_id UUID)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+    v_actor UUID := private.require_actor();
+    v_meeting public.meetings%ROWTYPE;
+BEGIN
+    SELECT * INTO v_meeting FROM public.meetings WHERE id = p_meeting_id FOR UPDATE;
+    IF p_lead_id IS NULL OR p_lead_id = v_meeting.organizer_id OR NOT private.is_active_profile(p_lead_id)
+       OR NOT private.supervises(p_lead_id, v_meeting.organizer_id) THEN
+        RAISE EXCEPTION 'Escolha uma das suas chefias configuradas. A relação com a chefia é configurada pela administração.' USING ERRCODE = '42501';
+    END IF;
+    IF v_meeting.starts_at <= now() THEN
+        RAISE EXCEPTION 'Só se pede a participação de uma chefia para uma reunião futura.';
+    END IF;
+    IF private.is_meeting_participant(p_meeting_id, p_lead_id) THEN
+        RAISE EXCEPTION 'Esta pessoa já participa na reunião.';
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM public.meetings m
+        WHERE m.id <> p_meeting_id AND m.organizer_id = v_meeting.organizer_id AND m.requested_with = p_lead_id
+          AND m.request_status IN ('PENDING', 'RESCHEDULE_PROPOSED') AND m.status IN ('PLANNED', 'CONFIRMED')
+          AND m.starts_at < v_meeting.ends_at AND m.ends_at > v_meeting.starts_at
+    ) THEN
+        RAISE EXCEPTION 'Já tem um pedido pendente para esta pessoa neste horário.';
+    END IF;
+
+    UPDATE public.meetings
+    SET requested_with = p_lead_id, request_status = 'PENDING', request_decided_at = NULL, request_decision_comment = NULL,
+        request_proposed_starts_at = NULL, request_proposed_ends_at = NULL,
+        status = CASE WHEN status = 'CONFIRMED' THEN 'PLANNED' ELSE status END
+    WHERE id = p_meeting_id;
+    PERFORM private.log_meeting_event(p_meeting_id, 'MEETING_REQUESTED', 'requested_with', NULL,
+        private.profile_label(p_lead_id), private.local_datetime_label(v_meeting.starts_at));
+    PERFORM private.notify(ARRAY[p_lead_id], v_actor, 'MEETING_REQUEST', 'Pedido de participação numa reunião',
+        private.profile_label(v_meeting.organizer_id) || ': ' || v_meeting.title || ' · ' || private.local_datetime_label(v_meeting.starts_at),
+        '/timesheet/meetings/' || p_meeting_id);
+END;
+$$;
+
+-- Criação de uma reunião (substitui a versão anterior). p_request_lead_id: pedir também a participação de
+-- uma chefia configurada; sem ele, a reunião é normal e não passa por nenhuma aprovação. Tudo numa transação.
+-- Idempotência: o formulário gera uma chave por tentativa de criação (client_request_id) e reenvia-a em caso de
+-- duplo clique ou de nova tentativa após uma falha de rede. A mesma chave do mesmo organizador devolve a reunião já
+-- criada, sem a duplicar. O índice único garante isto também com chamadas simultâneas. Reuniões diferentes com o
+-- mesmo título e horário continuam permitidas (chaves diferentes).
+ALTER TABLE public.meetings
+    ADD COLUMN IF NOT EXISTS client_request_id UUID;
+
+CREATE UNIQUE INDEX IF NOT EXISTS meetings_client_request_unique
+    ON public.meetings (organizer_id, client_request_id) WHERE client_request_id IS NOT NULL;
+
+DROP FUNCTION IF EXISTS public.create_meeting(TEXT, TIMESTAMPTZ, TIMESTAMPTZ, TEXT, TEXT, TEXT, TEXT, UUID[], UUID, UUID);
+DROP FUNCTION IF EXISTS public.create_meeting(TEXT, TIMESTAMPTZ, TIMESTAMPTZ, TEXT, TEXT, TEXT, TEXT, UUID[], UUID, UUID, UUID);
+
+CREATE OR REPLACE FUNCTION public.create_meeting(
+    p_title TEXT,
+    p_starts_at TIMESTAMPTZ,
+    p_ends_at TIMESTAMPTZ,
+    p_description TEXT DEFAULT '',
+    p_objective TEXT DEFAULT '',
+    p_location TEXT DEFAULT NULL,
+    p_meeting_url TEXT DEFAULT NULL,
+    p_participant_ids UUID[] DEFAULT ARRAY[]::UUID[],
+    p_task_id UUID DEFAULT NULL,
+    p_opportunity_id UUID DEFAULT NULL,
+    p_request_lead_id UUID DEFAULT NULL,
+    p_client_request_id UUID DEFAULT NULL
+)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+    v_actor UUID := private.require_actor();
+    v_task public.tasks%ROWTYPE;
+    v_opportunity public.opportunities%ROWTYPE;
+    v_meeting_id UUID;
+    v_title TEXT := btrim(coalesce(p_title, ''));
+    v_participants UUID[];
+    v_existing UUID;
+BEGIN
+    PERFORM private.require_permission('TIMESHEET_MEETING_CREATE', 'Não tem permissão para organizar reuniões.');
+    -- Repetição do mesmo pedido: devolve a reunião já criada (sem convites nem pedidos repetidos).
+    IF p_client_request_id IS NOT NULL THEN
+        SELECT id INTO v_existing FROM public.meetings WHERE organizer_id = v_actor AND client_request_id = p_client_request_id;
+        IF FOUND THEN
+            RETURN v_existing;
+        END IF;
+    END IF;
+    IF p_starts_at IS NULL OR p_ends_at IS NULL OR p_ends_at <= p_starts_at THEN
+        RAISE EXCEPTION 'A reunião tem de terminar depois de começar.';
+    END IF;
+    IF p_task_id IS NOT NULL THEN
+        SELECT * INTO v_task FROM public.tasks WHERE id = p_task_id;
+        IF NOT FOUND OR NOT private.can_read_task(v_task) THEN
+            RAISE EXCEPTION 'Tarefa não encontrada.' USING ERRCODE = '42501';
+        END IF;
+    END IF;
+    IF p_opportunity_id IS NOT NULL THEN
+        SELECT * INTO v_opportunity FROM public.opportunities WHERE id = p_opportunity_id;
+        IF NOT FOUND OR NOT private.can_read_opportunity(v_opportunity) THEN
+            RAISE EXCEPTION 'Oportunidade não encontrada.' USING ERRCODE = '42501';
+        END IF;
+    END IF;
+    -- A chefia pedida não é convidada diretamente: só participa se aceitar o pedido.
+    v_participants := ARRAY(
+        SELECT DISTINCT participant FROM unnest(coalesce(p_participant_ids, ARRAY[]::UUID[])) AS participant
+        WHERE participant IS DISTINCT FROM p_request_lead_id
+    );
+
+    INSERT INTO public.meetings (title, description, objective, starts_at, ends_at, location, meeting_url,
+                                 organizer_id, department_id, task_id, opportunity_id, client_request_id)
+    VALUES (v_title, btrim(coalesce(p_description, '')), btrim(coalesce(p_objective, '')),
+            p_starts_at, p_ends_at, private.optional_text(p_location, 200, 'O local'),
+            private.optional_text(p_meeting_url, 500, 'A ligação'), v_actor, private.current_department_id(),
+            p_task_id, p_opportunity_id, p_client_request_id)
+    ON CONFLICT (organizer_id, client_request_id) WHERE client_request_id IS NOT NULL DO NOTHING
+    RETURNING id INTO v_meeting_id;
+    -- Chamada simultânea com a mesma chave: a outra transação criou a reunião primeiro; devolve-a.
+    IF v_meeting_id IS NULL THEN
+        SELECT id INTO v_meeting_id FROM public.meetings WHERE organizer_id = v_actor AND client_request_id = p_client_request_id;
+        RETURN v_meeting_id;
+    END IF;
+
+    PERFORM private.set_meeting_participants(v_meeting_id, v_actor, v_participants, false);
+    PERFORM private.log_meeting_event(v_meeting_id, 'MEETING_CREATED', NULL, NULL,
+        private.local_datetime_label(p_starts_at), NULL);
+    IF p_request_lead_id IS NOT NULL THEN
+        PERFORM private.open_meeting_request(v_meeting_id, p_request_lead_id);
+    END IF;
+    RETURN v_meeting_id;
+END;
+$$;
+
+-- Voltar a pedir (depois de uma recusa, de um pedido retirado, ou numa reunião criada sem pedido).
+CREATE OR REPLACE FUNCTION public.request_meeting_participation(p_meeting_id UUID, p_lead_id UUID)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+    v_actor UUID := private.require_actor();
+    v_meeting public.meetings%ROWTYPE := private.lock_meeting(p_meeting_id);
+BEGIN
+    IF v_meeting.organizer_id <> v_actor THEN
+        RAISE EXCEPTION 'Só quem organiza a reunião pede a participação de uma chefia.' USING ERRCODE = '42501';
+    END IF;
+    IF v_meeting.status NOT IN ('PLANNED', 'CONFIRMED') THEN
+        RAISE EXCEPTION 'A reunião já foi concluída ou cancelada.';
+    END IF;
+    IF v_meeting.request_status IN ('PENDING', 'RESCHEDULE_PROPOSED') THEN
+        RAISE EXCEPTION 'Já existe um pedido em curso nesta reunião.';
+    END IF;
+    PERFORM private.open_meeting_request(p_meeting_id, p_lead_id);
+END;
+$$;
+
+-- Quem organiza retira o pedido em curso (a reunião mantém-se).
+CREATE OR REPLACE FUNCTION public.cancel_meeting_request(p_meeting_id UUID)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+    v_actor UUID := private.require_actor();
+    v_meeting public.meetings%ROWTYPE := private.lock_meeting(p_meeting_id);
+BEGIN
+    IF v_meeting.organizer_id <> v_actor THEN
+        RAISE EXCEPTION 'Só quem organiza a reunião retira o pedido.' USING ERRCODE = '42501';
+    END IF;
+    IF v_meeting.request_status IS DISTINCT FROM 'PENDING' AND v_meeting.request_status IS DISTINCT FROM 'RESCHEDULE_PROPOSED' THEN
+        RAISE EXCEPTION 'Não há nenhum pedido em curso nesta reunião.';
+    END IF;
+    UPDATE public.meetings
+    SET request_status = 'CANCELLED', request_decided_at = NULL, request_proposed_starts_at = NULL, request_proposed_ends_at = NULL
+    WHERE id = p_meeting_id;
+END;
+$$;
+
+-- Acrescenta a chefia que aceitou como participante (com a presença confirmada).
+CREATE OR REPLACE FUNCTION private.add_accepted_lead(p_meeting_id UUID, p_lead_id UUID, p_comment TEXT)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+    INSERT INTO public.meeting_participants (meeting_id, profile_id, response, responded_at, response_comment)
+    VALUES (p_meeting_id, p_lead_id, 'ACCEPTED', now(), p_comment)
+    ON CONFLICT (meeting_id, profile_id) DO UPDATE
+        SET response = 'ACCEPTED', responded_at = now(), response_comment = EXCLUDED.response_comment;
+    PERFORM private.log_meeting_event(p_meeting_id, 'MEETING_PARTICIPANT_ADDED', 'participant', NULL, private.profile_label(p_lead_id), NULL);
+END;
+$$;
+
+-- Decisão da chefia: aceitar, recusar (motivo obrigatório) ou propor outro horário. A linha fica bloqueada
+-- durante a decisão; uma segunda decisão sobre um pedido já decidido é recusada.
+DROP FUNCTION IF EXISTS public.decide_meeting_request(UUID, TEXT, TEXT);
+
+CREATE OR REPLACE FUNCTION public.decide_meeting_request(
+    p_meeting_id UUID,
+    p_decision TEXT,
+    p_comment TEXT DEFAULT NULL,
+    p_proposed_starts_at TIMESTAMPTZ DEFAULT NULL,
+    p_proposed_ends_at TIMESTAMPTZ DEFAULT NULL
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+    v_actor UUID := private.require_actor();
+    v_meeting public.meetings%ROWTYPE;
+    v_comment TEXT;
+    v_link TEXT := '/timesheet/meetings/' || p_meeting_id;
+BEGIN
+    SELECT * INTO v_meeting FROM public.meetings WHERE id = p_meeting_id FOR UPDATE;
+    IF NOT FOUND OR v_meeting.requested_with IS DISTINCT FROM v_actor THEN
+        RAISE EXCEPTION 'Pedido de reunião não encontrado.' USING ERRCODE = '42501';
+    END IF;
+    IF v_meeting.request_status IS DISTINCT FROM 'PENDING' THEN
+        RAISE EXCEPTION 'Este pedido já foi decidido ou retirado.';
+    END IF;
+    IF v_meeting.status NOT IN ('PLANNED', 'CONFIRMED') OR v_meeting.ends_at <= now() THEN
+        RAISE EXCEPTION 'A reunião já terminou ou foi cancelada.';
+    END IF;
+
+    IF p_decision = 'ACCEPTED' THEN
+        v_comment := private.optional_text(p_comment, 1000, 'O comentário');
+        UPDATE public.meetings
+        SET request_status = 'ACCEPTED', request_decided_at = now(), request_decision_comment = v_comment
+        WHERE id = p_meeting_id;
+        PERFORM private.add_accepted_lead(p_meeting_id, v_actor, v_comment);
+        IF v_meeting.status = 'PLANNED' THEN
+            UPDATE public.meetings SET status = 'CONFIRMED' WHERE id = p_meeting_id;
+        END IF;
+        PERFORM private.log_meeting_event(p_meeting_id, 'MEETING_REQUEST_ACCEPTED', 'request_status',
+            private.meeting_request_label('PENDING'), private.meeting_request_label('ACCEPTED'), v_comment);
+        PERFORM private.notify(ARRAY[v_meeting.organizer_id], v_actor, 'MEETING_REQUEST_DECIDED', 'Participação aceite',
+            private.profile_label(v_actor) || ' · ' || v_meeting.title || ' · ' || private.local_datetime_label(v_meeting.starts_at)
+            || CASE WHEN v_comment IS NOT NULL THEN ': ' || v_comment ELSE '' END, v_link);
+    ELSIF p_decision = 'REJECTED' THEN
+        v_comment := private.required_text(p_comment, 5, 1000, 'Indique o motivo da recusa');
+        UPDATE public.meetings
+        SET request_status = 'REJECTED', request_decided_at = now(), request_decision_comment = v_comment
+        WHERE id = p_meeting_id;
+        -- Sem outros participantes, a reunião existia só para a chefia: é cancelada. Caso contrário mantém-se.
+        IF NOT EXISTS (SELECT 1 FROM public.meeting_participants WHERE meeting_id = p_meeting_id) THEN
+            UPDATE public.meetings SET status = 'CANCELLED', cancelled_at = now(), cancel_reason = 'Participação recusada: ' || v_comment
+            WHERE id = p_meeting_id;
+        END IF;
+        PERFORM private.log_meeting_event(p_meeting_id, 'MEETING_REQUEST_REJECTED', 'request_status',
+            private.meeting_request_label('PENDING'), private.meeting_request_label('REJECTED'), v_comment);
+        PERFORM private.notify(ARRAY[v_meeting.organizer_id], v_actor, 'MEETING_REQUEST_DECIDED', 'Participação recusada',
+            v_meeting.title || ': ' || v_comment, v_link);
+    ELSIF p_decision = 'RESCHEDULE' THEN
+        IF p_proposed_starts_at IS NULL OR p_proposed_ends_at IS NULL OR p_proposed_ends_at <= p_proposed_starts_at THEN
+            RAISE EXCEPTION 'O novo horário tem de terminar depois de começar.';
+        END IF;
+        IF p_proposed_starts_at <= now() THEN
+            RAISE EXCEPTION 'Proponha uma data futura.';
+        END IF;
+        IF p_proposed_ends_at - p_proposed_starts_at > interval '24 hours' THEN
+            RAISE EXCEPTION 'Uma reunião não pode durar mais de 24 horas.';
+        END IF;
+        v_comment := private.optional_text(p_comment, 1000, 'O comentário');
+        UPDATE public.meetings
+        SET request_status = 'RESCHEDULE_PROPOSED', request_decided_at = now(), request_decision_comment = v_comment,
+            request_proposed_starts_at = p_proposed_starts_at, request_proposed_ends_at = p_proposed_ends_at
+        WHERE id = p_meeting_id;
+        PERFORM private.log_meeting_event(p_meeting_id, 'MEETING_REQUEST_RESCHEDULE_PROPOSED', 'starts_at',
+            private.local_datetime_label(v_meeting.starts_at), private.local_datetime_label(p_proposed_starts_at), v_comment);
+        PERFORM private.notify(ARRAY[v_meeting.organizer_id], v_actor, 'MEETING_REQUEST_DECIDED', 'Novo horário proposto',
+            v_meeting.title || ' · ' || private.local_datetime_label(p_proposed_starts_at)
+            || CASE WHEN v_comment IS NOT NULL THEN ': ' || v_comment ELSE '' END, v_link);
+    ELSE
+        RAISE EXCEPTION 'Decisão inválida.';
+    END IF;
+END;
+$$;
+
+-- Resposta de quem organiza ao novo horário proposto: aceitar muda a hora da reunião (os participantes são
+-- notificados e voltam a confirmar) e junta a chefia; recusar retira o pedido.
+CREATE OR REPLACE FUNCTION public.respond_to_reschedule_proposal(p_meeting_id UUID, p_accept BOOLEAN)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+    v_actor UUID := private.require_actor();
+    v_meeting public.meetings%ROWTYPE := private.lock_meeting(p_meeting_id);
+    v_link TEXT := '/timesheet/meetings/' || p_meeting_id;
+BEGIN
+    IF v_meeting.organizer_id <> v_actor THEN
+        RAISE EXCEPTION 'Só quem organiza a reunião responde à proposta.' USING ERRCODE = '42501';
+    END IF;
+    IF v_meeting.request_status IS DISTINCT FROM 'RESCHEDULE_PROPOSED' THEN
+        RAISE EXCEPTION 'Não há nenhuma proposta de novo horário por responder.';
+    END IF;
+    IF v_meeting.status NOT IN ('PLANNED', 'CONFIRMED') THEN
+        RAISE EXCEPTION 'A reunião já foi concluída ou cancelada.';
+    END IF;
+
+    IF p_accept THEN
+        IF v_meeting.request_proposed_starts_at <= now() THEN
+            RAISE EXCEPTION 'O horário proposto já passou. Peça outro horário.';
+        END IF;
+        UPDATE public.meetings
+        SET starts_at = v_meeting.request_proposed_starts_at, ends_at = v_meeting.request_proposed_ends_at,
+            request_status = 'ACCEPTED', request_decided_at = now(),
+            request_proposed_starts_at = NULL, request_proposed_ends_at = NULL, status = 'CONFIRMED'
+        WHERE id = p_meeting_id;
+        -- O reagendamento notifica os participantes e volta a pedir resposta; a chefia entra depois, já confirmada.
+        PERFORM private.log_meeting_event(p_meeting_id, 'MEETING_RESCHEDULED', 'starts_at',
+            private.local_datetime_label(v_meeting.starts_at), private.local_datetime_label(v_meeting.request_proposed_starts_at), NULL);
+        PERFORM private.add_accepted_lead(p_meeting_id, v_meeting.requested_with, NULL);
+        PERFORM private.log_meeting_event(p_meeting_id, 'MEETING_REQUEST_RESCHEDULE_ACCEPTED', 'request_status',
+            private.meeting_request_label('RESCHEDULE_PROPOSED'), private.meeting_request_label('ACCEPTED'), NULL);
+        PERFORM private.notify(ARRAY[v_meeting.requested_with], v_actor, 'MEETING_UPDATED', 'Novo horário aceite',
+            v_meeting.title || ' · ' || private.local_datetime_label(v_meeting.request_proposed_starts_at), v_link);
+    ELSE
+        UPDATE public.meetings
+        SET request_status = 'CANCELLED', request_decided_at = NULL, request_proposed_starts_at = NULL, request_proposed_ends_at = NULL
+        WHERE id = p_meeting_id;
+        -- A chefia é informada pelo trigger do pedido retirado.
+        PERFORM private.log_meeting_event(p_meeting_id, 'MEETING_REQUEST_RESCHEDULE_DECLINED', 'request_status',
+            private.meeting_request_label('RESCHEDULE_PROPOSED'), private.meeting_request_label('CANCELLED'), NULL);
+    END IF;
+END;
+$$;
+
+-- Resposta de um convidado (aceitar ou recusar). O organizador é notificado.
+CREATE OR REPLACE FUNCTION public.respond_to_meeting(p_meeting_id UUID, p_response TEXT, p_comment TEXT DEFAULT NULL)
 RETURNS VOID
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -195,9 +772,6 @@ BEGIN
     WHERE meeting_id = p_meeting_id AND profile_id = v_actor FOR UPDATE;
     IF NOT FOUND THEN
         RAISE EXCEPTION 'Só os convidados respondem ao convite.' USING ERRCODE = '42501';
-    END IF;
-    IF v_meeting.request_status = 'PENDING' THEN
-        RAISE EXCEPTION 'Este é um pedido de reunião: aceite ou recuse o pedido.';
     END IF;
     IF v_meeting.status NOT IN ('PLANNED', 'CONFIRMED') OR v_meeting.ends_at <= now() THEN
         RAISE EXCEPTION 'A reunião já terminou ou foi cancelada.';
@@ -221,131 +795,11 @@ BEGIN
 END;
 $$;
 
--- Pedido de reunião a uma chefia configurada do requerente.
-CREATE FUNCTION public.request_meeting(
-    p_lead_id UUID,
-    p_title TEXT,
-    p_starts_at TIMESTAMPTZ,
-    p_ends_at TIMESTAMPTZ,
-    p_agenda TEXT DEFAULT '',
-    p_location TEXT DEFAULT NULL,
-    p_meeting_url TEXT DEFAULT NULL
-)
-RETURNS UUID
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = ''
-AS $$
-DECLARE
-    v_actor UUID := private.require_actor();
-    v_meeting_id UUID;
-    v_title TEXT := btrim(coalesce(p_title, ''));
-BEGIN
-    PERFORM private.require_permission('TIMESHEET_MEETING_READ', 'Não tem permissão para pedir reuniões.');
-    IF p_lead_id IS NULL OR NOT private.is_active_profile(p_lead_id) OR NOT private.supervises(p_lead_id, v_actor) THEN
-        RAISE EXCEPTION 'Escolha uma das suas chefias configuradas.' USING ERRCODE = '42501';
-    END IF;
-    IF p_starts_at IS NULL OR p_ends_at IS NULL OR p_ends_at <= p_starts_at THEN
-        RAISE EXCEPTION 'A reunião tem de terminar depois de começar.';
-    END IF;
-    IF p_ends_at - p_starts_at > interval '24 hours' THEN
-        RAISE EXCEPTION 'Uma reunião não pode durar mais de 24 horas.';
-    END IF;
-    IF p_starts_at <= now() THEN
-        RAISE EXCEPTION 'Proponha uma data futura.';
-    END IF;
-    IF length(v_title) < 3 OR length(v_title) > 200 THEN
-        RAISE EXCEPTION 'O assunto deve ter entre 3 e 200 carateres.';
-    END IF;
-    IF length(coalesce(p_agenda, '')) > 5000 THEN
-        RAISE EXCEPTION 'A agenda não pode exceder 5000 carateres.';
-    END IF;
-    -- Sem pedidos repetidos para a mesma pessoa e a mesma hora.
-    IF EXISTS (
-        SELECT 1 FROM public.meetings
-        WHERE organizer_id = v_actor AND requested_with = p_lead_id AND request_status = 'PENDING'
-          AND status = 'PLANNED' AND starts_at < p_ends_at AND ends_at > p_starts_at
-    ) THEN
-        RAISE EXCEPTION 'Já tem um pedido pendente para esta pessoa neste horário.';
-    END IF;
+-- Pessoas da reunião com a resposta de cada convidado e a chefia a quem foi pedida participação
+-- (is_requested; sem resposta enquanto não for participante).
+DROP FUNCTION IF EXISTS public.get_meeting_people(UUID);
 
-    INSERT INTO public.meetings (title, description, objective, starts_at, ends_at, location, meeting_url,
-                                 organizer_id, department_id, request_status, requested_with)
-    VALUES (v_title, btrim(coalesce(p_agenda, '')), '', p_starts_at, p_ends_at,
-            private.optional_text(p_location, 200, 'O local'), private.optional_text(p_meeting_url, 500, 'A ligação'),
-            v_actor, private.current_department_id(), 'PENDING', p_lead_id)
-    RETURNING id INTO v_meeting_id;
-
-    INSERT INTO public.meeting_participants (meeting_id, profile_id) VALUES (v_meeting_id, p_lead_id);
-    PERFORM private.log_meeting_event(v_meeting_id, 'MEETING_REQUESTED', 'requested_with', NULL,
-        private.profile_label(p_lead_id), private.local_datetime_label(p_starts_at));
-    PERFORM private.notify(ARRAY[p_lead_id], v_actor, 'MEETING_REQUEST', 'Pedido de reunião',
-        private.profile_label(v_actor) || ': ' || v_title || ' · ' || private.local_datetime_label(p_starts_at),
-        '/timesheet/meetings/' || v_meeting_id);
-    RETURN v_meeting_id;
-END;
-$$;
-
--- Decisão de quem recebeu o pedido: aceitar (confirma a reunião) ou recusar (com motivo; a reunião é cancelada
--- e quem pediu pode propor outro horário). Uma segunda decisão é recusada (linha bloqueada).
-CREATE FUNCTION public.decide_meeting_request(p_meeting_id UUID, p_decision TEXT, p_comment TEXT DEFAULT NULL)
-RETURNS VOID
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = ''
-AS $$
-DECLARE
-    v_actor UUID := private.require_actor();
-    v_meeting public.meetings%ROWTYPE;
-    v_comment TEXT;
-BEGIN
-    SELECT * INTO v_meeting FROM public.meetings WHERE id = p_meeting_id FOR UPDATE;
-    IF NOT FOUND OR v_meeting.requested_with IS DISTINCT FROM v_actor THEN
-        RAISE EXCEPTION 'Pedido de reunião não encontrado.' USING ERRCODE = '42501';
-    END IF;
-    IF v_meeting.request_status <> 'PENDING' THEN
-        RAISE EXCEPTION 'Este pedido já foi decidido.';
-    END IF;
-    IF v_meeting.status <> 'PLANNED' THEN
-        RAISE EXCEPTION 'O pedido foi cancelado por quem o fez.';
-    END IF;
-    IF NOT private.is_meeting_participant(p_meeting_id, v_actor) THEN
-        RAISE EXCEPTION 'Já não é participante deste pedido.';
-    END IF;
-
-    IF p_decision = 'ACCEPTED' THEN
-        v_comment := private.optional_text(p_comment, 1000, 'O comentário');
-        UPDATE public.meetings
-        SET request_status = 'ACCEPTED', request_decided_at = now(), request_decision_comment = v_comment, status = 'CONFIRMED'
-        WHERE id = p_meeting_id;
-        UPDATE public.meeting_participants SET response = 'ACCEPTED', responded_at = now(), response_comment = v_comment
-        WHERE meeting_id = p_meeting_id AND profile_id = v_actor;
-        PERFORM private.log_meeting_event(p_meeting_id, 'MEETING_REQUEST_ACCEPTED', 'request_status', 'Pendente', 'Aceite', v_comment);
-        PERFORM private.notify(ARRAY[v_meeting.organizer_id], v_actor, 'MEETING_REQUEST_DECIDED', 'Pedido de reunião aceite',
-            v_meeting.title || ' · ' || private.local_datetime_label(v_meeting.starts_at)
-            || CASE WHEN v_comment IS NOT NULL THEN ': ' || v_comment ELSE '' END,
-            '/timesheet/meetings/' || p_meeting_id);
-    ELSIF p_decision = 'REJECTED' THEN
-        v_comment := private.required_text(p_comment, 5, 1000, 'Indique o motivo da recusa');
-        UPDATE public.meetings
-        SET request_status = 'REJECTED', request_decided_at = now(), request_decision_comment = v_comment,
-            status = 'CANCELLED', cancelled_at = now(), cancel_reason = 'Pedido recusado: ' || v_comment
-        WHERE id = p_meeting_id;
-        UPDATE public.meeting_participants SET response = 'DECLINED', responded_at = now(), response_comment = v_comment
-        WHERE meeting_id = p_meeting_id AND profile_id = v_actor;
-        PERFORM private.log_meeting_event(p_meeting_id, 'MEETING_REQUEST_REJECTED', 'request_status', 'Pendente', 'Recusado', v_comment);
-        PERFORM private.notify(ARRAY[v_meeting.organizer_id], v_actor, 'MEETING_REQUEST_DECIDED', 'Pedido de reunião recusado',
-            v_meeting.title || ': ' || v_comment, '/timesheet/meetings/' || p_meeting_id);
-    ELSE
-        RAISE EXCEPTION 'Decisão inválida.';
-    END IF;
-END;
-$$;
-
--- Pessoas da reunião com a resposta de cada convidado.
-DROP FUNCTION public.get_meeting_people(UUID);
-
-CREATE FUNCTION public.get_meeting_people(p_meeting_id UUID)
+CREATE OR REPLACE FUNCTION public.get_meeting_people(p_meeting_id UUID)
 RETURNS TABLE (
     profile_id UUID,
     full_name TEXT,
@@ -353,7 +807,8 @@ RETURNS TABLE (
     is_organizer BOOLEAN,
     response TEXT,
     responded_at TIMESTAMPTZ,
-    response_comment TEXT
+    response_comment TEXT,
+    is_requested BOOLEAN
 )
 LANGUAGE plpgsql
 STABLE
@@ -371,17 +826,17 @@ BEGIN
     RETURN QUERY
     SELECT p.id, p.full_name::TEXT, p.job_title::TEXT, p.id = v_meeting.organizer_id,
            CASE WHEN p.id = v_meeting.organizer_id THEN 'ACCEPTED' ELSE mp.response::TEXT END,
-           mp.responded_at, mp.response_comment
+           mp.responded_at, mp.response_comment, p.id IS NOT DISTINCT FROM v_meeting.requested_with
     FROM public.profiles p
     LEFT JOIN public.meeting_participants mp ON mp.meeting_id = p_meeting_id AND mp.profile_id = p.id
-    WHERE p.id = v_meeting.organizer_id OR mp.profile_id IS NOT NULL
+    WHERE p.id = v_meeting.organizer_id OR mp.profile_id IS NOT NULL OR p.id = v_meeting.requested_with
     ORDER BY (p.id = v_meeting.organizer_id) DESC, p.full_name;
 END;
 $$;
 
--- Chefias configuradas de quem pede (para escolher a quem pedir uma reunião). Sem relação configurada,
+-- Chefias configuradas de quem pede (a quem se pode pedir participação). Sem relação configurada,
 -- a lista fica vazia: a interface explica que a atribuição é feita pela administração.
-CREATE FUNCTION public.list_my_leads()
+CREATE OR REPLACE FUNCTION public.list_my_leads()
 RETURNS TABLE (profile_id UUID, full_name TEXT, job_title TEXT, relation TEXT)
 LANGUAGE plpgsql
 STABLE
@@ -400,15 +855,20 @@ BEGIN
 END;
 $$;
 
+
 -- =============================================================================
 -- 4. COMUNICAR AUSÊNCIA (indisponibilidade sem pedido formal)
 -- =============================================================================
 ALTER TABLE public.absence_requests
-    ADD COLUMN kind VARCHAR(10) NOT NULL DEFAULT 'REQUEST'
-        CONSTRAINT absence_requests_kind_valid CHECK (kind IN ('REQUEST', 'NOTICE'));
+    ADD COLUMN IF NOT EXISTS kind VARCHAR(10) NOT NULL DEFAULT 'REQUEST';
 
 ALTER TABLE public.absence_requests
-    DROP CONSTRAINT absence_requests_status_valid,
+    DROP CONSTRAINT IF EXISTS absence_requests_kind_valid,
+    ADD CONSTRAINT absence_requests_kind_valid CHECK (kind IN ('REQUEST', 'NOTICE'));
+
+ALTER TABLE public.absence_requests
+    DROP CONSTRAINT IF EXISTS absence_requests_status_valid,
+    DROP CONSTRAINT IF EXISTS absence_requests_notice_consistency,
     ADD CONSTRAINT absence_requests_status_valid
         CHECK (status IN ('DRAFT', 'SUBMITTED', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'CANCELLED', 'COMMUNICATED')),
     -- Uma comunicação nunca passa por validação nem decisão e nunca se confunde com uma ausência aprovada.
@@ -418,7 +878,7 @@ ALTER TABLE public.absence_requests
     );
 
 ALTER TABLE public.absence_events
-    DROP CONSTRAINT absence_events_type_valid,
+    DROP CONSTRAINT IF EXISTS absence_events_type_valid,
     ADD CONSTRAINT absence_events_type_valid CHECK (event_type IN (
         'ABSENCE_CREATED', 'ABSENCE_UPDATED', 'ABSENCE_SUBMITTED', 'ABSENCE_VALIDATED', 'ABSENCE_APPROVED', 'ABSENCE_REJECTED',
         'ABSENCE_CHANGES_REQUESTED', 'ABSENCE_CANCELLED', 'ABSENCE_ATTACHMENT_ADDED', 'ABSENCE_ATTACHMENT_REMOVED',
@@ -444,7 +904,7 @@ AS $$
 $$;
 
 -- Quem é informado: as chefias configuradas de quem comunica e a sua equipa direta.
-CREATE FUNCTION private.absence_notice_recipients(p_profile_id UUID)
+CREATE OR REPLACE FUNCTION private.absence_notice_recipients(p_profile_id UUID)
 RETURNS UUID[]
 LANGUAGE sql
 STABLE
@@ -462,7 +922,7 @@ AS $$
     );
 $$;
 
-CREATE FUNCTION public.communicate_absence(p_absence_type_id UUID, p_start_date DATE, p_end_date DATE, p_reason TEXT DEFAULT '')
+CREATE OR REPLACE FUNCTION public.communicate_absence(p_absence_type_id UUID, p_start_date DATE, p_end_date DATE, p_reason TEXT DEFAULT '')
 RETURNS UUID
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -609,7 +1069,9 @@ BEGIN
     WHERE t.start_date >= p_from AND t.start_date <= p_to AND t.status NOT IN ('COMPLETED', 'CANCELLED')
       AND (NOT v_mine OR t.assignee_id = v_me)
     UNION ALL
-    SELECT 'MEETING'::TEXT, m.id, m.title::TEXT, m.starts_at, m.ends_at, false, m.status::TEXT,
+    SELECT 'MEETING'::TEXT, m.id, m.title::TEXT, m.starts_at, m.ends_at, false,
+           CASE WHEN m.status = 'PLANNED' AND m.request_status IN ('PENDING', 'RESCHEDULE_PROPOSED') THEN 'REQUEST_PENDING'
+                ELSE m.status::TEXT END,
            m.organizer_id, organizer.full_name::TEXT, NULL::TEXT, false
     FROM public.meetings m
     LEFT JOIN public.profiles organizer ON organizer.id = m.organizer_id
@@ -869,8 +1331,11 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION public.list_work_people(p_purpose TEXT DEFAULT 'PARTICIPANT')
-RETURNS TABLE (profile_id UUID, full_name TEXT, job_title TEXT, department_name TEXT, job_description TEXT)
+-- O tipo devolvido muda (department_id): a função é recriada e os privilégios voltam a ser concedidos.
+DROP FUNCTION IF EXISTS public.list_work_people(TEXT);
+
+CREATE FUNCTION public.list_work_people(p_purpose TEXT DEFAULT 'PARTICIPANT')
+RETURNS TABLE (profile_id UUID, full_name TEXT, job_title TEXT, department_name TEXT, job_description TEXT, department_id UUID)
 LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
@@ -881,7 +1346,7 @@ DECLARE
 BEGIN
     IF p_purpose = 'ASSIGNEE' THEN
         RETURN QUERY
-        SELECT p.id, p.full_name::TEXT, p.job_title::TEXT, d.name::TEXT, p.job_description
+        SELECT p.id, p.full_name::TEXT, p.job_title::TEXT, d.name::TEXT, p.job_description, p.department_id
         FROM public.profiles p
         LEFT JOIN public.departments d ON d.id = p.department_id
         WHERE p.is_active AND private.manages_work_of(p.id)
@@ -889,7 +1354,7 @@ BEGIN
     ELSIF p_purpose = 'MEETING' THEN
         PERFORM private.require_permission('TIMESHEET_MEETING_CREATE', 'Não tem permissão para organizar reuniões.');
         RETURN QUERY
-        SELECT p.id, p.full_name::TEXT, p.job_title::TEXT, d.name::TEXT, NULL::TEXT
+        SELECT p.id, p.full_name::TEXT, p.job_title::TEXT, d.name::TEXT, NULL::TEXT, p.department_id
         FROM public.profiles p
         LEFT JOIN public.departments d ON d.id = p.department_id
         WHERE p.is_active AND p.id <> v_me
@@ -901,7 +1366,7 @@ BEGIN
             RAISE EXCEPTION 'Não tem permissão para consultar o diretório.' USING ERRCODE = '42501';
         END IF;
         RETURN QUERY
-        SELECT p.id, p.full_name::TEXT, p.job_title::TEXT, d.name::TEXT, NULL::TEXT
+        SELECT p.id, p.full_name::TEXT, p.job_title::TEXT, d.name::TEXT, NULL::TEXT, p.department_id
         FROM public.profiles p
         LEFT JOIN public.departments d ON d.id = p.department_id
         WHERE p.is_active AND p.id <> v_me
@@ -918,7 +1383,7 @@ $$;
 -- =============================================================================
 -- Criação, submissões e reaberturas vêm da auditoria; as decisões vêm de timesheet_approvals, com o
 -- comentário de quem decidiu. Leitura: o próprio, quem o supervisiona com TEAM_TIMESHEET_READ e a administração.
-CREATE FUNCTION public.get_timesheet_history(p_timesheet_id UUID)
+CREATE OR REPLACE FUNCTION public.get_timesheet_history(p_timesheet_id UUID)
 RETURNS TABLE (event_id UUID, action TEXT, actor_name TEXT, comment TEXT, created_at TIMESTAMPTZ)
 LANGUAGE plpgsql
 STABLE
@@ -965,30 +1430,69 @@ INSERT INTO public.system_settings (key, value, description) VALUES
     ('APPROVAL_REMINDER_DAYS', '3', 'Dias de espera até lembrar quem decide de uma aprovação pendente')
 ON CONFLICT (key) DO NOTHING;
 
-CREATE FUNCTION public.validate_operations_setting()
+-- system_settings.value é TEXT: um valor válido é um inteiro de 1 a 30, escrito só com dígitos.
+-- O CASE evita a conversão de texto não numérico (a ordem de avaliação de AND/OR não é garantida).
+CREATE OR REPLACE FUNCTION private.is_valid_approval_reminder_days(p_value TEXT)
+RETURNS BOOLEAN
+LANGUAGE sql
+IMMUTABLE
+SET search_path = ''
+AS $$
+    SELECT CASE WHEN p_value ~ '^[0-9]{1,2}$' THEN p_value::INTEGER BETWEEN 1 AND 30 ELSE false END;
+$$;
+
+-- Trigger próprio (não substitui validate_system_setting, que valida as restantes chaves em UPDATE).
+-- Corre também em INSERT, para que a definição nunca seja criada com um valor inválido. Corre com os privilégios
+-- de quem escreve (administração): a regra está escrita aqui, sem chamar funções privadas que authenticated
+-- não pode executar. É a mesma regra de private.is_valid_approval_reminder_days.
+CREATE OR REPLACE FUNCTION public.validate_operations_setting()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SET search_path = ''
 AS $$
 BEGIN
     IF NEW.key = 'APPROVAL_REMINDER_DAYS'
-       AND (NEW.value !~ '^[0-9]{1,2}$' OR NEW.value::INTEGER NOT BETWEEN 1 AND 30) THEN
+       AND NOT (CASE WHEN NEW.value ~ '^[0-9]{1,2}$' THEN NEW.value::INTEGER BETWEEN 1 AND 30 ELSE false END) THEN
         RAISE EXCEPTION 'O lembrete de aprovação deve ser um número inteiro de dias entre 1 e 30.';
     END IF;
     RETURN NEW;
 END;
 $$;
 
+DROP TRIGGER IF EXISTS trg_system_settings_validate_operations ON public.system_settings;
 CREATE TRIGGER trg_system_settings_validate_operations
-    BEFORE UPDATE ON public.system_settings
+    BEFORE INSERT OR UPDATE ON public.system_settings
     FOR EACH ROW EXECUTE FUNCTION public.validate_operations_setting();
+
+-- Prazo do lembrete. A tabela de definições só é legível pela administração (RLS), daí SECURITY DEFINER; só
+-- devolve este número. Um valor em falta ou inválido dá um erro explícito, nunca um valor inventado.
+CREATE OR REPLACE FUNCTION private.approval_reminder_days()
+RETURNS INTEGER
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+    v_value TEXT;
+BEGIN
+    SELECT value INTO v_value FROM public.system_settings WHERE key = 'APPROVAL_REMINDER_DAYS';
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'A definição APPROVAL_REMINDER_DAYS não existe. Crie-a em Configurações (1 a 30 dias).';
+    END IF;
+    IF NOT private.is_valid_approval_reminder_days(v_value) THEN
+        RAISE EXCEPTION 'A definição APPROVAL_REMINDER_DAYS tem um valor inválido (%). Corrija-a em Configurações (1 a 30 dias).', v_value;
+    END IF;
+    RETURN v_value::INTEGER;
+END;
+$$;
 
 -- Chamado pela aplicação ao carregar as notificações (tal como refresh_deadline_alerts). Gera, para quem chama:
 --   * timesheets do âmbito submetidos há mais de N dias (quem pode decidir);
 --   * ausências à espera da sua validação ou decisão há mais de N dias;
 --   * os próprios timesheets em rascunho ou rejeitados cujo período já terminou.
 -- A chave inclui o momento da submissão: uma nova submissão gera um novo lembrete, nunca uma repetição.
-CREATE FUNCTION public.refresh_approval_reminders()
+CREATE OR REPLACE FUNCTION public.refresh_approval_reminders()
 RETURNS INTEGER
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -996,7 +1500,7 @@ SET search_path = ''
 AS $$
 DECLARE
     v_me UUID := private.require_actor();
-    v_days INTEGER := coalesce((SELECT value FROM public.system_settings WHERE key = 'APPROVAL_REMINDER_DAYS'), '3')::INTEGER;
+    v_days INTEGER := private.approval_reminder_days();
     v_limit TIMESTAMPTZ := now() - make_interval(days => v_days);
     v_created INTEGER := 0;
     v_rows INTEGER;
@@ -1079,16 +1583,29 @@ $$;
 REVOKE EXECUTE ON FUNCTION
     private.is_colleague(UUID, UUID),
     private.guard_meeting_request(),
+    private.notify_meeting_request_cancelled(),
+    private.meeting_request_label(TEXT),
     private.reset_meeting_responses(),
-    private.absence_notice_recipients(UUID)
+    private.open_meeting_request(UUID, UUID),
+    private.add_accepted_lead(UUID, UUID, TEXT),
+    private.absence_notice_recipients(UUID),
+    private.is_valid_approval_reminder_days(TEXT)
 FROM PUBLIC, anon, authenticated;
 
+-- Lido dentro de get_approval_report (SECURITY INVOKER), por isso executável por authenticated; nunca por anon.
+REVOKE EXECUTE ON FUNCTION private.approval_reminder_days() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION private.approval_reminder_days() TO authenticated;
+
 REVOKE EXECUTE ON FUNCTION
+    public.create_meeting(TEXT, TIMESTAMPTZ, TIMESTAMPTZ, TEXT, TEXT, TEXT, TEXT, UUID[], UUID, UUID, UUID, UUID),
+    public.request_meeting_participation(UUID, UUID),
+    public.cancel_meeting_request(UUID),
+    public.decide_meeting_request(UUID, TEXT, TEXT, TIMESTAMPTZ, TIMESTAMPTZ),
+    public.respond_to_reschedule_proposal(UUID, BOOLEAN),
     public.respond_to_meeting(UUID, TEXT, TEXT),
-    public.request_meeting(UUID, TEXT, TIMESTAMPTZ, TIMESTAMPTZ, TEXT, TEXT, TEXT),
-    public.decide_meeting_request(UUID, TEXT, TEXT),
     public.get_meeting_people(UUID),
     public.list_my_leads(),
+    public.list_work_people(TEXT),
     public.communicate_absence(UUID, DATE, DATE, TEXT),
     public.get_timesheet_history(UUID),
     public.refresh_approval_reminders()
@@ -1096,11 +1613,15 @@ FROM PUBLIC, anon;
 
 REVOKE EXECUTE ON FUNCTION public.validate_operations_setting() FROM PUBLIC, anon, authenticated;
 
+GRANT EXECUTE ON FUNCTION public.create_meeting(TEXT, TIMESTAMPTZ, TIMESTAMPTZ, TEXT, TEXT, TEXT, TEXT, UUID[], UUID, UUID, UUID, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.request_meeting_participation(UUID, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.cancel_meeting_request(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.decide_meeting_request(UUID, TEXT, TEXT, TIMESTAMPTZ, TIMESTAMPTZ) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.respond_to_reschedule_proposal(UUID, BOOLEAN) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.respond_to_meeting(UUID, TEXT, TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.request_meeting(UUID, TEXT, TIMESTAMPTZ, TIMESTAMPTZ, TEXT, TEXT, TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.decide_meeting_request(UUID, TEXT, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_meeting_people(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.list_my_leads() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.list_work_people(TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.communicate_absence(UUID, DATE, DATE, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_timesheet_history(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.refresh_approval_reminders() TO authenticated;

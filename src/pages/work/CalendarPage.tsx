@@ -18,7 +18,6 @@ import { ErrorState, LoadingState } from '../../components/ui/States';
 import { BADGE_TONE_CLASSES } from '../../components/ui/badgeTones';
 import type { BadgeTone } from '../../components/ui/badgeTones';
 import { MeetingFormModal } from '../../components/work/MeetingFormModal';
-import { MeetingRequestModal } from '../../components/work/MeetingRequestModal';
 import { CalendarTimeGrid } from '../../components/work/CalendarTimeGrid';
 import {
   addDays,
@@ -57,6 +56,8 @@ const weekdayNames = () => Array.from({ length: 7 }, (_, index) => dateTimeForma
 const monthFormatter = () => dateTimeFormatter({ month: 'long', year: 'numeric' });
 const dayFormatter = () => dateTimeFormatter({ weekday: 'long', day: 'numeric', month: 'long' });
 const timeFormatter = () => dateTimeFormatter({ hour: '2-digit', minute: '2-digit' });
+/** Estado devolvido por get_calendar_items para uma reunião com um pedido de participação em curso. */
+const MEETING_REQUEST_PENDING = 'REQUEST_PENDING';
 
 function itemTone(item: CalendarItem): BadgeTone {
   if (item.isOverdue) return 'danger';
@@ -64,6 +65,8 @@ function itemTone(item: CalendarItem): BadgeTone {
     case 'DEADLINE':
       return item.status === 'COMPLETED' ? 'success' : 'warning';
     case 'MEETING':
+      // Pedido de participação de uma chefia ainda por decidir: distinto de uma reunião confirmada.
+      return item.status === MEETING_REQUEST_PENDING ? 'warning' : 'info';
     case 'OPPORTUNITY_ACTIVITY':
       return 'info';
     case 'ABSENCE':
@@ -96,11 +99,12 @@ function itemRoute(item: CalendarItem): string | null {
 function itemStatusLabel(item: CalendarItem): string {
   const { itemType, status } = item;
   if ((itemType === 'DEADLINE' || itemType === 'TASK') && isTaskStatus(status)) return TASK_STATUS_LABELS[status];
+  if (itemType === 'MEETING' && status === MEETING_REQUEST_PENDING) return t('Planeada · participação pedida, por confirmar');
   if (itemType === 'MEETING' && isMeetingStatus(status)) return MEETING_STATUS_LABELS[status];
   if (itemType === 'ABSENCE' && isAbsenceStatus(status)) return ABSENCE_STATUS_LABELS[status];
   if (itemType === 'OPPORTUNITY_ACTIVITY' && isOpportunityStatus(status)) return OPPORTUNITY_STATUS_LABELS[status];
   if (itemType === 'ACTIVITY' && isEntryKind(status)) return t('Tempo registado · {status}', { status: ENTRY_KIND_LABELS[status] });
-  return status === 'ACTIVE' ? 'Ativo' : status;
+  return status === 'ACTIVE' ? t('Ativo') : status;
 }
 
 function itemTime(item: CalendarItem): string {
@@ -143,7 +147,6 @@ const ItemChip: React.FC<{ item: CalendarItem; compact?: boolean; onOpen: (item:
 
 export const CalendarPage: React.FC = () => {
   const navigate = useNavigate();
-  const [isRequestOpen, setIsRequestOpen] = useState(false);
   const { currentUser, hasPermission } = useAuth();
   const canSeeTeam = hasPermission('TEAM_READ') || hasPermission('ADMIN_ACCESS');
   const canManageEvents = hasPermission('TIMESHEET_CALENDAR_MANAGE');
@@ -171,8 +174,10 @@ export const CalendarPage: React.FC = () => {
   const items = useAsyncData(() => getCalendarItems(from, to, scope), [from, to, scope]);
   // Convidáveis: equipa e chefias de quem organiza (o colaborador comum não agenda reuniões).
   const people = useAsyncData(() => (canCreateMeeting ? listWorkPeople('MEETING') : Promise.resolve([])), [canCreateMeeting]);
-  const openMeetingForm = (range: SlotSelection | null) => {
+  const [withLeadRequest, setWithLeadRequest] = useState(false);
+  const openMeetingForm = (range: SlotSelection | null, requestLead = false) => {
     setMeetingRange(range);
+    setWithLeadRequest(requestLead);
     setIsMeetingFormOpen(true);
   };
   const allowedTypes = new Set(FILTERS.filter((filter) => enabled.has(filter.key)).flatMap((filter) => filter.types));
@@ -246,9 +251,11 @@ export const CalendarPage: React.FC = () => {
         subtitle={t('Tarefas, prazos, reuniões, ausências, atividades e eventos num só lugar.')}
         actions={
           <>
-            <Button variant="secondary" icon={UserCheck} onClick={() => setIsRequestOpen(true)}>
-              {t('Solicitar reunião')}
-            </Button>
+            {canCreateMeeting && (
+              <Button variant="secondary" icon={UserCheck} onClick={() => openMeetingForm(null, true)} disabled={!people.data}>
+                {hasPermission('TEAM_READ') ? t('Solicitar participação de outro gestor') : t('Solicitar participação do gestor')}
+              </Button>
+            )}
             {canCreateMeeting && (
               <Button variant="secondary" icon={CalendarPlus} onClick={() => openMeetingForm(null)} disabled={!people.data}>
                 {t('Agendar reunião')}
@@ -424,14 +431,6 @@ export const CalendarPage: React.FC = () => {
           items.reload();
         }}
       />
-      <MeetingRequestModal
-        isOpen={isRequestOpen}
-        onClose={() => setIsRequestOpen(false)}
-        onSent={(meetingId) => {
-          setIsRequestOpen(false);
-          navigate(`/timesheet/meetings/${meetingId}`);
-        }}
-      />
       <MeetingFormModal
         isOpen={isMeetingFormOpen}
         meeting={null}
@@ -439,6 +438,7 @@ export const CalendarPage: React.FC = () => {
         people={people.data ?? []}
         defaultDate={toDateInput(anchor)}
         initialRange={meetingRange}
+        startWithLeadRequest={withLeadRequest}
         onClose={() => setIsMeetingFormOpen(false)}
         onSaved={(meetingId) => {
           setIsMeetingFormOpen(false);

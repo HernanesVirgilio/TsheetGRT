@@ -1,6 +1,6 @@
 // Testes das regras puras da área Admin (validação, mensagens de erro, CSV, relatórios, formatação).
 // As regras de autorização são testadas contra o PostgreSQL (ver docs/supabase-setup.md, secção Validação).
-import { describeSupabaseError, getErrorMessage, ServiceError } from '../lib/errors';
+import { describeSupabaseError, getErrorMessage, isSchemaMissingError, ServiceError } from '../lib/errors';
 import { buildCsv } from '../utils/csv';
 import { formatCalendarDate, formatMinutesAsHours, formatPeriod, pluralize } from '../utils/format';
 import type { ReportTimesheet } from '../utils/reports';
@@ -79,6 +79,16 @@ assert(
 );
 assert(describeSupabaseError({ code: 'XX000', message: 'internal' }, 'Mensagem de recurso') === 'Mensagem de recurso', 'erro desconhecido usa a mensagem de recurso');
 assert(getErrorMessage(new ServiceError('Erro claro'), 'x') === 'Erro claro', 'ServiceError mantém a mensagem');
+{
+  // Esquema desatualizado (migração por aplicar): explicado como tal, nunca como "sem dados" nem erro genérico.
+  const originalError = console.error;
+  console.error = () => undefined;
+  const missingFunction = describeSupabaseError({ code: 'PGRST202', message: 'Could not find the function public.get_hours_report' }, 'Não foi possível gerar o relatório.');
+  const missingColumn = describeSupabaseError({ code: '42703', message: 'column meetings.request_proposed_starts_at does not exist' }, 'x');
+  console.error = originalError;
+  assert(missingFunction.includes('atualização da base de dados') && missingColumn === missingFunction, 'função ou coluna em falta: mensagem de esquema desatualizado');
+  assert(isSchemaMissingError({ code: 'PGRST202', message: '' }) && !isSchemaMissingError({ code: '42501', message: '' }), 'permissão recusada não é confundida com esquema em falta');
+}
 assert(getErrorMessage('texto', 'Recurso') === 'Recurso', 'valores não-Error usam a mensagem de recurso');
 
 section('CSV');

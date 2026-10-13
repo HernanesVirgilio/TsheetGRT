@@ -378,6 +378,11 @@ export type MeetingRow = Timestamps & {
   requested_with: string | null;
   request_decided_at: string | null;
   request_decision_comment: string | null;
+  /** Novo horário proposto pela chefia (só com request_status = RESCHEDULE_PROPOSED). */
+  request_proposed_starts_at: string | null;
+  request_proposed_ends_at: string | null;
+  /** Chave de idempotência enviada pelo formulário que criou a reunião. */
+  client_request_id: string | null;
 };
 
 export type MeetingParticipantRow = {
@@ -917,6 +922,10 @@ export type Database = {
           p_participant_ids?: string[];
           p_task_id?: string | null;
           p_opportunity_id?: string | null;
+          /** Pedir também a participação de uma chefia configurada (só participa se aceitar). */
+          p_request_lead_id?: string | null;
+          /** Chave de idempotência da tentativa de criação (única por organizador). */
+          p_client_request_id?: string | null;
         };
         Returns: string;
       };
@@ -1098,6 +1107,7 @@ export type Database = {
           job_title: string | null;
           department_name: string | null;
           job_description: string | null;
+          department_id: string | null;
         }[];
       };
       get_team_dashboard: {
@@ -1182,25 +1192,27 @@ export type Database = {
           full_name: string;
           job_title: string | null;
           is_organizer: boolean;
-          response: string;
+          /** NULL quando a pessoa ainda não é participante (chefia com o pedido em curso). */
+          response: string | null;
           responded_at: string | null;
           response_comment: string | null;
+          is_requested: boolean;
         }[];
       };
       respond_to_meeting: { Args: { p_meeting_id: string; p_response: string; p_comment?: string | null }; Returns: undefined };
-      request_meeting: {
+      decide_meeting_request: {
         Args: {
-          p_lead_id: string;
-          p_title: string;
-          p_starts_at: string;
-          p_ends_at: string;
-          p_agenda?: string;
-          p_location?: string | null;
-          p_meeting_url?: string | null;
+          p_meeting_id: string;
+          p_decision: string;
+          p_comment?: string | null;
+          p_proposed_starts_at?: string | null;
+          p_proposed_ends_at?: string | null;
         };
-        Returns: string;
+        Returns: undefined;
       };
-      decide_meeting_request: { Args: { p_meeting_id: string; p_decision: string; p_comment?: string | null }; Returns: undefined };
+      request_meeting_participation: { Args: { p_meeting_id: string; p_lead_id: string }; Returns: undefined };
+      cancel_meeting_request: { Args: { p_meeting_id: string }; Returns: undefined };
+      respond_to_reschedule_proposal: { Args: { p_meeting_id: string; p_accept: boolean }; Returns: undefined };
       list_my_leads: { Args: NoArgs; Returns: { profile_id: string; full_name: string; job_title: string | null; relation: string }[] };
       communicate_absence: {
         Args: { p_absence_type_id: string; p_start_date: string; p_end_date: string; p_reason?: string };

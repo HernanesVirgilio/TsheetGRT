@@ -5,36 +5,74 @@
 -- das políticas RLS já existentes (o próprio, a equipa do âmbito com TEAM_TIMESHEET_READ, a administração).
 -- Nenhuma função devolve registos individuais nem dados fora do que o utilizador já pode ler.
 -- Datas locais (Africa/Maputo): work_date é uma data local; os instantes de decisão são convertidos.
+-- Pode ser aplicada mais de uma vez (CREATE OR REPLACE).
+--
+-- Autorização em duas camadas:
+--   1. RLS (SECURITY INVOKER): só se agregam linhas que quem chama já pode ler.
+--   2. private.assert_report_scope: os filtros de departamento e de colaborador enviados pelo cliente são
+--      verificados contra o âmbito de quem chama. Um filtro fora do âmbito é recusado (42501) em vez de
+--      devolver zeros, que seriam enganadores. Aplica-se a chamadas diretas à API, não só à interface.
+--
+-- Depende de 20261015000000 (private.approval_reminder_days e a definição APPROVAL_REMINDER_DAYS).
 
-CREATE FUNCTION private.assert_report_range(p_from DATE, p_to DATE)
+-- Período máximo: 366 datas de calendário consecutivas (um ano bissexto completo), ou seja, p_to - p_from <= 365.
+-- É o mesmo limite do centro de relatórios no frontend (rangeLength <= 366) e cobre o ano anterior usado nas comparações.
+CREATE OR REPLACE FUNCTION private.assert_report_range(p_from DATE, p_to DATE)
 RETURNS VOID
 LANGUAGE plpgsql
 IMMUTABLE
 SET search_path = ''
 AS $$
 BEGIN
-    IF p_from IS NULL OR p_to IS NULL OR p_to < p_from THEN
-        RAISE EXCEPTION 'Intervalo de datas inválido.';
+    IF p_from IS NULL OR p_to IS NULL THEN
+        RAISE EXCEPTION 'Indique a data inicial e a data final do relatório.';
     END IF;
-    IF p_to - p_from > 400 THEN
-        RAISE EXCEPTION 'O período de um relatório não pode exceder um ano.';
+    IF p_to < p_from THEN
+        RAISE EXCEPTION 'A data final tem de ser igual ou posterior à inicial.';
+    END IF;
+    IF p_to - p_from > 365 THEN
+        RAISE EXCEPTION 'O período de um relatório não pode exceder 366 dias (um ano).';
     END IF;
 END;
 $$;
 
--- Prazo do lembrete de aprovação (definição da organização; a tabela de definições só é legível pela administração).
-CREATE FUNCTION private.approval_reminder_days()
-RETURNS INTEGER
-LANGUAGE sql
+-- Âmbito dos filtros enviados pelo cliente. Mesma regra das políticas RLS de timesheets e timesheet_entries:
+-- o próprio, quem supervisiona o colaborador com TEAM_TIMESHEET_READ, ou a administração (ADMIN_ACCESS).
+--   * colaborador: o próprio ou alguém que quem chama supervisiona;
+--   * departamento: o próprio departamento ou um departamento com pelo menos uma pessoa supervisionada.
+-- SECURITY DEFINER apenas para avaliar o âmbito (lê profiles sem RLS); devolve VOID e só revela se o filtro é
+-- permitido, nunca dados. Executável por authenticated porque é chamada pelas funções SECURITY INVOKER.
+CREATE OR REPLACE FUNCTION private.assert_report_scope(p_department_id UUID, p_employee_id UUID)
+RETURNS VOID
+LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path = ''
 AS $$
-    SELECT coalesce((SELECT value FROM public.system_settings WHERE key = 'APPROVAL_REMINDER_DAYS'), '3')::INTEGER;
+DECLARE
+    v_me UUID := private.require_actor();
+    v_team_reader BOOLEAN := public.has_permission('TEAM_TIMESHEET_READ');
+BEGIN
+    IF public.has_permission('ADMIN_ACCESS') THEN
+        RETURN;
+    END IF;
+    IF p_employee_id IS NOT NULL AND p_employee_id <> v_me
+       AND NOT (v_team_reader AND public.is_manager_of_employee(p_employee_id)) THEN
+        RAISE EXCEPTION 'Colaborador fora do seu âmbito.' USING ERRCODE = '42501';
+    END IF;
+    IF p_department_id IS NOT NULL
+       AND p_department_id IS DISTINCT FROM private.current_department_id()
+       AND NOT (v_team_reader AND EXISTS (
+           SELECT 1 FROM public.profiles p
+           WHERE p.department_id = p_department_id AND public.is_manager_of_employee(p.id)
+       )) THEN
+        RAISE EXCEPTION 'Departamento fora do seu âmbito.' USING ERRCODE = '42501';
+    END IF;
+END;
 $$;
 
 -- Horas por colaborador e atividade no período.
-CREATE FUNCTION public.get_hours_report(p_from DATE, p_to DATE, p_department_id UUID DEFAULT NULL, p_employee_id UUID DEFAULT NULL)
+CREATE OR REPLACE FUNCTION public.get_hours_report(p_from DATE, p_to DATE, p_department_id UUID DEFAULT NULL, p_employee_id UUID DEFAULT NULL)
 RETURNS TABLE (
     employee_id UUID,
     employee_name TEXT,
@@ -52,6 +90,7 @@ SET search_path = ''
 AS $$
 BEGIN
     PERFORM private.assert_report_range(p_from, p_to);
+    PERFORM private.assert_report_scope(p_department_id, p_employee_id);
     RETURN QUERY
     SELECT e.employee_id, p.full_name::TEXT, p.department_id, d.name::TEXT, a.name::TEXT,
            sum(e.total_minutes)::BIGINT, count(*)::BIGINT, count(DISTINCT e.work_date)::BIGINT
@@ -67,7 +106,7 @@ END;
 $$;
 
 -- Evolução das horas por dia, semana (ISO, segunda-feira) ou mês.
-CREATE FUNCTION public.get_hours_trend(p_from DATE, p_to DATE, p_bucket TEXT, p_department_id UUID DEFAULT NULL, p_employee_id UUID DEFAULT NULL)
+CREATE OR REPLACE FUNCTION public.get_hours_trend(p_from DATE, p_to DATE, p_bucket TEXT, p_department_id UUID DEFAULT NULL, p_employee_id UUID DEFAULT NULL)
 RETURNS TABLE (bucket_start DATE, minutes BIGINT, people BIGINT)
 LANGUAGE plpgsql
 STABLE
@@ -76,9 +115,11 @@ SET search_path = ''
 AS $$
 BEGIN
     PERFORM private.assert_report_range(p_from, p_to);
-    IF p_bucket NOT IN ('day', 'week', 'month') THEN
-        RAISE EXCEPTION 'Agrupamento inválido.';
+    -- NULL NOT IN (...) é NULL (não verdadeiro): o nulo tem de ser recusado explicitamente.
+    IF p_bucket IS NULL OR p_bucket NOT IN ('day', 'week', 'month') THEN
+        RAISE EXCEPTION 'Agrupamento inválido: use day, week ou month.';
     END IF;
+    PERFORM private.assert_report_scope(p_department_id, p_employee_id);
     RETURN QUERY
     SELECT date_trunc(p_bucket, e.work_date::TIMESTAMP)::DATE, sum(e.total_minutes)::BIGINT, count(DISTINCT e.employee_id)::BIGINT
     FROM public.timesheet_entries e
@@ -94,7 +135,7 @@ $$;
 -- Indicadores de aprovação. Decisões no período (pela data local da decisão); tempo até à decisão medido
 -- entre a última submissão e a decisão mais recente de cada timesheet (os ciclos anteriores não guardam a
 -- hora de submissão fora da auditoria); pendentes contados no momento da consulta.
-CREATE FUNCTION public.get_approval_report(p_from DATE, p_to DATE, p_department_id UUID DEFAULT NULL)
+CREATE OR REPLACE FUNCTION public.get_approval_report(p_from DATE, p_to DATE, p_department_id UUID DEFAULT NULL)
 RETURNS TABLE (
     approved_count INTEGER,
     rejected_count INTEGER,
@@ -114,9 +155,11 @@ AS $$
 DECLARE
     v_from TIMESTAMPTZ := (p_from::TIMESTAMP) AT TIME ZONE 'Africa/Maputo';
     v_to TIMESTAMPTZ := ((p_to + 1)::TIMESTAMP) AT TIME ZONE 'Africa/Maputo';
-    v_days INTEGER := private.approval_reminder_days();
+    v_days INTEGER;
 BEGIN
     PERFORM private.assert_report_range(p_from, p_to);
+    PERFORM private.assert_report_scope(p_department_id, NULL);
+    v_days := private.approval_reminder_days();
     RETURN QUERY
     WITH scoped AS (
         SELECT t.*
@@ -153,9 +196,12 @@ BEGIN
 END;
 $$;
 
--- Avaliadas dentro das funções SECURITY INVOKER, com os privilégios de quem chama.
-REVOKE EXECUTE ON FUNCTION private.assert_report_range(DATE, DATE), private.approval_reminder_days() FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION private.assert_report_range(DATE, DATE), private.approval_reminder_days() TO authenticated;
+-- Chamadas dentro das funções SECURITY INVOKER, com os privilégios de quem chama: precisam de EXECUTE para
+-- authenticated. Nunca para anon. O esquema private não deve estar exposto no PostgREST (ver a pós-verificação);
+-- mesmo que estivesse, estas funções não devolvem dados. private.approval_reminder_days é criada e concedida
+-- em 20261015000000.
+REVOKE EXECUTE ON FUNCTION private.assert_report_range(DATE, DATE), private.assert_report_scope(UUID, UUID) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION private.assert_report_range(DATE, DATE), private.assert_report_scope(UUID, UUID) TO authenticated;
 
 REVOKE EXECUTE ON FUNCTION
     public.get_hours_report(DATE, DATE, UUID, UUID),

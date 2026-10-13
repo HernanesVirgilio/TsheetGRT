@@ -271,7 +271,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ embedded = false, peri
 
         {report.error && (
           <div className="p-4">
-            <ErrorState message={report.error} onRetry={report.reload} />
+            <ErrorState message={report.error} kind={report.errorKind} onRetry={report.reload} />
           </div>
         )}
         {report.isLoading && !report.data && <LoadingState label={t('A gerar relatório...')} />}

@@ -1,12 +1,21 @@
 import { t, tIfKnown, translated } from './i18n';
 
+/**
+ * Natureza de uma falha, para escolher a mensagem e a ação de recuperação:
+ * schema (função/coluna/tabela em falta: tentar de novo não resolve), permission, network (tentar de novo),
+ * validation (dados recusados pelo servidor), not_found e unknown.
+ */
+export type ErrorKind = 'schema' | 'permission' | 'network' | 'validation' | 'not_found' | 'unknown';
+
 export class ServiceError extends Error {
   readonly code: string | null;
+  readonly kind: ErrorKind;
 
-  constructor(message: string, code: string | null = null) {
+  constructor(message: string, code: string | null = null, kind: ErrorKind = 'unknown') {
     super(message);
     this.name = 'ServiceError';
     this.code = code;
+    this.kind = kind;
   }
 }
 
@@ -19,6 +28,55 @@ export interface ErrorLike {
 
 const PERMISSION_DENIED_MESSAGE = 'Não tem permissão para realizar esta operação.';
 const NETWORK_ERROR_MESSAGE = 'Não foi possível contactar o servidor. Verifique a ligação à internet e tente novamente.';
+const SCHEMA_MISSING_MESSAGE =
+  'Esta funcionalidade precisa de uma atualização da base de dados que ainda não foi aplicada (função ou coluna em falta). Contacte o administrador do sistema.';
+
+/**
+ * Códigos de um esquema desatualizado: função, coluna ou tabela inexistente (migração por aplicar).
+ * PostgREST: PGRST202 (função), PGRST204 (coluna), PGRST205 (tabela). PostgreSQL: 42883, 42703, 42P01.
+ */
+const SCHEMA_MISSING_CODES: readonly string[] = ['PGRST202', 'PGRST204', 'PGRST205', '42883', '42703', '42P01'];
+
+/** O erro indica que a base de dados não tem o esquema esperado pela aplicação. */
+export function isSchemaMissingError(error: ErrorLike): boolean {
+  return Boolean(error.code && SCHEMA_MISSING_CODES.includes(error.code));
+}
+
+/** Classifica um erro do Supabase (PostgREST ou PostgreSQL). */
+export function getErrorKind(error: ErrorLike): ErrorKind {
+  if (isSchemaMissingError(error)) return 'schema';
+  switch (error.code) {
+    case '42501':
+      return 'permission';
+    case '23505':
+    case '23514':
+    case '23503':
+    case '22023':
+    case 'P0001':
+      return 'validation';
+    case 'PGRST116':
+      return 'not_found';
+    default:
+      return error.message.toLowerCase().includes('failed to fetch') ? 'network' : 'unknown';
+  }
+}
+
+/** Natureza de qualquer valor apanhado num catch. */
+export function errorKindOf(error: unknown): ErrorKind {
+  if (error instanceof ServiceError) return error.kind;
+  if (error instanceof TypeError && error.message.toLowerCase().includes('fetch')) return 'network';
+  return 'unknown';
+}
+
+/**
+ * Regista os detalhes técnicos só em desenvolvimento: código e mensagem do servidor (nomes de objetos),
+ * nunca `details`, que pode conter valores dos registos.
+ */
+export function logDevError(context: string, error: unknown): void {
+  if (!import.meta.env?.DEV) return;
+  const { code, message } = (error ?? {}) as { code?: unknown; message?: unknown };
+  console.warn(`[${context}]`, typeof code === 'string' ? code : '', typeof message === 'string' ? message : String(error));
+}
 
 const UNIQUE_CONSTRAINT_MESSAGES: Record<string, string> = translated({
   profiles_email_key: 'Já existe um utilizador com este e-mail.',
@@ -75,6 +133,11 @@ const CHECK_CONSTRAINT_MESSAGES: Record<string, string> = translated({
   approval_requests_rejection_reason: 'A rejeição exige um motivo (mínimo 5 carateres).',
   tasks_review_consistency: 'Só é possível validar tarefas concluídas.',
   tasks_review_note_length: 'A nota não pode exceder 1000 carateres.',
+  meetings_request_rejection_reason: 'A recusa exige um motivo (mínimo 5 carateres).',
+  meetings_request_not_self: 'Não pode pedir a sua própria participação.',
+  meetings_request_proposal_consistency: 'O novo horário proposto é inválido (máximo de 24 horas).',
+  meeting_participants_response_comment_length: 'O comentário não pode exceder 500 carateres.',
+  absence_requests_notice_consistency: 'Uma ausência comunicada não pode ser validada nem aprovada.',
 });
 
 function findConstraintMessage(error: ErrorLike, messages: Record<string, string>): string | null {
@@ -90,6 +153,11 @@ function isNativePermissionMessage(message: string): boolean {
 
 /** Traduz um erro do Supabase numa mensagem compreensível para o utilizador. */
 export function describeSupabaseError(error: ErrorLike, fallback: string): string {
+  if (isSchemaMissingError(error)) {
+    // Diagnóstico para quem administra (sem dados sensíveis): que objeto falta na base de dados.
+    console.error(`[base de dados] Esquema desatualizado (${error.code}): ${error.message}`);
+    return t(SCHEMA_MISSING_MESSAGE);
+  }
   switch (error.code) {
     case '23505':
       return findConstraintMessage(error, UNIQUE_CONSTRAINT_MESSAGES) ?? t('Já existe um registo com estes dados.');
@@ -116,7 +184,9 @@ export function describeSupabaseError(error: ErrorLike, fallback: string): strin
 }
 
 export function toServiceError(error: ErrorLike, fallback: string): ServiceError {
-  return new ServiceError(describeSupabaseError(error, fallback), error.code ?? null);
+  const kind = getErrorKind(error);
+  if (kind !== 'schema' && kind !== 'validation') logDevError('supabase', error);
+  return new ServiceError(describeSupabaseError(error, fallback), error.code ?? null, kind);
 }
 
 /** Mensagem segura para apresentar a partir de qualquer valor apanhado num catch. */

@@ -120,8 +120,11 @@ export const UpcomingMeetingsPanel: React.FC<{ viewerId: string }> = ({ viewerId
                 <span className="block truncate text-sm font-medium text-text">{meeting.title}</span>
                 <span className="block text-xs text-text-muted">
                   {formatDateTime(meeting.startsAt)}
-                  {meeting.organizerId !== viewerId && meeting.organizerName ? ` · organizada por ${meeting.organizerName}` : ''}
+                  {meeting.organizerId !== viewerId && meeting.organizerName ? ` · ${t('organizada por {name}', { name: meeting.organizerName })}` : ''}
                 </span>
+                {(meeting.requestStatus === 'PENDING' || meeting.requestStatus === 'RESCHEDULE_PROPOSED') && (
+                  <span className="mt-0.5 block text-xs font-medium text-warning">{t('Participação de chefia por confirmar')}</span>
+                )}
               </Link>
             </li>
           ))}

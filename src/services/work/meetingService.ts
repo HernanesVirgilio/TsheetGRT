@@ -8,7 +8,7 @@ import { mapWorkEvent, WORK_EVENT_COLUMNS } from './workEvents';
 import { t } from '../../lib/i18n';
 
 const MEETING_SELECT =
-  'id, title, description, objective, starts_at, ends_at, location, meeting_url, organizer_id, status, outcome, decisions, next_steps, cancel_reason, request_status, requested_with, request_decided_at, request_decision_comment, updated_at, organizer:profiles!meetings_organizer_id_fkey(full_name), task:tasks!meetings_task_id_fkey(id, reference, title), opportunity:opportunities(id, reference, title)' as const;
+  'id, title, description, objective, starts_at, ends_at, location, meeting_url, organizer_id, status, outcome, decisions, next_steps, cancel_reason, request_status, requested_with, request_decided_at, request_decision_comment, request_proposed_starts_at, request_proposed_ends_at, updated_at, organizer:profiles!meetings_organizer_id_fkey(full_name), task:tasks!meetings_task_id_fkey(id, reference, title), opportunity:opportunities(id, reference, title)' as const;
 
 interface MeetingRow {
   id: string;
@@ -29,6 +29,8 @@ interface MeetingRow {
   requested_with: string | null;
   request_decided_at: string | null;
   request_decision_comment: string | null;
+  request_proposed_starts_at: string | null;
+  request_proposed_ends_at: string | null;
   updated_at: string;
   organizer: { full_name: string } | null;
   task: { id: string; reference: string; title: string } | null;
@@ -57,6 +59,8 @@ function mapMeeting(row: MeetingRow): MeetingDetail | null {
     requestedWith: row.requested_with,
     requestDecidedAt: row.request_decided_at,
     requestDecisionComment: row.request_decision_comment,
+    requestProposedStartsAt: row.request_proposed_starts_at,
+    requestProposedEndsAt: row.request_proposed_ends_at,
     task: row.task,
     opportunity: row.opportunity,
     updatedAt: row.updated_at,
@@ -127,7 +131,9 @@ export async function getMeetingPeople(meetingId: string): Promise<MeetingPerson
     fullName: row.full_name,
     jobTitle: row.job_title,
     isOrganizer: row.is_organizer,
-    response: isMeetingResponse(row.response) ? row.response : 'PENDING',
+    isRequested: row.is_requested,
+    isParticipant: row.is_organizer || row.response !== null,
+    response: row.response && isMeetingResponse(row.response) ? row.response : 'PENDING',
     respondedAt: row.responded_at,
     responseComment: row.response_comment,
   }));
@@ -151,34 +157,42 @@ export async function listMyLeads(): Promise<MeetingLead[]> {
   }));
 }
 
-export interface MeetingRequestInput {
-  leadId: string;
-  title: string;
-  startsAt: string;
-  endsAt: string;
-  agenda: string;
-  location: string | null;
-  meetingUrl: string | null;
-}
-
-/** Pedido de reunião a uma chefia: fica pendente até ser aceite ou recusado. */
-export async function requestMeeting(input: MeetingRequestInput): Promise<string> {
-  const { data, error } = await supabase.rpc('request_meeting', {
-    p_lead_id: input.leadId,
-    p_title: input.title,
-    p_starts_at: input.startsAt,
-    p_ends_at: input.endsAt,
-    p_agenda: input.agenda,
-    p_location: input.location,
-    p_meeting_url: input.meetingUrl,
+/**
+ * Decisão de quem recebeu o pedido de participação: aceitar (passa a participante e a reunião fica confirmada),
+ * recusar (motivo obrigatório) ou propor outro horário (`proposal`).
+ */
+export async function decideMeetingRequest(
+  meetingId: string,
+  decision: 'ACCEPTED' | 'REJECTED' | 'RESCHEDULE',
+  comment: string | null,
+  proposal: { startsAt: string; endsAt: string } | null = null
+): Promise<void> {
+  const { error } = await supabase.rpc('decide_meeting_request', {
+    p_meeting_id: meetingId,
+    p_decision: decision,
+    p_comment: comment,
+    p_proposed_starts_at: proposal?.startsAt ?? null,
+    p_proposed_ends_at: proposal?.endsAt ?? null,
   });
-  if (error) throw toServiceError(error, t('Não foi possível enviar o pedido de reunião.'));
-  return data;
+  if (error) throw toServiceError(error, t('Não foi possível registar a decisão.'));
 }
 
-export async function decideMeetingRequest(meetingId: string, decision: 'ACCEPTED' | 'REJECTED', comment: string | null): Promise<void> {
-  const { error } = await supabase.rpc('decide_meeting_request', { p_meeting_id: meetingId, p_decision: decision, p_comment: comment });
-  if (error) throw toServiceError(error, t('Não foi possível registar a decisão.'));
+/** Quem organiza pede (de novo) a participação de uma chefia configurada numa reunião existente. */
+export async function requestMeetingParticipation(meetingId: string, leadId: string): Promise<void> {
+  const { error } = await supabase.rpc('request_meeting_participation', { p_meeting_id: meetingId, p_lead_id: leadId });
+  if (error) throw toServiceError(error, t('Não foi possível enviar o pedido de participação.'));
+}
+
+/** Quem organiza retira o pedido em curso (a reunião mantém-se). */
+export async function cancelMeetingRequest(meetingId: string): Promise<void> {
+  const { error } = await supabase.rpc('cancel_meeting_request', { p_meeting_id: meetingId });
+  if (error) throw toServiceError(error, t('Não foi possível retirar o pedido.'));
+}
+
+/** Quem organiza aceita (a reunião muda de hora) ou recusa o novo horário proposto pela chefia. */
+export async function respondToRescheduleProposal(meetingId: string, accept: boolean): Promise<void> {
+  const { error } = await supabase.rpc('respond_to_reschedule_proposal', { p_meeting_id: meetingId, p_accept: accept });
+  if (error) throw toServiceError(error, t('Não foi possível responder à proposta.'));
 }
 
 /** Pedidos de reunião à espera da resposta de quem consulta. */
@@ -206,7 +220,18 @@ export interface MeetingInput {
   participantIds: string[];
 }
 
-export async function createMeeting(input: MeetingInput, links: { taskId?: string | null; opportunityId?: string | null } = {}): Promise<string> {
+/**
+ * Cria a reunião (quem organiza é sempre o utilizador autenticado, definido no servidor). Com `requestLeadId`,
+ * pede também a participação dessa chefia: o pedido e a reunião são criados na mesma transação.
+ * `clientRequestId` identifica esta tentativa de criação: repetir a chamada com a mesma chave (duplo clique,
+ * nova tentativa após falha de rede) devolve a mesma reunião em vez de criar outra.
+ */
+export async function createMeeting(
+  input: MeetingInput,
+  links: { taskId?: string | null; opportunityId?: string | null } = {},
+  requestLeadId: string | null = null,
+  clientRequestId: string | null = null
+): Promise<string> {
   const { data, error } = await supabase.rpc('create_meeting', {
     p_title: input.title,
     p_starts_at: input.startsAt,
@@ -218,6 +243,8 @@ export async function createMeeting(input: MeetingInput, links: { taskId?: strin
     p_participant_ids: input.participantIds,
     p_task_id: links.taskId ?? null,
     p_opportunity_id: links.opportunityId ?? null,
+    p_request_lead_id: requestLeadId,
+    p_client_request_id: clientRequestId,
   });
   if (error) throw toServiceError(error, t('Não foi possível criar a reunião.'));
   return data;

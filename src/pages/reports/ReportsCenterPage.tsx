@@ -219,8 +219,9 @@ const HoursReport: React.FC<{ range: DateRange; previous: DateRange; canExport: 
     return [...map.values()].sort((first, second) => second.minutes - first.minutes);
   }, [current, prior]);
 
-  if (data.error) return <ErrorState message={data.error} onRetry={data.reload} />;
-  if (!data.data) return <LoadingState label={t('A gerar relatório...')} />;
+  if (data.error) return <ErrorState message={data.error} kind={data.errorKind} onRetry={data.reload} />;
+  // Enquanto carrega outro período, os dados anteriores não são mostrados com as datas novas.
+  if (!data.data || data.isLoading) return <LoadingState label={t('A gerar relatório...')} />;
 
   const options = data.data.current;
   const departmentOptions = sumBy(options, (row) => row.departmentId ?? 'none', (row) => row.departmentName ?? t('Sem departamento'));
@@ -315,8 +316,8 @@ const HoursReport: React.FC<{ range: DateRange; previous: DateRange; canExport: 
         <>
           <Panel title={t('Evolução das horas')} description={t('{range} · agrupado por {bucket}', { range: rangeLabel(range), bucket: bucket === 'day' ? t('dia') : bucket === 'week' ? t('semana') : t('mês') })}>
             {trend.error ? (
-              <ErrorState message={trend.error} onRetry={trend.reload} />
-            ) : !trend.data ? (
+              <ErrorState message={trend.error} kind={trend.errorKind} onRetry={trend.reload} />
+            ) : !trend.data || trend.isLoading ? (
               <LoadingState label={t('A carregar...')} />
             ) : (
               <StackedColumnChart
@@ -375,8 +376,8 @@ const ApprovalReport: React.FC<{ range: DateRange; previous: DateRange }> = ({ r
     () => Promise.all([getApprovalReport(range.from, range.to, null), getApprovalReport(previous.from, previous.to, null)]),
     [range.from, range.to, previous.from, previous.to]
   );
-  if (data.error) return <ErrorState message={data.error} onRetry={data.reload} />;
-  if (!data.data) return <LoadingState label={t('A gerar relatório...')} />;
+  if (data.error) return <ErrorState message={data.error} kind={data.errorKind} onRetry={data.reload} />;
+  if (!data.data || data.isLoading) return <LoadingState label={t('A gerar relatório...')} />;
   const [current, prior] = data.data;
   const decisions = current.approved + current.rejected;
   const priorDecisions = prior.approved + prior.rejected;

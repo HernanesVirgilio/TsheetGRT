@@ -70,18 +70,52 @@ O estado "Em análise" corresponde a `SUBMITTED`: a aplicação não regista a a
 
 ## 4. Reuniões
 
-| Tipo | Quem cria | Aprovação | Convidados |
-| :--- | :--- | :--- | :--- |
-| Reunião normal | Quem tem `TIMESHEET_MEETING_CREATE` (agora também EMPLOYEE e IT) | Nenhuma | Colegas (mesmo departamento ou mesma chefia direta), a equipa, as chefias, os envolvidos no registo ligado; a administração convida qualquer pessoa |
-| Pedido de reunião a uma chefia | Qualquer pessoa com `TIMESHEET_MEETING_READ` | A chefia aceita ou recusa | Apenas a chefia configurada (`list_my_leads`, mesma regra de `get_profile_leads`) |
+Uma reunião normal e um pedido de participação de uma chefia são operações diferentes. O pedido é uma opção explícita da mesma reunião, não uma reunião à parte.
 
-- **Respostas aos convites** (`respond_to_meeting`): cada convidado aceita ou recusa, com comentário opcional, e o organizador é notificado. Um reagendamento volta a pedir resposta a todos.
-- **Pedido de reunião** (`request_meeting`, `decide_meeting_request`):
-  - O pedido fica `PLANNED` com `request_status = PENDING`. O organizador não o pode confirmar nem concluir sozinho (trigger `guard_meeting_request`).
-  - Aceitar confirma a reunião (`CONFIRMED`) e notifica quem pediu.
-  - Recusar exige motivo (5 a 1000 carateres). A reunião fica cancelada e quem pediu pode "Propor outro horário", que cria um novo pedido com o mesmo assunto.
-  - Uma segunda decisão é recusada. Não se aceitam pedidos repetidos para a mesma pessoa e hora.
-- Os pedidos pendentes aparecem em Aprovações › Reuniões. Os botões "Solicitar reunião" e "Agendar reunião" estão em Reuniões e no Calendário.
+| Operação | Quem | Aprovação | Função |
+| :--- | :--- | :--- | :--- |
+| Agendar reunião | Quem tem `TIMESHEET_MEETING_CREATE` (todos os perfis) | Nenhuma | `create_meeting` |
+| Convidar um departamento | Quem agenda | Nenhuma | O formulário junta as pessoas do departamento (do diretório `list_work_people`, que agora devolve `department_id`) às escolhidas individualmente, sem duplicados |
+| Solicitar participação do gestor / de outro gestor | Quem organiza | A chefia aceita, recusa ou propõe outro horário | `create_meeting(..., p_request_lead_id)` ou `request_meeting_participation` |
+
+**Quem pode ser convidado** (`can_invite_to_meeting`):
+
+- colegas (mesmo departamento ou mesma chefia direta);
+- a sua equipa e as suas chefias;
+- os envolvidos no registo ligado (tarefa ou oportunidade);
+- qualquer pessoa, se for a administração.
+
+O servidor recusa convidados fora destas regras, mesmo que o browser os envie. Quem organiza é sempre o utilizador autenticado.
+
+**Ciclo do pedido** (`meetings.request_status`), independente do estado da reunião (`meetings.status`):
+
+| Estado | Significado |
+| :--- | :--- |
+| `NULL` | Reunião normal, sem pedido. Nunca aparece nas decisões pendentes. |
+| `PENDING` | À espera da chefia (`requested_with`), que ainda **não** é participante. A reunião não pode ser confirmada. |
+| `ACCEPTED` | A chefia passou a participante (presença confirmada) e a reunião ficou `CONFIRMED`. |
+| `REJECTED` | Motivo obrigatório. Com outros participantes, a reunião mantém-se. Só com a chefia, é cancelada. |
+| `RESCHEDULE_PROPOSED` | A chefia propôs outro horário (`request_proposed_*`). Quem organiza aceita (`respond_to_reschedule_proposal`): a reunião muda de hora, os participantes são notificados e a chefia entra. Ou recusa, e o pedido é retirado. |
+| `CANCELLED` | Pedido retirado por quem organiza (`cancel_meeting_request`) ou reunião cancelada. A chefia é informada. |
+
+**Regras:**
+
+- Só se pede a participação de uma chefia configurada de quem organiza (`list_my_leads`, mesma regra de `get_profile_leads`). Sem relação configurada, a interface explica que a atribuição é feita pela administração: nunca se escolhe uma pessoa arbitrária.
+- Entre Managers não há hierarquia: um Manager só pede a participação de quem estiver configurado como sua chefia.
+- Só decide a pessoa a quem foi pedido. Quem pediu, outros participantes e outras chefias recebem "não encontrado".
+- A decisão bloqueia a linha. Uma segunda decisão é recusada.
+- Pedidos repetidos para a mesma pessoa e hora são recusados.
+- Cada abertura do formulário gera uma chave de pedido (`client_request_id`). Reenviar com a mesma chave (duplo clique, nova tentativa após falha de rede) devolve a reunião já criada, sem segundo convite. Duas reuniões diferentes com o mesmo título e horário continuam permitidas. O formulário tem ainda uma guarda contra duplo clique.
+
+**Notificações:** convite, pedido de participação, participação aceite ou recusada, novo horário proposto, novo horário aceite, pedido retirado, reagendamento e cancelamento.
+
+**Onde aparecem os pedidos:**
+
+- Aprovações › Reuniões;
+- painel do Manager ("Decisões pendentes");
+- painel do Gestor ("Precisa da sua atenção").
+
+No calendário, uma reunião com o pedido em curso aparece como "Planeada · participação pedida, por confirmar" (estado `REQUEST_PENDING` em `get_calendar_items`).
 
 ## 5. Ausências: pedir ou comunicar
 
@@ -97,11 +131,11 @@ O estado "Em análise" corresponde a `SUBMITTED`: a aplicação não regista a a
 ## 6. Centro de relatórios
 
 - **Períodos:**
-  - Diário, Semanal (segunda a domingo), Mensal, Trimestral, Anual e Personalizado (até um ano). O intervalo é sempre mostrado.
+  - Diário, Semanal (segunda a domingo), Mensal, Trimestral, Anual e Personalizado (até 366 datas de calendário, validado também no servidor). O intervalo é sempre mostrado.
   - A comparação é com o período anterior equivalente. No modo personalizado, usa o mesmo número de dias imediatamente antes.
 - **Dados:**
   - `get_hours_report`, `get_hours_trend` e `get_approval_report` agregam no servidor (o PostgREST devolve no máximo 1000 linhas).
-  - Correm como quem chama (`SECURITY INVOKER`), por isso o âmbito é o das políticas RLS. A exportação CSV usa os mesmos dados e filtros.
+  - Correm como quem chama (`SECURITY INVOKER`), por isso o âmbito é o das políticas RLS. Um filtro de departamento ou colaborador fora do âmbito é recusado (`private.assert_report_scope`, erro 42501) em vez de devolver zeros. A exportação CSV usa os mesmos dados e filtros.
 - **Variações:** sem base no período anterior (zero), não se mostra percentagem.
 - **Observações:**
   - Só aparecem quando a comparação é válida e a variação é de pelo menos 5% (`INSIGHT_MIN_CHANGE`).
@@ -140,7 +174,28 @@ Foram validadas para daltonismo com o validador de paletas. Os gráficos têm se
 
 ## 9. Aplicar as migrations
 
-As duas migrations novas não alteram dados existentes: as colunas novas têm valores por omissão neutros.
+**Estado verificado em produção** (projeto `iahgopefwixbprfzcwbd`, 13/10/2026):
 
-1. Aplicar por ordem com `supabase db push`, ou no SQL Editor.
-2. Confirmar com `npm run test:db`, que inclui `supabase/tests/collaboration.security.test.ts`.
+- As migrations até `20261014000000` estão aplicadas.
+- As migrations `20261015000000` e `20261015000001` **não** estão aplicadas.
+- As quatro colunas do pedido em `meetings` (`requested_with`, `request_status`, `request_decided_at`, `request_decision_comment`) foram acrescentadas à mão.
+
+A verificação foi feita sem credenciais privilegiadas. Chamadas anónimas às funções devolvem "permission denied" quando a função existe e PGRST202 quando não existe. As colunas acrescentadas à mão são as indicadas por quem as criou.
+
+Enquanto as migrations não forem aplicadas, as funcionalidades novas mostram "Esta funcionalidade precisa de uma atualização da base de dados que ainda não foi aplicada": relatórios, pedidos de participação, respostas aos convites e comunicação de ausências.
+
+As duas migrations podem ser aplicadas sobre esse estado e podem ser repetidas:
+
+- **Colunas:** `ADD COLUMN IF NOT EXISTS`. Os tipos das colunas acrescentadas à mão são normalizados só se forem diferentes.
+- **Restrições:** criadas `NOT VALID` e validadas a seguir. Se houver linhas antigas fora da regra, a migration emite um aviso em vez de falhar.
+- **Funções e triggers:** recriados (`CREATE OR REPLACE`, `DROP TRIGGER IF EXISTS`).
+- **Dados:** nenhum dado é apagado. As colunas novas têm valores por omissão neutros.
+
+Os testes reproduzem exatamente este estado e aplicam as duas migrations duas vezes (`supabase/tests/collaboration.security.test.ts`).
+
+**Como aplicar** (por quem tem acesso de administração ao projeto):
+
+1. Com a CLI: `supabase link --project-ref iahgopefwixbprfzcwbd` e depois `supabase db push`. A CLI aplica só as migrations em falta.
+2. Em alternativa, no SQL Editor: executar o conteúdo de `20261015000000_collaboration_availability_reminders.sql` e depois o de `20261015000001_reporting_centre.sql`.
+3. Verificar que não houve avisos `Restrição … por validar`. Se houver, corrigir as linhas indicadas e executar o `VALIDATE CONSTRAINT` sugerido.
+4. Gerar de novo os tipos, se usar a geração automática, e confirmar com `npm run test:db`.

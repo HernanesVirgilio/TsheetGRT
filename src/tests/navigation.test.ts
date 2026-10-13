@@ -8,6 +8,8 @@ import { currentLocation, visibleNavigation } from '../components/layout/navigat
 import { availableApprovalKinds } from '../utils/approvals';
 import { buildInsights, compareValues, periodRange, previousRange, rangeLength, shiftAnchor, trendBucket } from '../utils/reportPeriods';
 import type { PermissionCode } from '../types';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 let passed = 0;
 
@@ -107,5 +109,13 @@ assert(buildInsights({ hours: compareValues(102, 100), people: compareValues(5, 
 const insights = buildInsights({ hours: compareValues(80, 100), people: compareValues(4, 5), pendingOverThreshold: 5, thresholdDays: 3, rejectionRate: null });
 assert(insights.length === 3 && insights.every((insight) => insight.tone === 'attention'), 'descida de horas, menos pessoas e pendentes antigos geram observações');
 assert(buildInsights({ hours: compareValues(50, 0), people: compareValues(2, 0), pendingOverThreshold: null, thresholdDays: null, rejectionRate: null }).length === 0, 'sem base de comparação não há tendência');
+
+console.log('\nLayout: um único contexto de deslocamento');
+// Regressão: <main> sem posição deixava os elementos absolutos (ex.: sr-only) escaparem para a janela e alargarem o
+// documento inteiro (segunda barra de deslocamento e área vazia). Medido no browser: 3117 px de documento numa janela de 768.
+const shell = readFileSync(join(process.cwd(), 'src', 'components', 'layout', 'AppShell.tsx'), 'utf-8');
+const mainClasses = (shell.match(/<main id="conteudo-principal" className="([^"]+)"/)?.[1] ?? '').split(' ');
+assert(mainClasses.includes('relative') && mainClasses.includes('overflow-y-auto') && mainClasses.includes('min-h-0'), '<main> é o contentor de deslocamento e dos elementos absolutos');
+assert(/className="relative flex h-\[100vh\][^"]*overflow-hidden/.test(shell), 'o shell ocupa a janela, é posicionado e não desloca');
 
 console.log(`\n${passed} testes passaram.`);

@@ -149,6 +149,7 @@ export async function listWorkPeople(purpose: 'ASSIGNEE' | 'MEETING' | 'PARTICIP
     fullName: row.full_name,
     jobTitle: row.job_title,
     departmentName: row.department_name,
+    departmentId: row.department_id,
     jobDescription: row.job_description,
   }));
 }

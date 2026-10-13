@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { canAccessPath } from '../auth/routeAccess';
-import { getErrorMessage } from '../errors';
+import { getErrorMessage, logDevError } from '../errors';
 import * as notificationService from '../../services/notificationService';
 import type { NotificationItem } from '../../types';
 import { resolveNotificationTarget } from '../../utils/notifications';
@@ -74,8 +74,8 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
       lastDeadlineAlertsAtRef.current = now;
       // Uma falha na geração dos alertas não impede a leitura das notificações.
       await Promise.all([
-        notificationService.refreshDeadlineAlerts().catch(() => undefined),
-        notificationService.refreshApprovalReminders().catch(() => undefined),
+        notificationService.refreshDeadlineAlerts().catch((error: unknown) => logDevError('alertas de prazo', error)),
+        notificationService.refreshApprovalReminders().catch((error: unknown) => logDevError('lembretes', error)),
       ]);
     }
     deadlineAlertsRequestedRef.current = false;

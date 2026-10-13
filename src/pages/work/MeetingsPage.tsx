@@ -19,7 +19,6 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState, LoadingState } from '../../components/ui/States';
 import { WorkStatusBadge } from '../../components/work/WorkStatusBadge';
 import { MeetingFormModal } from '../../components/work/MeetingFormModal';
-import { MeetingRequestModal } from '../../components/work/MeetingRequestModal';
 import { MEETING_STATUS_LABELS } from '../../utils/work';
 import { formatDateTime, dateTimeFormatter } from '../../utils/format';
 import { t } from '../../lib/i18n';
@@ -40,7 +39,8 @@ export const MeetingsPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [isRequestOpen, setIsRequestOpen] = useState(false);
+  // Abre o mesmo formulário com o pedido de participação de uma chefia já ativo.
+  const [withLeadRequest, setWithLeadRequest] = useState(false);
   const debouncedSearch = useDebouncedValue(search);
 
   const meetings = useAsyncData(
@@ -91,18 +91,33 @@ export const MeetingsPage: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title={t('Reuniões')}
-        subtitle={t('Agende reuniões com colegas sem aprovação. Para pedir tempo à sua chefia, use "Solicitar reunião".')}
+        subtitle={t('Reuniões com colegas, uma equipa ou um departamento não precisam de aprovação. A participação de uma chefia é pedida explicitamente.')}
         actions={
-          <>
-            <Button variant="secondary" icon={UserCheck} onClick={() => setIsRequestOpen(true)}>
-              {t('Solicitar reunião')}
-            </Button>
-            {canCreate && (
-              <Button icon={Plus} onClick={() => setIsCreateOpen(true)} disabled={!people.data}>
+          canCreate && (
+            <>
+              <Button
+                variant="secondary"
+                icon={UserCheck}
+                disabled={!people.data}
+                onClick={() => {
+                  setWithLeadRequest(true);
+                  setIsCreateOpen(true);
+                }}
+              >
+                {hasPermission('TEAM_READ') ? t('Solicitar participação de outro gestor') : t('Solicitar participação do gestor')}
+              </Button>
+              <Button
+                icon={Plus}
+                disabled={!people.data}
+                onClick={() => {
+                  setWithLeadRequest(false);
+                  setIsCreateOpen(true);
+                }}
+              >
                 {t('Agendar reunião')}
               </Button>
-            )}
-          </>
+            </>
+          )
         }
       />
       <div className="flex flex-wrap gap-2">
@@ -155,19 +170,12 @@ export const MeetingsPage: React.FC = () => {
         )}
       </Panel>
 
-      <MeetingRequestModal
-        isOpen={isRequestOpen}
-        onClose={() => setIsRequestOpen(false)}
-        onSent={(meetingId) => {
-          setIsRequestOpen(false);
-          navigate(`/timesheet/meetings/${meetingId}`);
-        }}
-      />
       <MeetingFormModal
         isOpen={isCreateOpen}
         meeting={null}
         participantIds={[]}
         people={people.data ?? []}
+        startWithLeadRequest={withLeadRequest}
         onClose={() => setIsCreateOpen(false)}
         onSaved={(meetingId) => {
           setIsCreateOpen(false);

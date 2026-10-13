@@ -84,7 +84,13 @@ export const AppShell: React.FC = () => {
 
   return (
     <NotificationsProvider>
-      <div className="flex h-screen w-full overflow-hidden bg-background">
+      {/*
+        Um único contexto de deslocamento: o shell ocupa exatamente a janela (100dvh, com 100vh como recurso)
+        e só <main> desloca. O shell e <main> são "relative" para conterem os elementos absolutos (ex.: sr-only);
+        sem isso, um elemento absoluto no fim de uma página longa alargava o documento inteiro (segunda barra
+        de deslocamento e uma área vazia abaixo do conteúdo).
+      */}
+      <div className="relative flex h-[100vh] w-full overflow-hidden bg-background supports-[height:100dvh]:h-[100dvh]">
         <a
           href="#conteudo-principal"
           className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-surface focus:px-4 focus:py-2 focus:text-sm focus:font-semibold"
@@ -92,7 +98,7 @@ export const AppShell: React.FC = () => {
           {t('Saltar para o conteúdo')}
         </a>
 
-        <div className="hidden shrink-0 lg:flex">
+        <div className="hidden min-h-0 shrink-0 lg:flex">
           <Sidebar />
         </div>
 
@@ -125,7 +131,7 @@ export const AppShell: React.FC = () => {
             </div>
           )}
 
-          <main id="conteudo-principal" className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 custom-scrollbar">
+          <main id="conteudo-principal" className="relative min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 custom-scrollbar">
             <div className="mx-auto max-w-7xl">
               <Outlet />
             </div>
