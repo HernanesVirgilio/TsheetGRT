@@ -74,7 +74,7 @@ Uma reunião normal e um pedido de participação de uma chefia são operações
 
 | Operação | Quem | Aprovação | Função |
 | :--- | :--- | :--- | :--- |
-| Agendar reunião | Quem tem `TIMESHEET_MEETING_CREATE` (todos os perfis) | Nenhuma | `create_meeting` |
+| Agendar reunião | Quem tem `TIMESHEET_MEETING_CREATE` (todos os perfis desde `20261016000000`) | Nenhuma | `create_meeting` |
 | Convidar um departamento | Quem agenda | Nenhuma | O formulário junta as pessoas do departamento (do diretório `list_work_people`, que agora devolve `department_id`) às escolhidas individualmente, sem duplicados |
 | Solicitar participação do gestor / de outro gestor | Quem organiza | A chefia aceita, recusa ou propõe outro horário | `create_meeting(..., p_request_lead_id)` ou `request_meeting_participation` |
 

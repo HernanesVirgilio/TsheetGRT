@@ -34,6 +34,8 @@ export const AbsencesPage: React.FC = () => {
   const viewerId = currentUser?.id ?? '';
   const canDecideTeam = hasPermission('TIMESHEET_ABSENCE_APPROVE') || hasPermission('TIMESHEET_ABSENCE_VALIDATE');
   const canNotify = hasPermission('TIMESHEET_ABSENCE_NOTIFY');
+  // Quem gere equipa comunica a ausência; o pedido formal (com aprovação) é dos colaboradores.
+  const canRequest = hasPermission('TIMESHEET_ABSENCE_CREATE');
   const types = useAsyncData(listAbsenceTypes, []);
   const mine = useAsyncData(() => listMyAbsences(viewerId), [viewerId]);
 
@@ -87,7 +89,7 @@ export const AbsencesPage: React.FC = () => {
       render: (request) => (
         <div className="flex flex-wrap justify-end gap-1">
           <IconButton icon={Eye} label={t('Ver {reference}', { reference: request.reference })} onClick={() => setDetail(request)} />
-          {request.status === 'DRAFT' && (
+          {request.status === 'DRAFT' && canRequest && (
             <>
               <IconButton
                 icon={Pencil}
@@ -119,9 +121,11 @@ export const AbsencesPage: React.FC = () => {
                 {t('Comunicar ausência')}
               </Button>
             )}
-            <Button icon={Plus} disabled={!types.data} onClick={() => setForm({ mode: 'REQUEST', request: null })}>
-              {t('Solicitar ausência')}
-            </Button>
+            {canRequest && (
+              <Button icon={Plus} disabled={!types.data} onClick={() => setForm({ mode: 'REQUEST', request: null })}>
+                {t('Solicitar ausência')}
+              </Button>
+            )}
           </>
         }
       />

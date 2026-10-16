@@ -338,7 +338,12 @@ export const OpportunityFormModal: React.FC<OpportunityFormModalProps> = ({
             {companyNotice && <p className="text-xs text-success">{companyNotice}</p>}
           </div>
           {!opportunity && owners.length > 0 && (
-            <SelectField label={t('Responsável')} value={values.ownerId} hint={t('Por omissão, fica consigo.')} onChange={(event) => updateValue('ownerId', event.target.value)}>
+            <SelectField
+              label={t('Responsável comercial')}
+              value={values.ownerId}
+              hint={t('Acompanha a relação com o cliente. Por omissão, fica consigo. A execução é coordenada pelo gestor responsável (Equipa do projeto).')}
+              onChange={(event) => updateValue('ownerId', event.target.value)}
+            >
               <option value="">{t('Eu próprio')}</option>
               {owners.map((person) => (
                 <option key={person.profileId} value={person.profileId}>
@@ -410,12 +415,13 @@ export const OpportunityFormModal: React.FC<OpportunityFormModalProps> = ({
           <MoreOptions
             title={t('Equipa do projeto')}
             summary={executionLeadId || memberIds.length > 0 ? `${memberIds.length + (executionLeadId ? 1 : 0)} pessoa(s)` : 'opcional'}
+            defaultOpen
           >
             {teamLeads.length > 0 && (
               <SelectField
-                label={t('Gestor de execução')}
+                label={t('Gestor responsável pela execução')}
                 value={executionLeadId}
-                hint={t('Coordena a execução e atribui tarefas à sua equipa; pode ser de outro departamento. Não altera os dados comerciais.')}
+                hint={t('Gestor que coordena a execução e distribui as tarefas pela equipa do projeto; pode ser de outro departamento. Não altera os dados comerciais.')}
                 onChange={(event) => {
                   setExecutionLeadId(event.target.value);
                   setMemberIds((current) => current.filter((id) => id !== event.target.value));
@@ -433,11 +439,11 @@ export const OpportunityFormModal: React.FC<OpportunityFormModalProps> = ({
             )}
             {people.length > 0 && (
               <PeoplePicker
-                label={t('Colaboradores')}
+                label={t('Colaboradores do projeto')}
                 people={people.filter((person) => person.profileId !== values.ownerId && person.profileId !== executionLeadId)}
                 selectedIds={memberIds}
                 onChange={setMemberIds}
-                hint={t('Passam a ver a oportunidade, comentar e registar tempo. Cada pessoa é notificada.')}
+                hint={t('Colaboradores (não gestores). Passam a ver a oportunidade, comentar e registar tempo, e o gestor responsável pode atribuir-lhes tarefas. Cada pessoa é notificada.')}
               />
             )}
           </MoreOptions>

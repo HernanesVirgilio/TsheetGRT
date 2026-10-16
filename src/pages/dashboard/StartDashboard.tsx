@@ -68,7 +68,7 @@ export const StartDashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <DashboardHeader message={t('As áreas do TsheetGRT disponíveis para o seu perfil.')} />
+      <DashboardHeader />
       {shortcuts.length === 0 ? (
         <AwaitingAccess />
       ) : (

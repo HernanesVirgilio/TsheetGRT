@@ -79,9 +79,14 @@ check(
 
 const leadCandidates = await db.asUser<{ profile_id: string }>(gestor.authId, "SELECT * FROM public.list_work_people('TEAM_LEAD')");
 check(
-  leadCandidates.rows.some((row) => row.profile_id === gestorFin.profileId) && leadCandidates.rows.some((row) => row.profile_id === manager.profileId)
+  leadCandidates.rows.some((row) => row.profile_id === gestorFin.profileId) && !leadCandidates.rows.some((row) => row.profile_id === manager.profileId)
     && !leadCandidates.rows.some((row) => row.profile_id === rui.profileId),
-  'candidatos a gestor de execução: apenas perfis de gestão de equipa'
+  'candidatos a gestor de execução: apenas gestores (sem Managers nem colaboradores)'
+);
+const memberCandidates = (await db.asUser<{ profile_id: string }>(gestor.authId, "SELECT * FROM public.list_work_people('PARTICIPANT')")).rows.map((row) => row.profile_id);
+check(
+  memberCandidates.includes(carla.profileId) && !memberCandidates.includes(gestorFin.profileId) && !memberCandidates.includes(manager.profileId),
+  '10. candidatos a membros do projeto: só colaboradores comuns'
 );
 check((await setLead(gestor.authId, rui.profileId)).error?.includes('gestão de equipa') ?? false, 'colaborador sem gestão de equipa não pode ser gestor de execução');
 check((await setLead(gestor.authId, ana.profileId)).error?.includes('responsável comercial') ?? false, 'gestor de execução distinto do responsável comercial');
@@ -105,10 +110,35 @@ const fieldTask = await db.asUser<{ id: string }>(
   [bruno.profileId, new Date(Date.now() + 72 * 3600 * 1000).toISOString(), opportunityId]
 );
 check(!fieldTask.error, `gestora de execução atribui à sua equipa uma tarefa do projeto ${fieldTask.error ?? ''}`);
+// A equipa do projeto conta para a atribuição de tarefas (membros de outros departamentos), sem criar hierarquia.
+const ruiTask = await db.asUser<{ id: string }>(gestorFin.authId, "SELECT public.create_task('Medições no local', '', 'MEDIUM', $1, NULL, p_opportunity_id => $2) AS id", [rui.profileId, opportunityId]);
+check(!ruiTask.error, `6. gestora de execução atribui tarefas a um membro do projeto de outro departamento ${ruiTask.error ?? ''}`);
+check((await db.asUser(rui.authId, 'SELECT id FROM public.tasks WHERE id = $1', [ruiTask.rows[0]?.id ?? ''])).rows.length === 1, 'o responsável vê a tarefa atribuída');
 check(
-  (await db.asUser(gestorFin.authId, "SELECT public.create_task('Tarefa fora da equipa', '', 'MEDIUM', $1, NULL, p_opportunity_id => $2) AS id", [rui.profileId, opportunityId])).error !== null,
-  'gestora de execução não atribui tarefas fora da sua equipa'
+  (await db.asUser(gestorFin.authId, "SELECT public.create_task('Tarefa fora da equipa', '', 'MEDIUM', $1, NULL, p_opportunity_id => $2) AS id", [carla.profileId, opportunityId])).code === '42501',
+  'gestora de execução não atribui tarefas a quem não é da equipa nem do projeto'
 );
+check(
+  Number(await value<number>('SELECT count(*)::int AS value FROM public.manager_scopes WHERE manager_id = $1 AND employee_id = $2', [gestorFin.profileId, rui.profileId])) === 0,
+  '8. a equipa do projeto não cria hierarquia formal'
+);
+check(
+  (await db.asUser(gestorFin.authId, 'SELECT id FROM public.my_team_members WHERE id = $1', [rui.profileId])).rows.length === 0
+    && (await db.asUser(gestorFin.authId, 'SELECT id FROM public.profiles WHERE id = $1', [rui.profileId])).rows.length === 1,
+  '8. o membro do projeto não entra na equipa formal, mas o seu perfil é visível a quem coordena o projeto'
+);
+const projectTeam = (await db.asUser<{ profile_id: string; project_role: string }>(gestorFin.authId, 'SELECT * FROM public.get_project_team_overview()')).rows;
+check(
+  projectTeam.some((row) => row.profile_id === rui.profileId && row.project_role === 'MEMBER') && !projectTeam.some((row) => row.profile_id === gestorFin.profileId),
+  '6–7. a equipa do projeto aparece na vista da equipa da gestora de execução (sem ela própria)'
+);
+// A equipa do projeto é de quem o coordena (responsável ou gestor de execução), não de quem o registou.
+check(
+  !(await db.asUser<{ profile_id: string }>(gestor.authId, 'SELECT * FROM public.get_project_team_overview()')).rows.some((row) => row.profile_id === rui.profileId),
+  'quem só registou o projeto não o vê como equipa sua'
+);
+check((await db.asUser(carla.authId, 'SELECT * FROM public.get_project_team_overview()')).code === '42501', 'colaboradores não consultam equipas');
+check((await db.asUser(gestorFin.authId, 'SELECT id FROM public.profiles WHERE id = $1', [carla.profileId])).rows.length === 0, 'perfis fora da equipa e do projeto continuam invisíveis');
 check((await db.asUser(carla.authId, 'SELECT id FROM public.opportunities WHERE id = $1', [opportunityId])).rows.length === 0, 'quem não está no projeto não o vê');
 check((await db.asUser(carla.authId, 'SELECT * FROM public.get_opportunity_people($1)', [opportunityId])).code === '42501', 'quem não está no projeto não vê a equipa');
 
@@ -202,7 +232,7 @@ const absenceId = absence.rows[0]?.id ?? '';
 await db.asUser(rui.authId, 'SELECT public.submit_absence_request($1)', [absenceId]);
 const pendingAbsence = await conflicts(gestor.authId, [rui.profileId], at(6, 9), at(6, 10));
 check(pendingAbsence.rows.length === 0, 'ausência ainda por decidir não é apresentada como conflito');
-await db.asUser(gestor.authId, "SELECT public.validate_absence_request($1, 'VALIDATED')", [absenceId]);
+await db.asUser(gestor.authId, "SELECT public.validate_absence_request($1, 'VALIDATED', 'Equipa coberta')", [absenceId]);
 await db.asUser(manager.authId, "SELECT public.decide_absence_request($1, 'APPROVED')", [absenceId]);
 const absent = await conflicts(gestor.authId, [rui.profileId, ana.profileId], at(7, 15), at(7, 16));
 check(
@@ -230,6 +260,7 @@ const signatures = [
   'public.list_work_people(text)',
   'public.add_opportunity_member(uuid, uuid)',
   'public.remove_opportunity_member(uuid, uuid)',
+  'public.get_project_team_overview()',
 ];
 for (const signature of signatures) {
   const isSafe = await value<boolean>(
@@ -251,6 +282,19 @@ check(
 check(
   (await value<number>("SELECT count(*)::int AS value FROM public.notifications WHERE message LIKE '%Sítio X%' AND user_id NOT IN (SELECT profile_id FROM public.opportunity_members WHERE opportunity_id = $1) AND user_id NOT IN ($2, $3, $4)", [opportunityId, ana.profileId, bruno.profileId, gestorFin.profileId])) === 0,
   'as notificações do projeto só chegam ao responsável, à equipa e a quem foi retirado'
+);
+
+// =============================================================================
+report.section('Saída do projeto (20261017000000)');
+check(!(await db.asUser(gestor.authId, 'SELECT public.remove_opportunity_member($1, $2)', [opportunityId, rui.profileId])).error, 'o Rui sai do projeto');
+check((await db.asUser(gestorFin.authId, 'SELECT id FROM public.profiles WHERE id = $1', [rui.profileId])).rows.length === 0, '7. quem sai do projeto deixa de ser visível a quem o coordena');
+check(
+  (await db.asUser(gestorFin.authId, "SELECT public.create_task('Depois da saída', '', 'MEDIUM', $1) AS id", [rui.profileId])).code === '42501',
+  '7. e deixa de poder receber tarefas por essa via'
+);
+check(
+  !(await db.asUser<{ profile_id: string }>(gestorFin.authId, 'SELECT * FROM public.get_project_team_overview()')).rows.some((row) => row.profile_id === rui.profileId),
+  '7. e sai da vista da equipa de projeto'
 );
 
 report.finish();

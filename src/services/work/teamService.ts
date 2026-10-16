@@ -2,6 +2,7 @@ import { supabase } from '../../lib/supabase/client';
 import { toServiceError } from '../../lib/errors';
 import type {
   OpportunityPipelineRow,
+  ProjectTeamMember,
   SupervisionRow,
   TeamActivityItem,
   TeamDashboard,
@@ -117,6 +118,29 @@ export async function getSupervisionOverview(from: string, to: string): Promise<
     minutesLogged: row.minutes_logged,
     absencesPending: row.absences_pending,
     approvalsPending: row.approvals_pending,
+  }));
+}
+
+/**
+ * Equipas dos projetos que quem consulta coordena (responsável ou gestor de execução). Vem das relações gravadas
+ * em opportunity_members; é distinta da hierarquia formal (manager_scopes), que continua a cargo da administração.
+ */
+export async function getProjectTeamOverview(): Promise<ProjectTeamMember[]> {
+  const { data, error } = await supabase.rpc('get_project_team_overview');
+  if (error) throw toServiceError(error, t('Não foi possível carregar as equipas de projeto.'));
+  return data.map((row) => ({
+    profileId: row.profile_id,
+    fullName: row.full_name,
+    jobTitle: row.job_title,
+    departmentName: row.department_name,
+    isLead: row.is_lead,
+    projectRole: row.project_role === 'EXECUTION_LEAD' ? 'EXECUTION_LEAD' : 'MEMBER',
+    opportunityId: row.opportunity_id,
+    opportunityReference: row.opportunity_reference,
+    opportunityTitle: row.opportunity_title,
+    tasksOpen: row.tasks_open,
+    tasksOverdue: row.tasks_overdue,
+    absentToday: row.absent_today,
   }));
 }
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
   Ban,
@@ -83,9 +83,13 @@ async function loadTask(taskId: string) {
 export const TaskDetailPage: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { currentUser, hasPermission } = useAuth();
   const viewerId = currentUser?.id ?? '';
   const detail = useAsyncData(() => loadTask(id), [id]);
+  // Volta à lista de onde se veio (com o separador escolhido), se vier da lista de tarefas.
+  const from: unknown = (location.state as { from?: unknown } | null)?.from;
+  const listPath = typeof from === 'string' && from.startsWith('/timesheet/tasks') ? from : '/timesheet/tasks';
   const people = useAsyncData(
     () => (hasPermission('TIMESHEET_TASK_ASSIGN') || hasPermission('TIMESHEET_TASK_CREATE') ? listWorkPeople('ASSIGNEE') : Promise.resolve([])),
     []
@@ -99,7 +103,7 @@ export const TaskDetailPage: React.FC = () => {
   const [isPending, setIsPending] = useState(false);
 
   const backLink = (
-    <Link to="/timesheet/tasks" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary-hover hover:underline">
+    <Link to={listPath} className="inline-flex items-center gap-1.5 text-sm font-medium text-primary-hover hover:underline">
       <ArrowLeft className="h-4 w-4" aria-hidden="true" />
       {t('Voltar às tarefas')}
     </Link>
@@ -126,9 +130,14 @@ export const TaskDetailPage: React.FC = () => {
   const { task, events, children, entries, totals, meetings } = detail.data;
   const isAdmin = hasPermission('ADMIN_ACCESS');
   // Espelho da regra do servidor (private.manages_task) apenas para mostrar as ações certas.
-  const managesTask = isAdmin || task.createdBy === viewerId || (task.assigneeId !== null && task.assigneeId !== viewerId && hasPermission('TEAM_READ'));
+  const managesTask =
+    isAdmin ||
+    task.createdBy === viewerId ||
+    (task.assignedBy === viewerId && hasPermission('TIMESHEET_TASK_ASSIGN')) ||
+    (task.assigneeId !== null && task.assigneeId !== viewerId && hasPermission('TEAM_READ'));
   const actions = taskActions(task, {
     profileId: viewerId,
+    definitionReservedToOthers: task.definitionLocked && task.createdBy !== viewerId && !isAdmin,
     managesTask,
     permissions: {
       update: hasPermission('TIMESHEET_TASK_UPDATE'),
@@ -137,6 +146,7 @@ export const TaskDetailPage: React.FC = () => {
       reopen: hasPermission('TIMESHEET_TASK_REOPEN'),
       logTime: hasPermission('SELF_TIMESHEET_UPDATE'),
       supervise: hasPermission('TEAM_SUPERVISE'),
+      leadsTeam: hasPermission('TEAM_READ'),
     },
   });
   const isStale = detail.isLoading;
@@ -236,6 +246,11 @@ export const TaskDetailPage: React.FC = () => {
         <Alert variant="error" onDismiss={() => setActionError(null)}>
           {actionError}
         </Alert>
+      )}
+      {task.definitionLocked && task.createdBy !== viewerId && !isAdmin && task.status !== 'CANCELLED' && (
+        <p className="text-sm text-text-secondary">
+          {t('Tarefa delegada por {creatorName}: só quem a criou altera a definição, o prazo, cancela ou reabre. Pode distribuí-la e acompanhar a execução.', { creatorName })}
+        </p>
       )}
       {task.status === 'BLOCKED' && task.blockedReason && (
         <Alert variant="error" title={t('Tarefa bloqueada')}>
@@ -451,7 +466,7 @@ export const TaskDetailPage: React.FC = () => {
         fieldLabel={t('Responsável')}
         options={(people.data ?? []).map((person) => ({ value: person.profileId, label: person.departmentName ? `${person.fullName} · ${person.departmentName}` : person.fullName }))}
         initialValue={task.assigneeId ?? ''}
-        emptyOptionLabel={task.status === 'ASSIGNED' ? t('Sem responsável (volta a planeada)') : undefined}
+        emptyOptionLabel={task.status === 'ASSIGNED' && managesTask ? t('Sem responsável (volta a planeada)') : undefined}
         optionalNote={{ label: task.status === 'COMPLETED' ? t('Motivo (obrigatório numa tarefa concluída)') : t('Nota (opcional)'), maxLength: 1000 }}
         confirmLabel={t('Guardar')}
         onClose={() => setModal(null)}

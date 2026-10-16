@@ -138,9 +138,27 @@ check((await notificationsOf(manager.profileId)) === managerBefore, '6. Manager 
 check((await notificationsOf(gestor.profileId, 'TASK_BLOCKED')) === 1, '8. gestor recebe o bloqueio da tarefa da equipa');
 check((await notificationsOf(gestor.profileId, 'TASK_COMPLETED')) === 1, '8. gestor recebe a conclusão da tarefa que criou');
 
-const fromManager = await createTask(manager.authId, 'Preparar apresentação ao cliente', rui.profileId);
-check(!fromManager.error, `Manager atribui tarefa à equipa do gestor ${fromManager.error ?? ''}`);
-check((await notificationsOf(gestor.profileId, 'TEAM_TASK_ASSIGNED')) === 1, '8. gestor sabe que o Manager atribuiu trabalho à equipa');
+check(
+  (await createTask(manager.authId, 'Preparar apresentação ao cliente', rui.profileId)).code === '42501',
+  'Manager não atribui tarefas diretamente aos colaboradores da equipa do gestor'
+);
+const fromManager = await createTask(manager.authId, 'Preparar apresentação ao cliente', gestor.profileId);
+check(!fromManager.error, `Manager atribui a tarefa ao gestor que supervisiona ${fromManager.error ?? ''}`);
+check((await notificationsOf(gestor.profileId, 'TASK_ASSIGNED')) === 1, 'o gestor recebe a tarefa atribuída pelo Manager');
+check(
+  (await db.asUser(gestor.authId, 'SELECT public.assign_task($1, $2)', [fromManager.id, bruno.profileId])).code === '42501',
+  'o gestor não distribui a tarefa fora da sua equipa'
+);
+check(
+  !(await db.asUser(gestor.authId, "SELECT public.assign_task($1, $2, 'Distribuída à equipa')", [fromManager.id, rui.profileId])).error,
+  'o gestor distribui pela equipa a tarefa recebida do Manager'
+);
+check((await value<string>('SELECT assignee_id::text AS value FROM public.tasks WHERE id = $1', [fromManager.id])) === rui.profileId, 'um só responsável: passa a ser o colaborador');
+const forGestor = await createTask(manager.authId, 'Rever proposta comercial', gestor.profileId);
+check(
+  (await db.asUser(gestor.authId, "SELECT public.cancel_task($1, 'Sem efeito para a equipa')", [forGestor.id])).code === '42501',
+  'poder distribuir não dá ao gestor o poder de cancelar a tarefa do Manager'
+);
 await db.asUser(rui.authId, 'SELECT public.start_task($1)', [fromManager.id]);
 await db.asUser(rui.authId, "SELECT public.block_task($1, 'Aguarda dados do cliente')", [fromManager.id]);
 check((await notificationsOf(gestor.profileId, 'TASK_BLOCKED')) === 2, '8. gestor recebe o bloqueio mesmo sem ter criado a tarefa');
@@ -176,33 +194,48 @@ await db.asUser(gestor.authId, "SELECT public.reopen_task($1, 'Faltam os anexos 
 check((await value<string | null>('SELECT reviewed_at::text AS value FROM public.tasks WHERE id = $1', [escalated.id])) === null, 'reabrir limpa a validação');
 
 // =============================================================================
-report.section('9–10. Tarefas criadas para si próprio');
-const managerOwn = await createTask(manager.authId, 'Rever orçamento anual', manager.profileId);
-check(!managerOwn.error, `Manager cria tarefa para si próprio ${managerOwn.error ?? ''}`);
+report.section('9–10. Responsáveis possíveis e tarefas para si próprio');
+check((await createTask(manager.authId, 'Rever orçamento anual', manager.profileId)).code === '42501', '9. o Manager não se atribui tarefas a si próprio');
+const managerAssignees = await db.asUser<{ profile_id: string }>(manager.authId, "SELECT * FROM public.list_work_people('ASSIGNEE')");
 check(
-  (await value<string>('SELECT created_by::text AS value FROM public.tasks WHERE id = $1', [managerOwn.id])) === manager.profileId
-    && (await value<string>('SELECT assignee_id::text AS value FROM public.tasks WHERE id = $1', [managerOwn.id])) === manager.profileId,
-  'criador e responsável são campos distintos (ambos o Manager)'
+  managerAssignees.rows.map((row) => row.profile_id).join() === gestor.profileId,
+  '9. responsáveis possíveis para o Manager: só os gestores que supervisiona (sem o próprio nem colaboradores)'
+);
+const managerOwners = await db.asUser<{ profile_id: string }>(manager.authId, "SELECT * FROM public.list_work_people('SCOPE')");
+check(
+  managerOwners.rows.some((row) => row.profile_id === manager.profileId) && managerOwners.rows.some((row) => row.profile_id === ana.profileId),
+  'responsável comercial de oportunidades: lista própria, no âmbito de gestão (inclui o próprio)'
 );
 const managerSummary = await db.asUser<{ tasks_assigned: number }>(manager.authId, 'SELECT * FROM public.get_my_work_summary()');
-check(managerSummary.rows[0]?.tasks_assigned === 1, '9. a tarefa aparece no painel do Manager');
-const managerCalendar = await db.asUser<{ item_id: string }>(
-  manager.authId,
-  "SELECT * FROM public.get_calendar_items((now() AT TIME ZONE 'Africa/Maputo')::date, (now() AT TIME ZONE 'Africa/Maputo')::date + 5, 'ME')"
-);
-check(managerCalendar.rows.some((row) => row.item_id === managerOwn.id), '9. a tarefa aparece no calendário do Manager');
-check((await db.asUser(gestor.authId, 'SELECT id FROM public.tasks WHERE id = $1', [managerOwn.id])).rows.length === 0, 'a tarefa do Manager não é encaminhada ao gestor');
-check((await db.asUser(manager.authId, 'SELECT public.start_task($1)', [managerOwn.id])).error === null, 'o Manager executa a própria tarefa');
+check(managerSummary.rows[0]?.tasks_assigned === 0, '9. o painel do Manager não mostra tarefas atribuídas a si próprio');
 
-const gestorOwn = await createTask(gestor.authId, 'Planear escala de férias', gestor.profileId);
-check(!gestorOwn.error, `gestor cria tarefa para si próprio ${gestorOwn.error ?? ''}`);
-const gestorSummary = await db.asUser<{ tasks_assigned: number }>(gestor.authId, 'SELECT * FROM public.get_my_work_summary()');
-check(gestorSummary.rows[0]?.tasks_assigned === 1, '10. a tarefa aparece no painel do gestor');
 check(
-  (await db.asUser<{ id: string }>(gestor.authId, 'SELECT id FROM public.tasks WHERE assignee_id = $1', [gestor.profileId])).rows.length === 1,
-  '10. o gestor acompanha-a como responsável'
+  (await createTask(gestor.authId, 'Planear escala de férias', gestor.profileId)).error?.includes('a si próprio') ?? false,
+  '1. o gestor não atribui tarefas a si próprio (delega na equipa)'
 );
-check((await db.asUser(ana.authId, 'SELECT id FROM public.tasks WHERE id = $1', [gestorOwn.id])).rows.length === 0, 'a tarefa do gestor não é vista pela equipa');
+const gestorSummary = await db.asUser<{ tasks_assigned: number }>(gestor.authId, 'SELECT * FROM public.get_my_work_summary()');
+check(gestorSummary.rows[0]?.tasks_assigned === 1, '10. a tarefa recebida do Manager aparece no painel do gestor');
+
+// 4–5. Definição protegida: a tarefa do Manager só é redefinida pelo Manager; as do gestor, pelo gestor.
+const lockedValue = <Value>(column: string) => value<Value>(`SELECT ${column} AS value FROM public.tasks WHERE id = $1`, [forGestor.id]);
+check((await lockedValue<boolean>('definition_locked')) === true, 'a tarefa delegada pelo Manager fica com a definição protegida');
+const editManagerTask = (authId: string, title: string) =>
+  db.asUser(authId, "SELECT public.update_task($1, $2, 'Descrição', 'HIGH', $3::timestamptz, NULL, NULL, NULL)", [forGestor.id, title, inHours(96)]);
+check((await editManagerTask(gestor.authId, 'Título mudado pelo gestor')).code === '42501', '4. o gestor não altera a definição da tarefa delegada pelo Manager');
+check((await lockedValue<string>('title')) === 'Rever proposta comercial', '4. a definição mantém-se');
+check(!(await db.asUser(gestor.authId, 'SELECT public.start_task($1)', [forGestor.id])).error, '4. o gestor executa e atualiza o estado da tarefa recebida');
+check(!(await editManagerTask(manager.authId, 'Rever proposta comercial (v2)')).error, 'o Manager altera a definição da tarefa que delegou');
+const gestorTask = await createTask(gestor.authId, 'Preparar escala de férias', ana.profileId);
+check(
+  !(await db.asUser(gestor.authId, "SELECT public.update_task($1, 'Preparar escala de férias (revista)', 'Nova descrição', 'LOW', $2::timestamptz, NULL, NULL, NULL)", [gestorTask.id, inHours(120)])).error,
+  '5. o gestor altera as tarefas que criou'
+);
+check(
+  (await db.asUser(ana.authId, "SELECT public.update_task($1, 'Alterada pela responsável', '', 'LOW', NULL, NULL, NULL, NULL)", [gestorTask.id])).code === '42501',
+  'o responsável não altera a definição da tarefa'
+);
+check((await db.asUser(ana.authId, 'SELECT public.assign_task($1, $2)', [gestorTask.id, rui.profileId])).code === '42501', 'o responsável não reatribui a tarefa');
+check((await value<string>('SELECT assigned_by::text AS value FROM public.tasks WHERE id = $1', [gestorTask.id])) === gestor.profileId, 'quem atribuiu fica registado (assigned_by)');
 const permissionsBefore = await db.asUser(ana.authId, 'SELECT * FROM public.get_my_permissions()');
 await createTask(gestor.authId, 'Coordenar inventário de TI', ana.profileId);
 const permissionsAfter = await db.asUser(ana.authId, 'SELECT * FROM public.get_my_permissions()');
@@ -419,13 +452,63 @@ const training = await typeId('TRAINING');
 await db.asPostgres('UPDATE public.absence_types SET requires_manager_approval = false WHERE id = $1', [training]);
 const ruiTraining = await saveAbsence(rui.authId, training, 3, 3);
 await db.asUser(rui.authId, 'SELECT public.submit_absence_request($1)', [ruiTraining]);
-await db.asUser(gestor.authId, 'SELECT public.validate_absence_request($1, $2)', [ruiTraining, 'VALIDATED']);
+check(
+  (await db.asUser(gestor.authId, 'SELECT public.validate_absence_request($1, $2)', [ruiTraining, 'VALIDATED'])).error?.includes('justificação') ?? false,
+  '12. a decisão do gestor exige justificação'
+);
+await db.asUser(gestor.authId, 'SELECT public.validate_absence_request($1, $2, $3)', [ruiTraining, 'VALIDATED', 'Formação prevista no plano']);
 check((await absenceStatus(ruiTraining)) === 'APPROVED', 'tipo sem decisão do Manager fica aprovado na validação (regra da empresa)');
 
-const gestorAbsence = await saveAbsence(gestor.authId, vacation, 30, 31);
-await db.asUser(gestor.authId, 'SELECT public.submit_absence_request($1)', [gestorAbsence]);
-check((await absenceStatus(gestorAbsence)) === 'PENDING_APPROVAL', 'pedido do gestor segue diretamente para o Manager');
-check(!(await db.asUser(manager.authId, "SELECT public.decide_absence_request($1, 'APPROVED')", [gestorAbsence])).error, 'Manager decide a ausência do gestor');
+const ruiRejected = await saveAbsence(rui.authId, vacation, 50, 52);
+await db.asUser(rui.authId, 'SELECT public.submit_absence_request($1)', [ruiRejected]);
+const managerDecisionsBefore = await notificationsOf(manager.profileId, 'ABSENCE_APPROVAL_REQUIRED');
+check(
+  (await db.asUser(gestor.authId, "SELECT public.validate_absence_request($1, 'REJECTED', '')", [ruiRejected])).error?.includes('justificação') ?? false,
+  '12. o gestor não rejeita sem justificação'
+);
+check(
+  !(await db.asUser(gestor.authId, "SELECT public.validate_absence_request($1, 'REJECTED', 'Período de fecho do inventário')", [ruiRejected])).error,
+  '12. o gestor rejeita com justificação'
+);
+check((await absenceStatus(ruiRejected)) === 'REJECTED', '12. a rejeição do gestor é a decisão final');
+check(
+  (await value<string>('SELECT decided_by::text AS value FROM public.absence_requests WHERE id = $1', [ruiRejected])) === gestor.profileId
+    && (await value<string>('SELECT decision_comment AS value FROM public.absence_requests WHERE id = $1', [ruiRejected])) === 'Período de fecho do inventário',
+  '12. fica registado quem decidiu e a justificação'
+);
+check((await notificationsOf(rui.profileId, 'ABSENCE_REJECTED')) === 1, '12. o colaborador é notificado da rejeição');
+check((await notificationsOf(manager.profileId, 'ABSENCE_APPROVAL_REQUIRED')) === managerDecisionsBefore, '12. uma rejeição do gestor não é enviada ao Manager');
+check(
+  (await db.asUser(gestor.authId, "SELECT public.validate_absence_request($1, 'VALIDATED', 'Afinal sim')", [ruiRejected])).error?.includes('estado atual') ?? false,
+  '12. sem decisões duplicadas: um pedido decidido não volta a ser decidido'
+);
+
+// Colaborador sem gestor: atribuído diretamente a um Manager (departamento sem gestor). Usa o Manager de
+// Finanças para não alterar a equipa verificada nos painéis abaixo.
+const teresa = await db.createUser(admin.authId, 'teresa@siholdings-mz.com', 'Teresa Comercial', 'EMPLOYEE', 'COM');
+await scopeTo(managerOther.profileId, { employeeId: teresa.profileId });
+const teresaAbsence = await saveAbsence(teresa.authId, vacation, 60, 61);
+const managerDecisionsBeforeTeresa = await notificationsOf(managerOther.profileId, 'ABSENCE_APPROVAL_REQUIRED');
+await db.asUser(teresa.authId, 'SELECT public.submit_absence_request($1)', [teresaAbsence]);
+check((await absenceStatus(teresaAbsence)) === 'PENDING_APPROVAL', '11. sem gestor, o pedido segue diretamente para o Manager');
+check((await notificationsOf(managerOther.profileId, 'ABSENCE_APPROVAL_REQUIRED')) === managerDecisionsBeforeTeresa + 1, '11. o Manager é notificado');
+check((await notificationsOf(gestorFin.profileId, 'ABSENCE_VALIDATION_REQUIRED')) === 0, '11. nenhum gestor sem relação com o colaborador é notificado');
+check(!(await db.asUser(managerOther.authId, "SELECT public.decide_absence_request($1, 'APPROVED', 'Aprovado')", [teresaAbsence])).error, '11. o Manager decide');
+check((await notificationsOf(teresa.profileId, 'ABSENCE_APPROVED')) === 1, '11. o colaborador recebe a decisão');
+
+check(
+  (await db.asUser(gestor.authId, "SELECT public.save_absence_request(NULL, $1, $2::date, $3::date, 'Férias') AS id", [vacation, await inDays(30), await inDays(31)])).code === '42501',
+  '13. o gestor não usa o pedido formal de colaborador'
+);
+check(
+  (await db.asUser(manager.authId, "SELECT public.save_absence_request(NULL, $1, $2::date, $3::date, 'Férias') AS id", [vacation, await inDays(30), await inDays(31)])).code === '42501',
+  '13. o Manager não usa o pedido formal de colaborador'
+);
+const managerNoticesBefore = await notificationsOf(manager.profileId, 'ABSENCE_COMMUNICATED');
+const gestorNotice = await db.asUser<{ id: string }>(gestor.authId, "SELECT public.communicate_absence($1, $2::date, $3::date, 'Formação externa') AS id", [vacation, await inDays(30), await inDays(31)]);
+check(!gestorNotice.error && (await absenceStatus(gestorNotice.rows[0]?.id ?? '')) === 'COMMUNICATED', `13. o gestor comunica a ausência (sem aprovação) ${gestorNotice.error ?? ''}`);
+check((await notificationsOf(manager.profileId, 'ABSENCE_COMMUNICATED')) === managerNoticesBefore + 1, '13. o Manager é notificado da ausência comunicada pelo gestor');
+check((await notificationsOf(managerOther.profileId, 'ABSENCE_COMMUNICATED')) === 0, '13. um Manager sem relação com o gestor não é notificado');
 
 const ruiReturned = await saveAbsence(rui.authId, vacation, 40, 41);
 await db.asUser(rui.authId, 'SELECT public.submit_absence_request($1)', [ruiReturned]);
@@ -553,6 +636,91 @@ check(
 check(
   (await db.asUser(ana.authId, 'SELECT public.decide_opportunity_approval($1, $2)', [NOT_FOUND, 'APPROVED'])).code === '42501',
   'colaborador não decide pedidos de aprovação'
+);
+
+// =============================================================================
+report.section('Responsabilidades por perfil (20261016000000)');
+const gestorAssignees = (await db.asUser<{ profile_id: string }>(gestor.authId, "SELECT * FROM public.list_work_people('ASSIGNEE')")).rows.map((row) => row.profile_id);
+check(
+  gestorAssignees.includes(ana.profileId) && gestorAssignees.includes(rui.profileId) && !gestorAssignees.includes(gestor.profileId)
+    && !gestorAssignees.includes(manager.profileId) && !gestorAssignees.includes(bruno.profileId),
+  '2–3. o gestor escolhe entre os colaboradores da sua equipa (sem o próprio, a chefia ou outras equipas)'
+);
+check(!(await createTask(managerOther.authId, 'Contactar cliente', teresa.profileId)).error, 'o Manager atribui tarefas à equipa direta (colaborador sem gestor)');
+check(
+  (await createTask(managerOther.authId, 'Fecho mensal', bruno.profileId)).error?.includes('equipa de um gestor') ?? false,
+  'o Manager não atribui diretamente à equipa de um gestor'
+);
+const unconfiguredMeetingPeople = (await db.asUser<{ profile_id: string }>(managerOther.authId, "SELECT * FROM public.list_work_people('MEETING')")).rows.map((row) => row.profile_id);
+check(
+  unconfiguredMeetingPeople.includes(gestor.profileId) && !unconfiguredMeetingPeople.includes(managerOther.profileId),
+  '8. o Manager pode convidar gestores que não supervisiona (sem o próprio)'
+);
+const coordination = await createMeeting(managerOther.authId, 'Coordenação de gestores', [gestor.profileId, gestorFin.profileId, gestor.profileId]);
+check(!coordination.error, `8–9. reunião com gestores criada sem relação hierárquica configurada ${coordination.error ?? ''}`);
+check(
+  Number(await value<number>('SELECT count(*)::int AS value FROM public.meeting_participants WHERE meeting_id = $1', [coordination.rows[0]?.id ?? ''])) === 2,
+  'participantes sem duplicados'
+);
+check(
+  (await createMeeting(managerOther.authId, 'Convite sem relação', [ana.profileId])).error?.includes('Fora do seu âmbito') ?? false,
+  'convidar gestores não abre a equipa deles: colaboradores de outra estrutura continuam fora'
+);
+check(
+  (await db.asUser(managerOther.authId, 'SELECT id FROM public.tasks WHERE assignee_id = $1', [ana.profileId])).rows.length === 0,
+  '16. convidar não dá acesso aos dados da equipa do gestor'
+);
+
+// =============================================================================
+report.section('Projeto do Manager com um gestor fora do seu âmbito formal (20261017000000)');
+const project = (await createOpportunity(manager.authId, 'Implementação ERP', null)).rows[0]?.id ?? '';
+check(
+  !(await db.asUser(manager.authId, 'SELECT public.set_opportunity_execution_lead($1, $2)', [project, gestorFin.profileId])).error
+    && !(await db.asUser(manager.authId, 'SELECT public.add_opportunity_member($1, $2)', [project, ana.profileId])).error,
+  'o Manager define a equipa do projeto (gestor de execução e colaboradora de outro departamento)'
+);
+const managerProjectAssignees = (await db.asUser<{ profile_id: string }>(manager.authId, "SELECT * FROM public.list_work_people('ASSIGNEE')")).rows.map((row) => row.profile_id);
+check(
+  managerProjectAssignees.includes(gestorFin.profileId) && !managerProjectAssignees.includes(manager.profileId) && !managerProjectAssignees.includes(ana.profileId),
+  '3/9. o Manager vê o gestor do projeto como responsável possível (sem o próprio nem os colaboradores)'
+);
+const gestorFinTasksBefore = await notificationsOf(gestorFin.profileId, 'TASK_ASSIGNED');
+const projectTask = await db.asUser<{ id: string }>(manager.authId, "SELECT public.create_task('Levantar requisitos do ERP', 'Reuniões com as áreas', 'HIGH', $1, $2::timestamptz, p_opportunity_id => $3) AS id", [gestorFin.profileId, inHours(200), project]);
+check(!projectTask.error, `3. o Manager atribui a tarefa ao gestor do projeto ${projectTask.error ?? ''}`);
+check((await notificationsOf(gestorFin.profileId, 'TASK_ASSIGNED')) === gestorFinTasksBefore + 1, '12. o gestor é notificado');
+check(
+  (await value<string>("SELECT link AS value FROM public.notifications WHERE user_id = $1 AND type = 'TASK_ASSIGNED' ORDER BY created_at DESC LIMIT 1", [gestorFin.profileId])) === `/timesheet/tasks/${projectTask.rows[0]?.id}`,
+  '12. a notificação abre a tarefa'
+);
+const gestorFinAssignees = (await db.asUser<{ profile_id: string }>(gestorFin.authId, "SELECT * FROM public.list_work_people('ASSIGNEE')")).rows.map((row) => row.profile_id);
+check(
+  gestorFinAssignees.includes(ana.profileId) && gestorFinAssignees.includes(bruno.profileId) && !gestorFinAssignees.includes(gestorFin.profileId),
+  '2. o gestor vê a equipa formal e os colaboradores dos seus projetos (outros departamentos incluídos), sem o próprio'
+);
+check(
+  !(await db.asUser(gestorFin.authId, 'SELECT public.assign_task($1, $2)', [projectTask.rows[0]?.id ?? '', ana.profileId])).error,
+  '5. o gestor distribui a tarefa do Manager a uma colaboradora do projeto'
+);
+check((await db.asUser(ana.authId, 'SELECT id FROM public.tasks WHERE id = $1', [projectTask.rows[0]?.id ?? ''])).rows.length === 1, 'a responsável vê a tarefa');
+check((await db.asUser(gestorFin.authId, 'SELECT id FROM public.tasks WHERE id = $1', [projectTask.rows[0]?.id ?? ''])).rows.length === 1, 'quem distribuiu continua a acompanhar a tarefa');
+check(
+  (await db.asUser(gestorFin.authId, "SELECT public.cancel_task($1, 'Sem efeito')", [projectTask.rows[0]?.id ?? ''])).code === '42501',
+  '4. quem distribuiu não cancela a tarefa definida pelo Manager'
+);
+const managerProjectTeam = (await db.asUser<{ profile_id: string; project_role: string }>(manager.authId, 'SELECT * FROM public.get_project_team_overview()')).rows;
+check(
+  managerProjectTeam.some((row) => row.profile_id === gestorFin.profileId && row.project_role === 'EXECUTION_LEAD')
+    && managerProjectTeam.some((row) => row.profile_id === ana.profileId) && !managerProjectTeam.some((row) => row.profile_id === manager.profileId),
+  '6. a equipa do projeto aparece na vista do Manager (sem o próprio)'
+);
+check(
+  Number(await value<number>('SELECT count(*)::int AS value FROM public.manager_scopes WHERE manager_id = $1 AND employee_id = $2', [manager.profileId, gestorFin.profileId])) === 0
+    && (await db.asUser(manager.authId, 'SELECT id FROM public.my_team_members WHERE id = $1', [gestorFin.profileId])).rows.length === 0,
+  '8. o projeto não cria hierarquia formal'
+);
+check(
+  (await db.asUser(managerOther.authId, 'SELECT * FROM public.get_project_team_overview()')).rows.every((row) => (row as { opportunity_id: string }).opportunity_id !== project),
+  '18. outro Manager não vê a equipa deste projeto'
 );
 
 report.finish();

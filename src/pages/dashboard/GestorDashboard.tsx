@@ -4,7 +4,7 @@ import { AlertCircle, BarChart3, CheckCircle2, ClipboardList, Plus, Users } from
 import { useAuth } from '../../lib/auth/AuthContext';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import { listMyScopes } from '../../services/managerService';
-import { getTeamDashboard } from '../../services/work/teamService';
+import { getProjectTeamOverview, getTeamDashboard } from '../../services/work/teamService';
 import { getTeamWorkOverview, listWorkPeople } from '../../services/work/calendarService';
 import { listPendingMeetingRequests } from '../../services/work/meetingService';
 import type { TeamMemberWorkload } from '../../types/work';
@@ -23,6 +23,7 @@ import {
   MyTasksPanel,
   PanelLink,
   PipelinePanel,
+  ProjectTeamPanel,
   RecentActivityPanel,
   ReportSummaryPanel,
   UpcomingMeetingsPanel,
@@ -38,7 +39,12 @@ const TREND_DAYS = 56;
 const TeamPanel: React.FC<{ members: TeamMemberWorkload[] }> = ({ members }) => (
   <Panel title={t('Equipa')} actions={<PanelLink to="/team">{t('Ver equipa')}</PanelLink>} flush>
     {members.length === 0 ? (
-      <EmptyState bordered={false} icon={Users} title={t('Ainda não tem colaboradores no seu âmbito.')} message={t('A equipa é atribuída pela administração.')} />
+      <EmptyState
+        bordered={false}
+        icon={Users}
+        title={t('Ainda não tem colaboradores na sua equipa nem nos projetos que coordena.')}
+        message={t('A equipa formal é configurada pela administração; a equipa de um projeto define-se na respetiva oportunidade.')}
+      />
     ) : (
       <ul className="divide-y divide-border">
         {members.map((member) => (
@@ -80,6 +86,8 @@ export const GestorDashboard: React.FC = () => {
   const scopes = useAsyncData(() => listMyScopes(viewerId), [viewerId]);
   const dashboard = useAsyncData(() => getTeamDashboard(period.from, period.to), [period.from, period.to]);
   const team = useAsyncData(getTeamWorkOverview, []);
+  const projectTeam = useAsyncData(getProjectTeamOverview, []);
+  const hasProjectTeam = (projectTeam.data?.length ?? 0) > 0;
   const meetingRequests = useAsyncData(() => listPendingMeetingRequests(viewerId), [viewerId]);
   const assignees = useAsyncData(() => (canCreateTask ? listWorkPeople('ASSIGNEE') : Promise.resolve([])), [canCreateTask]);
 
@@ -91,7 +99,6 @@ export const GestorDashboard: React.FC = () => {
   return (
     <div className="space-y-6">
       <DashboardHeader
-        message={t('O trabalho da sua equipa hoje: decisões pendentes, prazos e o que precisa da sua atenção.')}
         actions={
           <>
             {canCreateTask && (
@@ -112,9 +119,10 @@ export const GestorDashboard: React.FC = () => {
         }
       />
 
-      {scopes.data && scopes.data.length === 0 && (
-        <Alert variant="warning" title={t('Sem equipa atribuída')}>
-          {t('A equipa ainda não foi configurada. A atribuição de departamentos ou colaboradores é feita por um administrador autorizado.')}
+      {/* A equipa de um projeto também conta: o aviso só aparece quando não há equipa formal nem de projeto. */}
+      {scopes.data && scopes.data.length === 0 && projectTeam.data && !hasProjectTeam && (
+        <Alert variant="info" title={t('Sem equipa formal nem equipas de projeto')}>
+          {t('A equipa formal (departamentos ou colaboradores) é configurada pela administração. Quando for gestor de execução de um projeto, a equipa desse projeto aparece aqui.')}
         </Alert>
       )}
       {scopes.data && scopes.data.length > 0 && (
@@ -138,7 +146,16 @@ export const GestorDashboard: React.FC = () => {
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <div className="space-y-6 xl:col-span-2">
-          {team.error ? <ErrorState message={team.error} kind={team.errorKind} onRetry={team.reload} /> : team.data ? <TeamPanel members={members} /> : <LoadingState label={t('A carregar a equipa...')} />}
+          {team.error ? (
+            <ErrorState message={team.error} kind={team.errorKind} onRetry={team.reload} />
+          ) : team.data ? (
+            // Sem equipa formal mas com projetos, mostra-se só a equipa de projeto (sem um painel vazio a mais).
+            (members.length > 0 || !hasProjectTeam) && <TeamPanel members={members} />
+          ) : (
+            <LoadingState label={t('A carregar a equipa...')} />
+          )}
+          {projectTeam.error && <ErrorState message={projectTeam.error} onRetry={projectTeam.reload} />}
+          {hasProjectTeam && projectTeam.data && <ProjectTeamPanel members={projectTeam.data} />}
           <MyTasksPanel viewerId={viewerId} />
         </div>
         <div className="space-y-6">

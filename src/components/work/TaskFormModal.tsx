@@ -5,6 +5,7 @@ import { Alert } from '../ui/Alert';
 import { SelectField, TextAreaField, TextField } from '../ui/FormField';
 import { MoreOptions } from '../ui/MoreOptions';
 import { getErrorMessage } from '../../lib/errors';
+import { useAuth } from '../../lib/auth/AuthContext';
 import { t } from '../../lib/i18n';
 import { createTask, updateTask } from '../../services/work/taskService';
 import type { TaskDetail, WorkPerson } from '../../types/work';
@@ -69,6 +70,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
   onClose,
   onSaved,
 }) => {
+  const { currentUser } = useAuth();
   const [values, setValues] = useState<TaskFormValues>(() => initialValues(task));
   const [requiresManagerReview, setRequiresManagerReview] = useState(false);
   const [reason, setReason] = useState('');
@@ -193,7 +195,10 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
             value={values.assigneeId}
             hint={
               assignees.find((person) => person.profileId === values.assigneeId)?.jobDescription ??
-              t('Sem responsável, a tarefa fica planeada. Pode escolher-se a si próprio.')
+              // A lista vem do servidor: o próprio só aparece quando se pode atribuir a si próprio (não ao Manager).
+              (assignees.some((person) => person.profileId === currentUser?.id)
+                ? t('Sem responsável, a tarefa fica planeada. Pode escolher-se a si próprio.')
+                : t('Sem responsável, a tarefa fica planeada.'))
             }
             onChange={(event) => updateValue('assigneeId', event.target.value)}
           >

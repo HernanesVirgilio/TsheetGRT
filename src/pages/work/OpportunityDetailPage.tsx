@@ -94,7 +94,9 @@ export const OpportunityDetailPage: React.FC = () => {
   const teamLeads = useAsyncData(() => (hasPermission('TIMESHEET_OPPORTUNITY_UPDATE') ? listWorkPeople('TEAM_LEAD') : Promise.resolve([])), []);
   // Convidáveis para reuniões: equipa e chefias de quem organiza (os envolvidos na oportunidade juntam-se abaixo).
   const meetingPeople = useAsyncData(() => (hasPermission('TIMESHEET_MEETING_CREATE') ? listWorkPeople('MEETING') : Promise.resolve([])), []);
-  const assignees = useAsyncData(() => (hasPermission('TIMESHEET_TASK_CREATE') || hasPermission('TIMESHEET_OPPORTUNITY_MANAGE') ? listWorkPeople('ASSIGNEE') : Promise.resolve([])), []);
+  // Responsáveis de tarefas e responsável comercial são listas distintas (regras próprias no servidor).
+  const assignees = useAsyncData(() => (hasPermission('TIMESHEET_TASK_CREATE') ? listWorkPeople('ASSIGNEE') : Promise.resolve([])), []);
+  const owners = useAsyncData(() => (hasPermission('TIMESHEET_OPPORTUNITY_MANAGE') ? listWorkPeople('SCOPE') : Promise.resolve([])), []);
   const companies = useAsyncData(() => listCompanies('', null), []);
   const [modal, setModal] = useState<ModalKind>(null);
   const [statusFor, setStatusFor] = useState<OpportunityDetail | null>(null);
@@ -417,7 +419,7 @@ export const OpportunityDetailPage: React.FC = () => {
             )}
             {canManage && manages && (
               <div className="border-t border-border p-4">
-                <Button size="sm" variant="ghost" icon={Users} onClick={() => setModal('owner')} disabled={!assignees.data}>
+                <Button size="sm" variant="ghost" icon={Users} onClick={() => setModal('owner')} disabled={!owners.data}>
                   {t('Alterar responsável')}
                 </Button>
               </div>
@@ -466,7 +468,7 @@ export const OpportunityDetailPage: React.FC = () => {
         isOpen={modal === 'owner'}
         title={t('Alterar responsável')}
         fieldLabel={t('Novo responsável')}
-        options={(assignees.data ?? []).map((person) => ({ value: person.profileId, label: person.fullName }))}
+        options={(owners.data ?? []).map((person) => ({ value: person.profileId, label: person.fullName }))}
         initialValue={opportunity.ownerId}
         optionalNote={{ label: t('Nota (opcional)'), maxLength: 1000 }}
         confirmLabel={t('Alterar')}

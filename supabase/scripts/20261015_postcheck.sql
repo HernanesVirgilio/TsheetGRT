@@ -226,9 +226,11 @@ data_check AS (
     JOIN public.permissions p ON p.id = rp.permission_id
     WHERE p.code = 'TIMESHEET_ABSENCE_NOTIFY' AND r.code IN ('GESTOR', 'MANAGER', 'ADMIN')
     UNION ALL
-    SELECT 'TIMESHEET_MEETING_CREATE atribuída a EMPLOYEE e IT (reuniões entre colegas)',
-           CASE WHEN count(DISTINCT r.code) = 2 THEN 'OK' ELSE 'BLOQUEIO' END,
-           coalesce(string_agg(DISTINCT r.code, ', '), 'nenhum perfil')
+    -- A migration não concede a permissão aos colaboradores: só uma autorização explícita (Roles e Permissões)
+    -- ou a migration 20261016000000 (reuniões entre colegas), que se aplica depois desta verificação.
+    SELECT 'TIMESHEET_MEETING_CREATE não atribuída a EMPLOYEE e IT pela migration',
+           CASE WHEN count(DISTINCT r.code) = 0 THEN 'OK' ELSE 'AVISO' END,
+           coalesce('atribuída a ' || string_agg(DISTINCT r.code, ', ') || ' (confirmar que foi uma autorização explícita ou a migration 20261016000000)', 'nenhum perfil de colaborador')
     FROM public.role_permissions rp
     JOIN public.roles r ON r.id = rp.role_id
     JOIN public.permissions p ON p.id = rp.permission_id

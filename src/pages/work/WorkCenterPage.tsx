@@ -79,7 +79,6 @@ export const WorkCenterPage: React.FC = () => {
 
   const header = (
     <DashboardHeader
-      message={t('As suas tarefas, a sua agenda e o tempo registado.')}
       actions={
         <>
           {hasPermission('TIMESHEET_MEETING_CREATE') && (

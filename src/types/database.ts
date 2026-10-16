@@ -349,6 +349,10 @@ export type TaskRow = Timestamps & {
   reviewed_at: string | null;
   reviewed_by: string | null;
   review_note: string | null;
+  /** Quem atribuiu o responsável atual (delegação; 20261017000000). */
+  assigned_by: string | null;
+  /** Definição reservada a quem criou a tarefa (delegada por quem supervisiona). */
+  definition_locked: boolean;
 };
 
 export type TaskEventRow = WorkEventColumns & { task_id: string; after_closure: boolean };
@@ -691,6 +695,7 @@ export type Database = {
           ProfileReference<'tasks', 'created_by'>,
           ProfileReference<'tasks', 'assignee_id'>,
           ProfileReference<'tasks', 'reviewed_by'>,
+          ProfileReference<'tasks', 'assigned_by'>,
           Relationship<'tasks_department_id_fkey', 'department_id', 'departments', false>,
           Relationship<'tasks_parent_task_id_fkey', 'parent_task_id', 'tasks', false>,
           Relationship<'tasks_opportunity_id_fkey', 'opportunity_id', 'opportunities', false>,
@@ -1073,6 +1078,23 @@ export type Database = {
           meetings_today: number;
           absence_today: string | null;
           pending_absence_requests: number;
+        }[];
+      };
+      get_project_team_overview: {
+        Args: NoArgs;
+        Returns: {
+          profile_id: string;
+          full_name: string;
+          job_title: string | null;
+          department_name: string | null;
+          is_lead: boolean;
+          project_role: string;
+          opportunity_id: string;
+          opportunity_reference: string;
+          opportunity_title: string;
+          tasks_open: number;
+          tasks_overdue: number;
+          absent_today: boolean;
         }[];
       };
       get_team_work_overview: {

@@ -1,8 +1,9 @@
 -- TsheetGRT · SI Holdings — Colaboração, disponibilidade e lembretes operacionais
 --
--- 1. Reuniões entre colegas: qualquer colaborador organiza reuniões com colegas (mesmo departamento ou mesma
---    equipa), a equipa e as chefias, sem aprovação. Os convidados respondem (aceitar/recusar) e o organizador
---    é notificado. Um reagendamento volta a pedir resposta.
+-- 1. Reuniões entre colegas: quem tem TIMESHEET_MEETING_CREATE organiza reuniões com colegas (mesmo departamento
+--    ou mesma equipa), a equipa e as chefias, sem aprovação. Os colaboradores (EMPLOYEE, IT) não recebem esta
+--    permissão: participam nas reuniões para que são convidados, salvo autorização explícita em Roles e Permissões.
+--    Os convidados respondem (aceitar/recusar) e o organizador é notificado. Um reagendamento volta a pedir resposta.
 -- 2. Pedir a participação de uma chefia é uma opção explícita da reunião: a chefia aceita, recusa (com motivo)
 --    ou propõe outro horário, e só passa a participante quando aceita. Só se pede a quem está configurado
 --    como chefia de quem organiza (manager_scopes); nunca se inventa hierarquia.
@@ -89,15 +90,13 @@ INSERT INTO public.permissions (code, name, description, module) VALUES
     ('TIMESHEET_ABSENCE_NOTIFY', 'Comunicar Ausências', 'Comunicar indisponibilidade sem pedido formal de aprovação', 'work')
 ON CONFLICT (code) DO NOTHING;
 
--- Reuniões entre colegas não exigem aprovação: colaboradores e IT voltam a poder organizá-las.
 -- Comunicar ausência: perfis que gerem equipa (podem não ter uma chefia configurada) e a administração.
+-- Organizar reuniões não muda: EMPLOYEE e IT continuam sem TIMESHEET_MEETING_CREATE (participam quando convidados).
 INSERT INTO public.role_permissions (role_id, permission_id)
 SELECT r.id, p.id
 FROM public.roles r
 JOIN public.permissions p ON p.code = ANY (
     CASE r.code
-        WHEN 'EMPLOYEE' THEN ARRAY['TIMESHEET_MEETING_CREATE']
-        WHEN 'IT' THEN ARRAY['TIMESHEET_MEETING_CREATE']
         WHEN 'GESTOR' THEN ARRAY['TIMESHEET_ABSENCE_NOTIFY']
         WHEN 'MANAGER' THEN ARRAY['TIMESHEET_ABSENCE_NOTIFY']
         WHEN 'ADMIN' THEN ARRAY['TIMESHEET_ABSENCE_NOTIFY', 'TIMESHEET_MEETING_CREATE']
@@ -106,7 +105,7 @@ JOIN public.permissions p ON p.code = ANY (
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 SELECT private.write_audit_event('permission.changed', 'role_permissions', NULL,
-    'Reuniões entre colegas: TIMESHEET_MEETING_CREATE atribuída a EMPLOYEE e IT; TIMESHEET_ABSENCE_NOTIFY atribuída a GESTOR, MANAGER e ADMIN.');
+    'Comunicar ausência: TIMESHEET_ABSENCE_NOTIFY atribuída a GESTOR, MANAGER e ADMIN.');
 
 -- =============================================================================
 -- 2. COLEGAS E CONVITES

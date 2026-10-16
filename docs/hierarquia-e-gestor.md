@@ -160,20 +160,41 @@ Um gestor não pode pedir o relatório de outro gestor. Um Manager só filtra pe
 
 ## 5. Tarefas: criador, responsável e acompanhamento
 
-- **Tarefas para si próprio.** O Manager e o Gestor podem criar tarefas para si próprios: o criador e o responsável são campos distintos. A tarefa aparece no painel, na lista "As minhas", no calendário e no histórico de quem a executa. Não é encaminhada para ninguém, e as regras normais (prazos, conclusão com atraso, registo de tempo) aplicam-se.
+- **Um só responsável** (`tasks.assignee_id`). Quem pode ser escolhido é decidido no servidor (`private.can_assign_task_to`, usado por `create_task`, `assign_task` e `list_work_people('ASSIGNEE')`; migrations `20261016000000` e `20261017000000`):
+  - **Manager:** os gestores que supervisiona ou que coordenam projetos seus (gestor de execução) e a sua equipa direta (colaboradores que nenhum gestor abrange). Nunca a equipa de um gestor: esta recebe o trabalho através do gestor.
+  - **Gestor:** colaboradores comuns da sua equipa formal ou dos projetos que coordena, de qualquer departamento.
+  - **Ninguém se atribui a si próprio**, exceto a administração. As tarefas antigas para o próprio mantêm-se.
+- **Delegação.** `tasks.assigned_by` regista quem atribuiu o responsável atual, além de `created_by`; o histórico continua em `task_events`. O gestor responsável por uma tarefa em aberto distribui-a pela equipa (`assign_task`) e continua a vê-la e a acompanhá-la.
+- **Definição protegida** (`tasks.definition_locked`, trigger `guard_task_delegation`). Aplica-se a uma tarefa criada por quem supervisiona (Manager ou administração) para outra pessoa. Só quem a criou ou a administração altera título, descrição, prioridade, prazos, estimativa e ligações, e só essa pessoa a cancela ou reabre. Quem a recebe executa-a, regista o estado e distribui-a. As tarefas que o gestor criou são editadas por ele.
 - **Acompanhamento** (`review_task`). Uma tarefa concluída fica "por acompanhar" até ser validada:
   - **Tarefa normal:** valida quem a gere (o gestor da equipa ou quem a criou).
   - **Tarefa marcada "Exige acompanhamento do Manager"** (opção do gestor ao criar a tarefa): valida quem supervisiona o responsável (`TEAM_SUPERVISE`) ou a administração.
   - **Regras comuns:** o responsável nunca valida a própria conclusão. Reabrir a tarefa limpa a validação. Fica registado `TASK_REVIEWED` no histórico e `task.reviewed` na auditoria.
 
+### Equipa de projeto e equipa formal (`20261017000000`)
+
+- **Equipa formal:** `manager_scopes`, configurada pela administração. Dá acesso a timesheets, ausências, aprovações e relatórios da equipa.
+- **Equipa de projeto:** `opportunity_members`, definida na oportunidade pelo responsável comercial e pelo gestor de execução. Quem coordena um projeto ativo (responsável ou gestor de execução):
+  - vê o perfil dos membros;
+  - vê a carga do projeto (`get_project_team_overview`: tarefas do projeto ou atribuídas por si, e ausência hoje sem o tipo);
+  - pode atribuir tarefas aos colaboradores comuns do projeto.
+
+  Não cria registos em `manager_scopes` nem dá acesso a timesheets ou ausências. Quem sai do projeto, ou um projeto perdido ou cancelado, deixa de contar de imediato.
+- **Onde aparece:** separador "Pessoas" do módulo Equipa e painéis do Gestor e do Manager ("Equipas de projeto"), separada da equipa formal. O aviso de equipa por configurar só aparece quando não há nenhuma das duas.
+- **Formulário da oportunidade:**
+  - **Responsável comercial:** sem o próprio repetido, porque "Eu próprio" é a opção por omissão;
+  - **Gestor responsável pela execução:** só gestores;
+  - **Colaboradores do projeto:** só colaboradores comuns.
+
 ## 6. Reuniões e calendário
 
-- **Quem agenda:** é preciso `TIMESHEET_MEETING_CREATE`. Desde `20261015000000`, todos os perfis agendam reuniões com colegas sem aprovação, e os pedidos de tempo a uma chefia seguem um fluxo de aceitação (ver [navegacao-e-fluxos.md](navegacao-e-fluxos.md) §4).
+- **Quem agenda:** é preciso `TIMESHEET_MEETING_CREATE`. Desde `20261016000000`, todos os perfis agendam reuniões com colegas sem aprovação (a `20261015000000`, tal como foi aplicada, não dava a permissão a EMPLOYEE e IT). Os pedidos de tempo a uma chefia seguem um fluxo de aceitação (ver [navegacao-e-fluxos.md](navegacao-e-fluxos.md) §4). Sem chefia configurada, o formulário mostra uma nota informativa e a reunião é criada normalmente.
 - **Quem pode ser convidado** (`private.can_invite_to_meeting`):
   - a equipa de quem organiza (dois níveis para o Manager);
   - as chefias de quem organiza;
   - os envolvidos na tarefa ou oportunidade ligada;
   - os colegas (mesmo departamento ou mesma chefia direta);
+  - para o Manager, qualquer gestor ativo, mesmo sem âmbito configurado (convidar não dá acesso aos dados da equipa);
   - qualquer pessoa, se for a administração.
   - Quem já participa mantém-se ao editar. A lista de convidáveis vem de `list_work_people('MEETING')`.
 - **Quem altera ou cancela:** só quem gere a reunião (o organizador, o gestor do organizador ou a administração).
@@ -194,18 +215,21 @@ Um gestor não pode pedir o relatório de outro gestor. Um Manager só filtra pe
 ## 7. Ausências: fluxo em dois níveis
 
 ```text
-Colaborador ── submete ──► SUBMITTED (aguarda validação do gestor da equipa)
-                               │ gestor: validar e encaminhar        │ gestor: pedir correção
-                               ▼                                     ▼
-                     PENDING_APPROVAL (aguarda decisão)            DRAFT
+Colaborador ── submete ──► SUBMITTED (aguarda a decisão do gestor da equipa)
+                               │ gestor: aprovar        │ gestor: rejeitar     │ gestor: pedir correção
+                               ▼                        ▼                      ▼
+                     PENDING_APPROVAL              REJECTED (final)          DRAFT
                                │ Manager: aprovar / rejeitar / pedir correção
                                ▼
                       APPROVED | REJECTED  ──► notificação ao colaborador (e ao gestor que validou)
                                               calendário atualizado se aprovado
 ```
 
+- **Justificação obrigatória** em todas as decisões do gestor (desde `20261016000000`). A justificação da aprovação segue para o Manager (`validation_comment`).
+- **Gestor e Manager não fazem pedidos formais:** não têm `TIMESHEET_ABSENCE_CREATE`. Comunicam a ausência (`communicate_absence`, `TIMESHEET_ABSENCE_NOTIFY`), que notifica as chefias e a equipa sem criar um pedido de aprovação. Os pedidos que já tinham feito mantêm-se no fluxo e podem ser cancelados.
+
 - **Quem valida:** os gestores que abrangem o colaborador diretamente e têm `TIMESHEET_ABSENCE_VALIDATE` sem `TIMESHEET_ABSENCE_APPROVE`.
-- **Sem gestor de equipa:** se ninguém valida (por exemplo, o pedido do próprio gestor, ou um colaborador que responde diretamente ao Manager), o pedido segue logo para `PENDING_APPROVAL`, com nota no histórico.
+- **Sem gestor de equipa:** se ninguém valida (um colaborador que responde diretamente ao Manager), o pedido segue logo para `PENDING_APPROVAL`, com nota no histórico.
 - **Quem decide:** quem tem `TIMESHEET_ABSENCE_APPROVE` e supervisiona o colaborador (dois níveis). Se não houver ninguém, decide a administração.
   - Ninguém decide nem valida o próprio pedido; as restrições `absence_requests_no_self_decision` e `absence_requests_no_self_validation` garantem-no.
   - O Manager não salta a validação: um pedido `SUBMITTED` só pode ser decidido se já não houver um gestor ativo para o validar.

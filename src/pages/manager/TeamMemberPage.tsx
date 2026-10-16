@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Clock3, Pencil } from 'lucide-react';
+import { ArrowLeft, Clock3, Pencil, Users } from 'lucide-react';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import { getTeamMember, listTeamTimesheets } from '../../services/managerService';
@@ -10,6 +10,8 @@ import { Button } from '../../components/ui/Button';
 import { OverdueBadge } from '../../components/work/WorkStatusBadge';
 import { JobDescriptionModal } from '../../components/work/JobDescriptionModal';
 import type { TimesheetSummary } from '../../types';
+import type { TeamMemberWorkload } from '../../types/work';
+import { leadTeamMembers } from '../../utils/work';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Panel } from '../../components/ui/Panel';
 import { StatCard } from '../../components/ui/StatCard';
@@ -47,6 +49,24 @@ const COLUMNS: DataTableColumn<TimesheetSummary>[] = translatedFields([
           ? t('Rejeitado em {rejectedAt}', { rejectedAt: formatDate(timesheet.rejectedAt) })
           : '—',
   },
+], ['header']);
+
+const LEAD_TEAM_COLUMNS: DataTableColumn<TeamMemberWorkload>[] = translatedFields([
+  {
+    id: 'name',
+    header: 'Colaborador',
+    render: (member) => (
+      <Link to={`/team/${member.profileId}`} className="block hover:underline">
+        <span className="block font-semibold text-text">{member.fullName}</span>
+        <span className="block text-xs text-text-muted">{[member.jobTitle, member.departmentName].filter(Boolean).join(' · ') || '—'}</span>
+      </Link>
+    ),
+  },
+  { id: 'open', header: 'Em aberto', align: 'right', render: (member) => member.tasksOpen },
+  { id: 'overdue', header: 'Atrasadas', align: 'right', render: (member) => (member.tasksOverdue > 0 ? <OverdueBadge label={String(member.tasksOverdue)} /> : 0) },
+  { id: 'blocked', header: 'Bloqueadas', align: 'right', render: (member) => member.tasksBlocked },
+  { id: 'completed', header: 'Concluídas (30 dias)', align: 'right', render: (member) => member.tasksCompleted30Days },
+  { id: 'hours', header: 'Horas na semana', align: 'right', render: (member) => formatMinutesAsHours(member.minutesThisWeek) },
 ], ['header']);
 
 const BackLink: React.FC = () => (
@@ -106,6 +126,8 @@ export const TeamMemberPage: React.FC = () => {
   const profile = member.data;
   const totals = summarizeTimesheets(timesheets.data ?? []);
   const work = (workload.data ?? []).find((row) => row.profileId === profile.id) ?? null;
+  // Um gestor supervisionado: a sua equipa, com os indicadores de cada pessoa (mesmo vazia, para se ver a lacuna).
+  const leadTeam = work?.roleCode === 'GESTOR' ? leadTeamMembers(workload.data ?? [], { profileId: profile.id, fullName: profile.full_name }) : null;
 
   return (
     <div className="space-y-6">
@@ -165,6 +187,21 @@ export const TeamMemberPage: React.FC = () => {
             {work.absenceToday ? t('Ausente hoje ({absenceToday}) · ', { absenceToday: work.absenceToday }) : t('Presente hoje · ')}
             Último registo de tempo: {work.lastActivityDate ? formatCalendarDate(work.lastActivityDate) : 'sem registos'} · {formatMinutesAsHours(work.minutesThisWeek)} esta semana
           </p>
+        </Panel>
+      )}
+
+      {leadTeam && (
+        <Panel title={t('Equipa deste gestor')} description={t('Colaboradores atribuídos a este gestor e o trabalho que têm em mãos.')} flush>
+          {leadTeam.length === 0 ? (
+            <EmptyState
+              bordered={false}
+              icon={Users}
+              title={t('Este gestor ainda não tem colaboradores atribuídos.')}
+              message={t('A atribuição de equipas é feita pela administração.')}
+            />
+          ) : (
+            <DataTable caption={t('Equipa de {full_name}', { full_name: profile.full_name })} columns={LEAD_TEAM_COLUMNS} rows={leadTeam} getRowKey={(row) => row.profileId} />
+          )}
         </Panel>
       )}
 

@@ -4,7 +4,7 @@ import { AlertCircle, BarChart3, CalendarPlus, CheckCircle2, ClipboardCheck, Net
 import { useAuth } from '../../lib/auth/AuthContext';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import { listMyScopes, listTeamTimesheets } from '../../services/managerService';
-import { getSupervisionOverview, getTeamDashboard } from '../../services/work/teamService';
+import { getProjectTeamOverview, getSupervisionOverview, getTeamDashboard } from '../../services/work/teamService';
 import { getTeamWorkOverview } from '../../services/work/calendarService';
 import { listTeamAbsences } from '../../services/work/absenceService';
 import { listApprovalRequests } from '../../services/work/opportunityService';
@@ -23,8 +23,8 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState, LoadingState } from '../../components/ui/States';
 import { OverdueBadge } from '../../components/work/WorkStatusBadge';
 import { StackedBarChart } from '../../components/charts/StackedCharts';
-import { MyTasksPanel, PanelLink, PipelinePanel, ReportSummaryPanel, UpcomingMeetingsPanel } from '../../components/work/DashboardPanels';
-import { formatMoney, recentPeriod } from '../../utils/work';
+import { MyTasksPanel, PanelLink, PipelinePanel, ProjectTeamPanel, ReportSummaryPanel, UpcomingMeetingsPanel } from '../../components/work/DashboardPanels';
+import { formatMoney, leadTeamMembers, recentPeriod } from '../../utils/work';
 import { formatCalendarDate, formatDateTime, formatMinutesAsHours, formatPeriod, pluralize } from '../../utils/format';
 import { t, translatedFields } from '../../lib/i18n';
 
@@ -162,6 +162,7 @@ export const ManagerDashboard: React.FC = () => {
   );
 
   const scopes = useAsyncData(() => listMyScopes(viewerId), [viewerId]);
+  const projectTeam = useAsyncData(getProjectTeamOverview, []);
   const departments = useAsyncData(listDepartments, []);
   const dashboard = useAsyncData(() => getTeamDashboard(period.from, period.to), [period.from, period.to]);
   const supervision = useAsyncData(() => getSupervisionOverview(period.from, period.to), [period.from, period.to]);
@@ -171,11 +172,14 @@ export const ManagerDashboard: React.FC = () => {
   if (!dashboard.data) return <LoadingState label={t('A carregar a supervisão...')} />;
   const summary = dashboard.data;
   const leads = (supervision.data ?? []).filter((row) => row.leadId !== null);
+  const selectedLead = leads.find((row) => row.leadId === leadId);
+  const leadTeamIds = new Set(
+    selectedLead ? leadTeamMembers(team.data ?? [], { profileId: leadId, fullName: selectedLead.leadName }).map((member) => member.profileId) : []
+  );
   const members = (team.data ?? []).filter((member) => {
     if (departmentId !== ALL && !(departments.data ?? []).some((department) => department.id === departmentId && department.name === member.departmentName)) return false;
     if (leadId === ALL) return true;
-    const lead = leads.find((row) => row.leadId === leadId);
-    return member.profileId === leadId || (lead !== undefined && (member.leadNames ?? '').split(', ').includes(lead.leadName));
+    return member.profileId === leadId || leadTeamIds.has(member.profileId);
   });
   const directIds = new Set((team.data ?? []).filter((member) => member.isDirect).map((member) => member.profileId));
 
@@ -218,7 +222,6 @@ export const ManagerDashboard: React.FC = () => {
   return (
     <div className="space-y-6">
       <DashboardHeader
-        message={t('As decisões que lhe competem, o estado das equipas supervisionadas e os resultados do período.')}
         actions={
           <>
             <HeaderLink to="/timesheet/meetings" icon={CalendarPlus}>
@@ -235,9 +238,10 @@ export const ManagerDashboard: React.FC = () => {
         }
       />
 
-      {scopes.data && scopes.data.length === 0 && (
-        <Alert variant="warning" title={t('Sem equipa configurada')}>
-          {t('Ainda não lhe foram atribuídos gestores nem colaboradores. A atribuição é feita por um administrador autorizado.')}
+      {/* Só falta configuração quando não há equipa formal nem equipas de projeto. */}
+      {scopes.data && scopes.data.length === 0 && projectTeam.data && projectTeam.data.length === 0 && (
+        <Alert variant="info" title={t('Sem gestores nem equipas de projeto')}>
+          {t('Os gestores que supervisiona são atribuídos pela administração. Ao definir o gestor de execução e a equipa de uma oportunidade, esse projeto passa a aparecer aqui.')}
         </Alert>
       )}
 
@@ -310,6 +314,8 @@ export const ManagerDashboard: React.FC = () => {
               />
             </Panel>
           )}
+          {projectTeam.error && <ErrorState message={projectTeam.error} onRetry={projectTeam.reload} />}
+          {projectTeam.data && projectTeam.data.length > 0 && <ProjectTeamPanel members={projectTeam.data} />}
         </div>
         <div className="space-y-6">
           <PendingDecisionsPanel viewerId={viewerId} directIds={directIds} />

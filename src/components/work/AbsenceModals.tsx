@@ -237,7 +237,25 @@ interface AbsenceValidationModalProps {
   onValidated: (message: string) => void;
 }
 
-/** 1.º nível: o gestor da equipa valida e encaminha ao Manager, ou devolve ao colaborador. */
+const VALIDATION_TEXT: Record<AbsenceValidation, { title: string; action: string; label: string; done: string }> = translatedFields(
+  {
+    VALIDATED: {
+      title: 'Aprovar pedido',
+      action: 'Aprovar',
+      label: 'Justificação da aprovação',
+      done: 'Pedido {reference} aprovado. Segue para o Manager quando o tipo o exige.',
+    },
+    REJECTED: { title: 'Rejeitar pedido', action: 'Rejeitar', label: 'Justificação da rejeição', done: 'Pedido {reference} rejeitado.' },
+    CHANGES_REQUESTED: { title: 'Pedir correção', action: 'Devolver ao colaborador', label: 'O que deve ser corrigido', done: 'Pedido devolvido para correção.' },
+  },
+  // `done` tem parâmetros: é traduzido no momento do uso, com t(text.done, { reference }).
+  ['title', 'action', 'label']
+);
+
+/**
+ * 1.º nível: o gestor da equipa aprova (seguindo para o Manager quando o tipo o exige), rejeita ou devolve
+ * ao colaborador. Todas as decisões são justificadas (o servidor exige-o).
+ */
 export const AbsenceValidationModal: React.FC<AbsenceValidationModalProps> = ({ request, validation, onClose, onValidated }) => {
   const [comment, setComment] = useState('');
   const [commentError, setCommentError] = useState<string | null>(null);
@@ -252,18 +270,19 @@ export const AbsenceValidationModal: React.FC<AbsenceValidationModalProps> = ({ 
 
   if (!validation) return null;
   const isForward = validation === 'VALIDATED';
+  const text = VALIDATION_TEXT[validation];
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!request) return;
-    const check = isForward ? null : validateReason(comment, t('Indique o que deve ser corrigido'));
+    const check = validateReason(comment, validation === 'CHANGES_REQUESTED' ? t('Indique o que deve ser corrigido') : t('Indique a justificação da decisão'), validation === 'CHANGES_REQUESTED' ? 5 : 3);
     setCommentError(check);
     if (check) return;
     setIsSubmitting(true);
     setErrorMessage(null);
     try {
-      await validateAbsence(request.id, validation, comment.trim() || null);
-      onValidated(isForward ? t('Pedido {reference} validado e encaminhado.', { reference: request.reference }) : t('Pedido devolvido para correção.'));
+      await validateAbsence(request.id, validation, comment.trim());
+      onValidated(t(text.done, { reference: request.reference }));
     } catch (error) {
       setErrorMessage(getErrorMessage(error, t('Não foi possível registar a validação.')));
     } finally {
@@ -275,7 +294,7 @@ export const AbsenceValidationModal: React.FC<AbsenceValidationModalProps> = ({ 
   return (
     <Modal
       isOpen={request !== null}
-      title={isForward ? t('Validar e encaminhar') : t('Pedir correção')}
+      title={text.title}
       description={request ? `${request.employeeName ?? 'Colaborador'} · ${request.absenceTypeName} · ${formatDate(request.startDate)} a ${formatDate(request.endDate)}` : undefined}
       size="sm"
       isBusy={isSubmitting}
@@ -286,7 +305,7 @@ export const AbsenceValidationModal: React.FC<AbsenceValidationModalProps> = ({ 
             {t('Cancelar')}
           </Button>
           <Button type="submit" form={formId} isLoading={isSubmitting}>
-            {isForward ? 'Validar' : t('Devolver ao colaborador')}
+            {text.action}
           </Button>
         </>
       }
@@ -299,8 +318,8 @@ export const AbsenceValidationModal: React.FC<AbsenceValidationModalProps> = ({ 
           </p>
         )}
         <TextAreaField
-          label={isForward ? t('Parecer para o Manager (opcional)') : t('O que deve ser corrigido')}
-          required={!isForward}
+          label={text.label}
+          required
           rows={3}
           maxLength={1000}
           value={comment}

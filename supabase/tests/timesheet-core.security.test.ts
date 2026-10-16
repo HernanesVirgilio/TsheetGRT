@@ -52,8 +52,8 @@ const workPermissions = (roleCode: string) =>
     [roleCode]
   );
 check((await workPermissions('EMPLOYEE')) === 9, 'EMPLOYEE: 9 permissões de trabalho (reuniões com colegas, sem criar, atribuir ou aprovar)');
-check((await workPermissions('MANAGER')) === 20, 'MANAGER: 18 permissões de trabalho originais + aprovar oportunidades + comunicar ausências');
-check((await workPermissions('GESTOR')) === 18, 'GESTOR: gestão da equipa direta e comunicar ausências, sem decisão final de ausências nem aprovação de oportunidades');
+check((await workPermissions('MANAGER')) === 19, 'MANAGER: 18 permissões de trabalho originais + aprovar oportunidades + comunicar ausências − pedido formal de ausência');
+check((await workPermissions('GESTOR')) === 17, 'GESTOR: gestão da equipa direta e comunicar ausências (sem pedido formal), sem decisão final de ausências nem aprovação de oportunidades');
 check((await workPermissions('IT')) === 7, 'IT: uso pessoal e reuniões com colegas (sem oportunidades nem gestão)');
 check((await workPermissions('ADMIN')) === 21, 'ADMIN: todas as permissões de trabalho');
 
@@ -83,7 +83,10 @@ check(
   (await createTask(managerOps.authId, 'Tarefa com prazo passado', ana.profileId, inHours(-2))).error?.includes('data futura') ?? false,
   'prazo no passado recusado'
 );
-check(!(await createTask(managerOps.authId, 'Tarefa do próprio gestor', managerOps.profileId)).error, 'gestor atribui tarefa a si próprio');
+check(
+  (await createTask(managerOps.authId, 'Tarefa do próprio Manager', managerOps.profileId)).error?.includes('a si próprio') ?? false,
+  'Manager não atribui tarefa a si próprio (atribui à equipa direta ou aos gestores)'
+);
 
 const planned = await createTask(managerOps.authId, 'Tarefa ainda por atribuir', null);
 check((await taskValue<string>(planned.id, 'status')) === 'PLANNED', 'tarefa sem responsável fica planeada');
@@ -91,7 +94,10 @@ check((await taskValue<string>(planned.id, 'status')) === 'PLANNED', 'tarefa sem
 check((await db.asUser(ana.authId, 'SELECT id FROM public.tasks WHERE id = $1', [taskA])).rows.length === 1, 'responsável vê a tarefa');
 check((await db.asUser(rui.authId, 'SELECT id FROM public.tasks WHERE id = $1', [taskA])).rows.length === 0, 'colega não vê a tarefa de outro (ID manipulado)');
 check((await db.asUser(managerFin.authId, 'SELECT id FROM public.tasks WHERE id = $1', [taskA])).rows.length === 0, 'gestor de outro âmbito não vê a tarefa');
-check((await db.asUser(admin.authId, 'SELECT id FROM public.tasks')).rows.length >= 3, 'administração vê todas as tarefas');
+check(
+  (await db.asUser(admin.authId, 'SELECT id FROM public.tasks')).rows.length === Number(await value<number>('SELECT count(*)::int AS value FROM public.tasks')),
+  'administração vê todas as tarefas'
+);
 check(
   (await db.asUser(rui.authId, 'SELECT public.start_task($1)', [taskA])).error?.includes('Tarefa não encontrada') ?? false,
   'colega não inicia a tarefa de outro'
@@ -451,21 +457,27 @@ check(
   (await db.asUser(ana.authId, 'SELECT public.submit_absence_request($1)', [sickRequest])).error?.includes('comprovativo') ?? false,
   'doença exige comprovativo anexado'
 );
-const managerAbsence = (await saveAbsence(managerOps.authId, vacation, await inDays(30), await inDays(31))).rows[0]?.id ?? '';
-await db.asUser(managerOps.authId, 'SELECT public.submit_absence_request($1)', [managerAbsence]);
+// Quem gere equipa comunica a ausência; o pedido formal fica para os colaboradores (20261016000000).
+check((await saveAbsence(managerOps.authId, vacation, await inDays(30), await inDays(31))).code === '42501', 'Manager não usa o pedido formal de colaborador');
+const adminAbsence = (await saveAbsence(admin.authId, vacation, await inDays(30), await inDays(31))).rows[0]?.id ?? '';
+await db.asUser(admin.authId, 'SELECT public.submit_absence_request($1)', [adminAbsence]);
 check(
-  (await db.asUser(managerOps.authId, "SELECT public.decide_absence_request($1, 'APPROVED')", [managerAbsence])).error?.includes('próprio pedido') ?? false,
-  'gestor não aprova a própria ausência'
+  (await db.asUser(admin.authId, "SELECT public.decide_absence_request($1, 'APPROVED')", [adminAbsence])).error?.includes('próprio pedido') ?? false,
+  'quem decide não aprova a própria ausência'
 );
-check((await notificationsOf(admin.profileId, 'ABSENCE_APPROVAL_REQUIRED')) === 1, 'sem gestor acima, a administração é notificada');
-check(!(await db.asUser(admin.authId, "SELECT public.decide_absence_request($1, 'APPROVED')", [managerAbsence])).error, 'administração aprova a ausência do gestor');
+// Colaborador sem gestor nem Manager: decide a administração.
+const unassigned = await db.createUser(admin.authId, 'sem.chefia@siholdings-mz.com', 'Sem Chefia', 'EMPLOYEE', 'ESG');
+const managerAbsence = (await saveAbsence(unassigned.authId, vacation, await inDays(30), await inDays(31))).rows[0]?.id ?? '';
+await db.asUser(unassigned.authId, 'SELECT public.submit_absence_request($1)', [managerAbsence]);
+check((await notificationsOf(admin.profileId, 'ABSENCE_APPROVAL_REQUIRED')) === 1, 'sem chefia, a administração é notificada');
+check(!(await db.asUser(admin.authId, "SELECT public.decide_absence_request($1, 'APPROVED')", [managerAbsence])).error, 'administração aprova a ausência de quem não tem chefia');
 check(
   (await db.asUser(ana.authId, "SELECT public.cancel_absence_request($1, '')", [anaAbsence])).error?.includes('motivo do cancelamento') ?? false,
   'cancelar ausência aprovada exige motivo'
 );
 await db.asPostgres("UPDATE public.absence_requests SET start_date = (now() AT TIME ZONE 'Africa/Maputo')::date - 1 WHERE id = $1", [managerAbsence]);
 check(
-  (await db.asUser(managerOps.authId, "SELECT public.cancel_absence_request($1, 'Já não vou de férias')", [managerAbsence])).error?.includes('antes de começar') ?? false,
+  (await db.asUser(unassigned.authId, "SELECT public.cancel_absence_request($1, 'Já não vou de férias')", [managerAbsence])).error?.includes('antes de começar') ?? false,
   'ausência já iniciada não é cancelada'
 );
 
@@ -682,8 +694,8 @@ check(
   'responsáveis possíveis = âmbito ativo do gestor'
 );
 check(
-  (await db.asUser<{ profile_id: string }>(ana.authId, "SELECT * FROM public.list_work_people('ASSIGNEE')")).rows.map((row) => row.profile_id).join() === ana.profileId,
-  'colaborador só se vê a si próprio como responsável'
+  (await db.asUser<{ profile_id: string }>(ana.authId, "SELECT * FROM public.list_work_people('ASSIGNEE')")).rows.length === 0,
+  'colaborador não atribui tarefas: lista de responsáveis vazia'
 );
 const people = await db.asUser<{ full_name: string; is_organizer: boolean }>(rui.authId, 'SELECT * FROM public.get_meeting_people($1)', [meetingId]);
 check(people.rows.length === 3 && people.rows[0]?.is_organizer === true, 'participante vê quem organiza e participa');

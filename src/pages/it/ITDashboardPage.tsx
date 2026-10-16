@@ -78,7 +78,7 @@ export const ITDashboardPage: React.FC<{ asDashboard?: boolean }> = ({ asDashboa
   return (
     <div className="space-y-6">
       {asDashboard ? (
-        <DashboardHeader message={t('Pedidos de suporte, prazos, equipamentos e o estado dos serviços.')} actions={queueLink} />
+        <DashboardHeader actions={queueLink} />
       ) : (
         <PageHeader title={t('Suporte IT')} subtitle={t('Estado atual dos pedidos de suporte e do trabalho da equipa.')} actions={queueLink} />
       )}

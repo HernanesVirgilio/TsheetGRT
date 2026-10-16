@@ -3,23 +3,15 @@
 // chefia configurada (aceitar, recusar, propor outro horário), comunicação de ausência distinta do pedido formal,
 // histórico do timesheet, lembretes por regra e relatórios limitados ao âmbito.
 //
-// A base de dados reproduz o estado de produção: migrations até 20261014, as quatro colunas do pedido acrescentadas
-// à mão em meetings, e só depois as migrations 20261015 (aplicadas duas vezes, para provar que podem ser repetidas).
-// Executar com: npm run test:db
+// A base de dados reproduz o estado de produção: migrations até 20261014, incluindo as reparações 20261012144835 e
+// 20261013141640 (colunas do pedido acrescentadas à mão), e só depois as migrations 20261015 (aplicadas duas
+// vezes, para provar que podem ser repetidas). Executar com: npm run test:db
 import { join } from 'node:path';
 import { TestDatabase, TestReport } from './harness';
 
 const COLLABORATION = '20261015000000_collaboration_availability_reminders.sql';
 const REPORTING = '20261015000001_reporting_centre.sql';
-const MANUAL_PRODUCTION_REPAIR = `
-  ALTER TABLE public.meetings
-    ADD COLUMN requested_with UUID REFERENCES public.profiles(id),
-    ADD COLUMN request_status TEXT,
-    ADD COLUMN request_decided_at TIMESTAMPTZ,
-    ADD COLUMN request_decision_comment TEXT;
-`;
 const db = await TestDatabase.create(join(import.meta.dirname, '..', 'migrations'), {
-  beforeFile: { file: COLLABORATION, sql: MANUAL_PRODUCTION_REPAIR },
   reapply: [COLLABORATION, REPORTING],
 });
 const report = new TestReport();

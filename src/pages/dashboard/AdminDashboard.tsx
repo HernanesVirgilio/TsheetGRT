@@ -71,7 +71,6 @@ export const AdminDashboard: React.FC = () => {
   return (
     <div className="space-y-6">
       <DashboardHeader
-        message={t('Utilizadores, departamentos, aprovações pendentes e o estado do sistema.')}
         actions={
           <>
             {hasPermission('USERS_CREATE') && (

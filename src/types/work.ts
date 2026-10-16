@@ -26,7 +26,7 @@ export const ABSENCE_DECISIONS = ['APPROVED', 'REJECTED', 'CHANGES_REQUESTED'] a
 export type AbsenceDecision = (typeof ABSENCE_DECISIONS)[number];
 
 /** Validação do gestor da equipa (1.º nível). */
-export type AbsenceValidation = 'VALIDATED' | 'CHANGES_REQUESTED';
+export type AbsenceValidation = 'VALIDATED' | 'REJECTED' | 'CHANGES_REQUESTED';
 
 export const OPPORTUNITY_APPROVAL_STATUSES = ['NOT_REQUIRED', 'NOT_SUBMITTED', 'PENDING', 'APPROVED', 'REJECTED'] as const;
 export type OpportunityApprovalStatus = (typeof OPPORTUNITY_APPROVAL_STATUSES)[number];
@@ -82,6 +82,10 @@ export interface TaskSummary {
   assigneeName: string | null;
   createdBy: string;
   creatorName: string | null;
+  /** Quem atribuiu o responsável atual (delegação). */
+  assignedBy: string | null;
+  /** Definição reservada a quem criou a tarefa (delegada por quem supervisiona). */
+  definitionLocked: boolean;
   departmentId: string | null;
   departmentName: string | null;
   startDate: string | null;
@@ -345,6 +349,24 @@ export interface MyWorkSummary {
   meetingsToday: number;
   absenceToday: string | null;
   pendingAbsenceRequests: number;
+}
+
+/** Membro de um projeto que quem consulta coordena (responsável ou gestor de execução). Não é hierarquia formal. */
+export interface ProjectTeamMember {
+  profileId: string;
+  fullName: string;
+  jobTitle: string | null;
+  departmentName: string | null;
+  /** Gere equipa (gestor): pode receber tarefas do Manager. */
+  isLead: boolean;
+  projectRole: 'EXECUTION_LEAD' | 'MEMBER';
+  opportunityId: string;
+  opportunityReference: string;
+  opportunityTitle: string;
+  /** Tarefas em aberto ligadas ao projeto ou atribuídas por quem consulta. */
+  tasksOpen: number;
+  tasksOverdue: number;
+  absentToday: boolean;
 }
 
 export interface TeamMemberWorkload {

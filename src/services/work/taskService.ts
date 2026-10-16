@@ -13,7 +13,7 @@ import { t } from '../../lib/i18n';
  */
 
 const TASK_SELECT =
-  'id, reference, title, description, status, priority, assignee_id, created_by, department_id, start_date, due_at, estimated_minutes, started_at, completed_at, completion_note, late_reason, blocked_reason, cancel_reason, parent_task_id, opportunity_id, meeting_id, requires_manager_review, reviewed_at, review_note, created_at, updated_at, assignee:profiles!tasks_assignee_id_fkey(full_name), creator:profiles!tasks_created_by_fkey(full_name), department:departments(name), opportunity:opportunities(id, reference, title), meeting:meetings!tasks_meeting_id_fkey(id, title)' as const;
+  'id, reference, title, description, status, priority, assignee_id, created_by, department_id, start_date, due_at, estimated_minutes, started_at, completed_at, completion_note, late_reason, blocked_reason, cancel_reason, parent_task_id, opportunity_id, meeting_id, requires_manager_review, reviewed_at, review_note, assigned_by, definition_locked, created_at, updated_at, assignee:profiles!tasks_assignee_id_fkey(full_name), creator:profiles!tasks_created_by_fkey(full_name), department:departments(name), opportunity:opportunities(id, reference, title), meeting:meetings!tasks_meeting_id_fkey(id, title)' as const;
 
 interface TaskRow {
   id: string;
@@ -37,6 +37,8 @@ interface TaskRow {
   requires_manager_review: boolean;
   reviewed_at: string | null;
   review_note: string | null;
+  assigned_by: string | null;
+  definition_locked: boolean;
   created_at: string;
   updated_at: string;
   assignee: { full_name: string } | null;
@@ -60,6 +62,8 @@ function mapTask(row: TaskRow): TaskDetail | null {
     assigneeName: row.assignee?.full_name ?? null,
     createdBy: row.created_by,
     creatorName: row.creator?.full_name ?? null,
+    assignedBy: row.assigned_by,
+    definitionLocked: row.definition_locked,
     departmentId: row.department_id,
     departmentName: row.department?.name ?? null,
     startDate: row.start_date,

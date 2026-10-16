@@ -9,6 +9,7 @@ import {
   initialMeetingValues,
   isOpportunityCleared,
   layoutTimedItems,
+  leadTeamMembers,
   nextOpportunityStatuses,
   recentPeriod,
   selectionToRange,
@@ -81,6 +82,11 @@ const viewer = (overrides: Partial<TaskViewer['permissions']>, managesTask: bool
 });
 const completed = { status: 'COMPLETED' as const, assigneeId: 'ana', requiresManagerReview: false, reviewedAt: null };
 assert(taskActions(completed, viewer({}, true)).canReview, 'o gestor da tarefa valida a conclusão');
+const receivedTask = { status: 'ASSIGNED' as const, assigneeId: 'gestor' };
+assert(taskActions(receivedTask, viewer({ leadsTeam: true }, false)).canAssign, 'o gestor responsável distribui pela equipa a tarefa recebida do Manager');
+assert(!taskActions(receivedTask, viewer({ leadsTeam: true }, false)).canCancel, 'distribuir não dá o poder de cancelar a tarefa do Manager');
+assert(!taskActions(receivedTask, viewer({ leadsTeam: true, supervise: true }, false)).canAssign, 'o Manager não redistribui como responsável');
+assert(!taskActions({ ...receivedTask, status: 'COMPLETED' }, viewer({ leadsTeam: true }, false)).canAssign, 'só tarefas em aberto são distribuídas');
 assert(!taskActions(completed, viewer({}, true, 'ana')).canReview, 'o responsável não valida a própria conclusão');
 assert(!taskActions({ ...completed, reviewedAt: '2026-10-10T10:00:00Z' }, viewer({}, true)).canReview, 'uma conclusão validada não se valida de novo');
 const escalated = { ...completed, requiresManagerReview: true };
@@ -120,5 +126,20 @@ console.log('\nPainéis');
 const period = recentPeriod(30, new Date(2026, 9, 30));
 assert(period.from === '2026-10-01' && period.to === '2026-10-30', 'período dos últimos 30 dias inclui hoje');
 assert(niceMax(7) === 10 && niceMax(13) === 20 && niceMax(0) === 1 && niceMax(450) === 500, 'escala dos gráficos arredondada (1, 2, 5 × 10ⁿ)');
+const workload = (profileId: string, fullName: string, roleCode: string, leadNames: string | null) => ({
+  profileId, fullName, roleCode, leadNames, jobTitle: null, jobDescription: null, departmentName: null, isDirect: false,
+  tasksOpen: 0, tasksInProgress: 0, tasksBlocked: 0, tasksOverdue: 0, tasksDueNext7Days: 0, tasksCompleted30Days: 0,
+  opportunitiesActive: 0, minutesThisWeek: 0, lastActivityDate: null, absenceToday: null, pendingAbsenceRequests: 0,
+});
+const scopeMembers = [
+  workload('g1', 'Gil Gestor', 'GESTOR', null),
+  workload('g2', 'Graça Gestora', 'GESTOR', null),
+  workload('a', 'Ana', 'EMPLOYEE', 'Gil Gestor'),
+  workload('r', 'Rui', 'EMPLOYEE', 'Graça Gestora, Gil Gestor'),
+  workload('b', 'Bruno', 'EMPLOYEE', 'Graça Gestora'),
+];
+assert(leadTeamMembers(scopeMembers, { profileId: 'g1', fullName: 'Gil Gestor' }).map((member) => member.profileId).join() === 'a,r', 'equipa de um gestor: só quem o tem como gestor direto (também com dois gestores)');
+assert(leadTeamMembers(scopeMembers, { profileId: 'g3', fullName: 'Gestor Sem Equipa' }).length === 0, 'gestor sem colaboradores: equipa vazia (o gestor continua visível)');
+assert(leadTeamMembers(scopeMembers, { profileId: 'g', fullName: 'Gil' }).length === 0, 'o nome do gestor tem de coincidir por inteiro');
 
 console.log(`\n${passed} testes passaram.`);

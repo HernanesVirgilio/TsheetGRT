@@ -1,6 +1,7 @@
 // Ensaio do procedimento de aplicação das migrations 20261015 no estado real de produção:
 //   * base de dados até 20261014 com dados criados pelas funções antigas (reuniões, participantes, ausência);
-//   * as quatro colunas do pedido acrescentadas à mão em meetings;
+//   * as colunas do pedido acrescentadas à mão em produção, reproduzidas pelas migrations de reparação
+//     20261012144835 e 20261013141640 (SQL recuperado do histórico remoto);
 //   * pré-verificação (supabase/scripts/20261015_preflight.sql) → aplicação → pós-verificação (…_postcheck.sql).
 // Cada script devolve OK / AVISO / BLOQUEIO por verificação e um RESULTADO GLOBAL. Cenários: estado real (só o aviso
 // de exposição do esquema, que SQL não consegue determinar), reparação com DEFAULT/NOT NULL (avisos), restrição
@@ -14,10 +15,12 @@ const MIGRATIONS = join(import.meta.dirname, '..', 'migrations');
 const SCRIPTS = join(import.meta.dirname, '..', 'scripts');
 const COLLABORATION = '20261015000000_collaboration_availability_reminders.sql';
 const REPORTING = '20261015000001_reporting_centre.sql';
-const collaborationSql = readFileSync(join(MIGRATIONS, COLLABORATION), 'utf8');
-const reportingSql = readFileSync(join(MIGRATIONS, REPORTING), 'utf8');
-const preflightSql = readFileSync(join(SCRIPTS, '20261015_preflight.sql'), 'utf8');
-const postcheckSql = readFileSync(join(SCRIPTS, '20261015_postcheck.sql'), 'utf8');
+// Fins de linha normalizados: no Windows o Git pode fazer checkout em CRLF, e o recorte de P0 abaixo conta com LF.
+const readSql = (path: string) => readFileSync(path, 'utf8').replace(/\r\n/g, '\n');
+const collaborationSql = readSql(join(MIGRATIONS, COLLABORATION));
+const reportingSql = readSql(join(MIGRATIONS, REPORTING));
+const preflightSql = readSql(join(SCRIPTS, '20261015_preflight.sql'));
+const postcheckSql = readSql(join(SCRIPTS, '20261015_postcheck.sql'));
 // P0 (resumo) é a primeira instrução do script, até ao bloco P1.
 const preflightSummarySql = preflightSql.slice(preflightSql.indexOf('WITH'), preflightSql.indexOf('-- P1.') - '-- -----------------------------------------------------------------------------\n'.length);
 
@@ -26,13 +29,6 @@ const MIGRATION_HISTORY = `
   CREATE SCHEMA supabase_migrations;
   CREATE TABLE supabase_migrations.schema_migrations (version TEXT PRIMARY KEY, name TEXT);
   INSERT INTO supabase_migrations.schema_migrations (version, name) VALUES ('20261014000000', 'profile_preferences');
-`;
-const PLAIN_REPAIR = `
-  ALTER TABLE public.meetings
-    ADD COLUMN requested_with UUID REFERENCES public.profiles(id),
-    ADD COLUMN request_status TEXT,
-    ADD COLUMN request_decided_at TIMESTAMPTZ,
-    ADD COLUMN request_decision_comment TEXT;
 `;
 // A exposição do esquema private no PostgREST não é determinável por SQL neste ambiente (nem, em geral, no Supabase).
 const UNDETERMINABLE = 'esquema private não exposto no PostgREST';
@@ -53,8 +49,11 @@ const statusOf = (rows: Row[], name: string) => rows.find((row) => row.check_nam
 const issues = (rows: Row[], status: Row['status']) => rows.filter((row) => row.status === status && row.check_name !== 'RESULTADO GLOBAL');
 const names = (rows: Row[]) => rows.map((row) => row.check_name).join(' | ');
 
-/** Estado de produção: migrations até 20261014, dados reais criados com as funções antigas e a reparação manual. */
-async function productionState(manualRepair: string) {
+/**
+ * Estado de produção: migrations até 20261014 (incluindo as duas reparações), dados criados com as funções antigas
+ * e, por cima, alterações feitas à mão que cada variante queira simular.
+ */
+async function productionState(manualChanges = '') {
   const db = await TestDatabase.create(MIGRATIONS, { stopBefore: COLLABORATION });
   const admin = await db.bootstrapAdmin('admin@siholdings-mz.com', 'Administrador');
   const gestor = await db.createUser(admin.authId, 'gestor@siholdings-mz.com', 'Gil Gestor', 'GESTOR', 'OPS');
@@ -65,25 +64,25 @@ async function productionState(manualRepair: string) {
   ]);
   const vacation = await db.scalar<string>("SELECT id AS value FROM public.absence_types WHERE code = 'VACATION'");
   const oldAbsence = await db.asUser<{ id: string }>(ana.authId, "SELECT public.save_absence_request(NULL, $1, current_date + 10, current_date + 12, 'Férias') AS id", [vacation]);
-  const setup = await db.execScript(MIGRATION_HISTORY + manualRepair);
+  const setup = await db.execScript(MIGRATION_HISTORY + manualChanges);
   if (setup.error) throw new Error(setup.error);
   return { db, gestor, ana, meetingId: oldMeeting.rows[0]?.id ?? '', absenceId: oldAbsence.rows[0]?.id ?? '', setupError: oldMeeting.error ?? oldAbsence.error };
 }
 
-/** Nada da migration ficou aplicado (tudo ou nada). */
+/** Nada da migration ficou aplicado (tudo ou nada). As colunas de resposta já existem pela reparação 20261013141640. */
 async function nothingApplied(db: TestDatabase): Promise<boolean> {
   const result = await db.asPostgres<{ value: boolean }>(
     `SELECT to_regprocedure('private.is_colleague(uuid,uuid)') IS NULL
-        AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'meeting_participants' AND column_name = 'response')
+        AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conname = 'meeting_participants_response_valid')
         AND NOT EXISTS (SELECT 1 FROM public.permissions WHERE code = 'TIMESHEET_ABSENCE_NOTIFY') AS value`
   );
   return result.rows[0]?.value === true;
 }
 
 // =============================================================================
-report.section('Estado real: colunas acrescentadas à mão, sem valores por omissão');
+report.section('Estado real: colunas das migrations de reparação, sem valores por omissão');
 {
-  const { db, gestor, ana, meetingId, absenceId, setupError } = await productionState(PLAIN_REPAIR);
+  const { db, gestor, ana, meetingId, absenceId, setupError } = await productionState();
   check(!setupError && Boolean(meetingId) && Boolean(absenceId), `dados criados com as funções antigas ${setupError ?? ''}`);
 
   const fullPreflight = await db.execScript(preflightSql);
@@ -133,11 +132,9 @@ report.section('Estado real: colunas acrescentadas à mão, sem valores por omis
 report.section('Variante: reparação manual com valor por omissão e NOT NULL');
 {
   const { db, gestor, ana } = await productionState(`
-    ALTER TABLE public.meetings
-      ADD COLUMN requested_with UUID,
-      ADD COLUMN request_status VARCHAR(10) NOT NULL DEFAULT 'NONE',
-      ADD COLUMN request_decided_at TIMESTAMPTZ,
-      ADD COLUMN request_decision_comment TEXT;
+    ALTER TABLE public.meetings ALTER COLUMN request_status TYPE VARCHAR(10), ALTER COLUMN request_status SET DEFAULT 'NONE';
+    UPDATE public.meetings SET request_status = 'NONE' WHERE request_status IS NULL;
+    ALTER TABLE public.meetings ALTER COLUMN request_status SET NOT NULL;
   `);
   const before = await run(db, preflightSummarySql);
   check(issues(before, 'BLOQUEIO').length === 0 && statusOf(before, 'colunas do pedido sem DEFAULT') === 'AVISO' && statusOf(before, 'reuniões com dados de pedido') === 'AVISO',
@@ -158,7 +155,7 @@ report.section('Variante: reparação manual com valor por omissão e NOT NULL')
 // =============================================================================
 report.section('Bloqueio: restrição desconhecida sobre as colunas do pedido');
 {
-  const { db } = await productionState(PLAIN_REPAIR + `
+  const { db } = await productionState(`
     ALTER TABLE public.meetings ADD CONSTRAINT meetings_request_status_check CHECK (request_status IN ('PENDING', 'ACCEPTED', 'REJECTED'));
   `);
   const before = await run(db, preflightSummarySql);
@@ -171,7 +168,7 @@ report.section('Bloqueio: restrição desconhecida sobre as colunas do pedido');
 // =============================================================================
 report.section('Bloqueio: APPROVAL_REMINDER_DAYS já existe com um valor inválido');
 {
-  const { db } = await productionState(PLAIN_REPAIR + `
+  const { db } = await productionState(`
     INSERT INTO public.system_settings (key, value, description) VALUES ('APPROVAL_REMINDER_DAYS', 'abc', 'criada à mão');
   `);
   const before = await run(db, preflightSummarySql);
@@ -186,7 +183,7 @@ report.section('Bloqueio: APPROVAL_REMINDER_DAYS já existe com um valor inváli
 // =============================================================================
 report.section('Bloqueio: dados históricos incompatíveis com as restrições novas');
 {
-  const { db, meetingId, absenceId } = await productionState(PLAIN_REPAIR);
+  const { db, meetingId, absenceId } = await productionState();
   // Simula alterações feitas à mão: restrições antigas retiradas e registos fora das regras.
   const tampered = await db.execScript(`
     ALTER TABLE public.meeting_events DROP CONSTRAINT meeting_events_type_valid;

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { ListTodo, Plus } from 'lucide-react';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { useAsyncData } from '../../hooks/useAsyncData';
@@ -37,7 +37,8 @@ function toStatuses(value: string): TaskStatus[] {
 
 export const TasksPage: React.FC = () => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { currentUser, hasPermission } = useAuth();
   const viewerId = currentUser?.id ?? '';
   const canSeeTeam = hasPermission('TEAM_READ');
@@ -64,7 +65,9 @@ export const TasksPage: React.FC = () => {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const debouncedSearch = useDebouncedValue(search);
 
-  const people = useAsyncData(() => (canSeeTeam || canCreate ? listWorkPeople('ASSIGNEE') : Promise.resolve([])), [canSeeTeam, canCreate]);
+  // Responsáveis possíveis de uma tarefa nova (regra do servidor) e, à parte, as pessoas do âmbito para o filtro.
+  const people = useAsyncData(() => (canCreate ? listWorkPeople('ASSIGNEE') : Promise.resolve([])), [canCreate]);
+  const scopePeople = useAsyncData(() => (canSeeTeam ? listWorkPeople('SCOPE') : Promise.resolve([])), [canSeeTeam]);
   const tasks = useAsyncData(
     () =>
       listTasks({
@@ -84,13 +87,26 @@ export const TasksPage: React.FC = () => {
 
   useEffect(() => setPage(1), [scope, debouncedSearch, status, priority, assigneeId, overdueOnly]);
 
+  // O separador fica no URL: ao voltar do detalhe de uma tarefa, a lista reabre no mesmo separador.
+  const changeScope = (next: TaskScope) => {
+    setScope(next);
+    setSearchParams(
+      (params) => {
+        params.set('scope', next);
+        return params;
+      },
+      { replace: true }
+    );
+  };
+  const listPath = `${location.pathname}${location.search}`;
+
   const now = new Date();
   const columns: DataTableColumn<TaskSummary>[] = [
     {
       id: 'task',
       header: t('Tarefa'),
       render: (task) => (
-        <Link to={`/timesheet/tasks/${task.id}`} className="block hover:underline">
+        <Link to={`/timesheet/tasks/${task.id}`} state={{ from: listPath }} className="block hover:underline">
           <span className="block font-semibold text-text">{task.reference}</span>
           <span className="block max-w-xs truncate text-xs text-text-secondary">{task.title}</span>
         </Link>
@@ -137,7 +153,7 @@ export const TasksPage: React.FC = () => {
         {scopes
           .filter((option) => option.visible)
           .map((option) => (
-            <Button key={option.value} size="sm" variant={scope === option.value ? 'primary' : 'secondary'} aria-pressed={scope === option.value} onClick={() => setScope(option.value)}>
+            <Button key={option.value} size="sm" variant={scope === option.value ? 'primary' : 'secondary'} aria-pressed={scope === option.value} onClick={() => changeScope(option.value)}>
               {option.label}
             </Button>
           ))}
@@ -166,7 +182,7 @@ export const TasksPage: React.FC = () => {
           {scope !== 'MINE' ? (
             <FilterSelect label={t('Filtrar por responsável')} value={assigneeId} onChange={(event) => setAssigneeId(event.target.value)}>
               <option value={ALL}>{t('Todos os responsáveis')}</option>
-              {(people.data ?? []).map((person) => (
+              {(scopePeople.data ?? []).map((person) => (
                 <option key={person.profileId} value={person.profileId}>
                   {person.fullName}
                 </option>
@@ -210,7 +226,11 @@ export const TasksPage: React.FC = () => {
         onClose={() => setIsCreateOpen(false)}
         onSaved={(taskId) => {
           setIsCreateOpen(false);
-          navigate(`/timesheet/tasks/${taskId}`);
+          // Uma tarefa atribuída a outra pessoa não aparece em "As minhas": a lista para onde se volta é
+          // "Criadas por mim", onde qualquer tarefa criada pelo próprio aparece sempre.
+          const createdPath = '/timesheet/tasks?scope=CREATED';
+          navigate(createdPath, { replace: true });
+          navigate(`/timesheet/tasks/${taskId}`, { state: { from: createdPath } });
         }}
       />
     </div>

@@ -17,6 +17,9 @@ export const APPROVAL_CENTER_PERMISSIONS = [
   'TEAM_READ',
 ] as const satisfies readonly PermissionCode[];
 
+/** Disponibilidade pessoal: pedir ausências (colaboradores) ou comunicá-las (quem gere equipa). */
+export const ABSENCE_PERMISSIONS = ['TIMESHEET_ABSENCE_CREATE', 'TIMESHEET_ABSENCE_NOTIFY'] as const satisfies readonly PermissionCode[];
+
 /** Relatórios gerais (REPORTS_READ) e relatórios da equipa (TEAM_READ) partilham o mesmo centro. */
 export const REPORTS_PERMISSIONS = ['REPORTS_READ', 'TEAM_READ'] as const satisfies readonly PermissionCode[];
 
@@ -33,7 +36,7 @@ export const ROUTE_PERMISSIONS = {
   '/timesheet/calendar': 'TIMESHEET_CALENDAR_READ',
   '/timesheet/meetings': 'TIMESHEET_MEETING_READ',
   '/timesheet/meetings/:id': 'TIMESHEET_MEETING_READ',
-  '/timesheet/absences': 'TIMESHEET_ABSENCE_CREATE',
+  '/timesheet/absences': ABSENCE_PERMISSIONS,
   '/timesheet/opportunities': 'TIMESHEET_OPPORTUNITY_READ',
   '/timesheet/opportunities/:id': 'TIMESHEET_OPPORTUNITY_READ',
   '/timesheet/companies': 'TIMESHEET_OPPORTUNITY_READ',

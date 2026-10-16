@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { Users } from 'lucide-react';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import { listTeamMembers, listTeamTimesheets } from '../../services/managerService';
+import { getProjectTeamOverview } from '../../services/work/teamService';
+import { ProjectTeamPanel } from '../../components/work/DashboardPanels';
 import type { Profile, TimesheetSummary } from '../../types';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Panel } from '../../components/ui/Panel';
@@ -34,6 +36,9 @@ const ALL_TIMESHEETS = { status: null, employeeId: null, periodFrom: null, perio
 /** Pessoas da equipa (separador "Pessoas" do módulo Equipa). */
 export const TeamPage: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const team = useAsyncData(() => Promise.all([listTeamMembers(), listTeamTimesheets(ALL_TIMESHEETS)]), []);
+  // Equipas dos projetos que coordena: relação distinta da equipa formal (não é atribuída pela administração).
+  const projectTeam = useAsyncData(getProjectTeamOverview, []);
+  const hasProjectTeam = (projectTeam.data?.length ?? 0) > 0;
   const [search, setSearch] = useState('');
   const [departmentId, setDepartmentId] = useState(ALL);
   const [timesheetStatus, setTimesheetStatus] = useState(ALL);
@@ -170,8 +175,20 @@ export const TeamPage: React.FC<{ embedded?: boolean }> = ({ embedded = false })
           <EmptyState
             bordered={false}
             icon={Users}
-            title={hasFilters ? t('Nenhum colaborador corresponde aos filtros.') : t('Não tem colaboradores no seu âmbito de gestão.')}
-            message={hasFilters ? undefined : t('A atribuição de equipas é feita pela administração.')}
+            title={
+              hasFilters
+                ? t('Nenhum colaborador corresponde aos filtros.')
+                : hasProjectTeam
+                  ? t('Sem equipa formal atribuída.')
+                  : t('Ainda não tem colaboradores na sua equipa nem nos projetos que coordena.')
+            }
+            message={
+              hasFilters
+                ? undefined
+                : hasProjectTeam
+                  ? t('A equipa formal é configurada pela administração. As equipas dos seus projetos estão abaixo.')
+                  : t('A equipa formal é configurada pela administração; a equipa de um projeto define-se na respetiva oportunidade.')
+            }
             action={
               hasFilters && (
                 <Button
@@ -202,6 +219,9 @@ export const TeamPage: React.FC<{ embedded?: boolean }> = ({ embedded = false })
           />
         )}
       </Panel>
+
+      {projectTeam.error && <ErrorState message={projectTeam.error} onRetry={projectTeam.reload} />}
+      {hasProjectTeam && projectTeam.data && <ProjectTeamPanel members={projectTeam.data} />}
     </div>
   );
 };

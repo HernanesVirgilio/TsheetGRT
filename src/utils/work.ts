@@ -12,6 +12,7 @@ import type {
   OpportunityStatus,
   ScheduleConflict,
   TaskStatus,
+  TeamMemberWorkload,
   WorkEvent,
   WorkPriority,
 } from '../types/work';
@@ -277,7 +278,18 @@ export interface TaskViewer {
   profileId: string;
   /** O servidor considera "gestão": administração, criador ou gestor do responsável. */
   managesTask: boolean;
-  permissions: { update: boolean; create: boolean; assign: boolean; reopen: boolean; logTime: boolean; supervise?: boolean };
+  permissions: {
+    update: boolean;
+    create: boolean;
+    assign: boolean;
+    reopen: boolean;
+    logTime: boolean;
+    supervise?: boolean;
+    /** Gere uma equipa (TEAM_READ): pode distribuir pela equipa a tarefa de que é responsável. */
+    leadsTeam?: boolean;
+  };
+  /** A definição desta tarefa está reservada a quem a criou (delegada pelo Manager) e o leitor não é essa pessoa. */
+  definitionReservedToOthers?: boolean;
 }
 
 interface TaskForActions {
@@ -303,10 +315,15 @@ export function taskActions(task: TaskForActions, viewer: TaskViewer): TaskActio
     canComplete: update && (isAssignee || (manages && assign)) && task.status === 'IN_PROGRESS',
     canComment: update && live,
     canLogTime: logTime && isAssignee && ['ASSIGNED', 'IN_PROGRESS', 'BLOCKED', 'COMPLETED'].includes(task.status),
-    canEdit: manages && (assign || create) && live,
-    canAssign: manages && assign && live,
-    canCancel: manages && assign && task.status !== 'COMPLETED' && live,
-    canReopen: manages && reopen && task.status === 'COMPLETED',
+    // Espelho do trigger guard_task_delegation: definição, cancelamento e reabertura reservados a quem delegou.
+    canEdit: manages && (assign || create) && live && !viewer.definitionReservedToOthers,
+    // Espelho de assign_task: quem gere a tarefa, ou o gestor responsável que a distribui pela equipa.
+    canAssign:
+      assign &&
+      live &&
+      (manages || (isAssignee && (viewer.permissions.leadsTeam ?? false) && !supervise && ['ASSIGNED', 'IN_PROGRESS', 'BLOCKED'].includes(task.status))),
+    canCancel: manages && assign && task.status !== 'COMPLETED' && live && !viewer.definitionReservedToOthers,
+    canReopen: manages && reopen && task.status === 'COMPLETED' && !viewer.definitionReservedToOthers,
     canCreateFollowUp: create && live,
   };
 }
@@ -728,6 +745,14 @@ export function layoutTimedItems<Item extends { startsAt: string; endsAt: string
   }
   if (cluster.length > 0) closeCluster();
   return result;
+}
+
+/**
+ * Pessoas da equipa de um gestor, a partir da carga de trabalho do âmbito (get_team_work_overview): o servidor
+ * indica em leadNames os gestores diretos de cada pessoa. O próprio gestor não conta como membro da equipa.
+ */
+export function leadTeamMembers(members: TeamMemberWorkload[], lead: { profileId: string; fullName: string }): TeamMemberWorkload[] {
+  return members.filter((member) => member.profileId !== lead.profileId && (member.leadNames ?? '').split(', ').includes(lead.fullName));
 }
 
 /** Período por omissão dos painéis e relatórios: os últimos N dias até hoje. */

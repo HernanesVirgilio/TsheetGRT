@@ -66,8 +66,11 @@ export const AbsenceApprovalsPanel: React.FC<AbsenceApprovalsPanelProps> = ({ vi
           <Button size="sm" variant="secondary" icon={Undo2} onClick={() => setValidation({ request, validation: 'CHANGES_REQUESTED' })}>
             {t('Pedir correção')}
           </Button>
+          <Button size="sm" variant="secondary" icon={XCircle} onClick={() => setValidation({ request, validation: 'REJECTED' })}>
+            {t('Rejeitar')}
+          </Button>
           <Button size="sm" icon={Forward} onClick={() => setValidation({ request, validation: 'VALIDATED' })}>
-            {t('Validar e encaminhar')}
+            {t('Aprovar')}
           </Button>
         </div>
       ),

@@ -154,7 +154,8 @@ export const MeetingFormModal: React.FC<MeetingFormModalProps> = ({
   const departmentToAdd = departmentMembers.filter((id) => !selected.includes(id));
   const addDepartment = () => setSelected((current) => [...new Set([...current, ...departmentMembers])]);
   const removeParticipant = (profileId: string) => setSelected((current) => current.filter((id) => id !== profileId));
-  const requestedLeadId = isNew && requestLead && leadId ? leadId : null;
+  const hasNoLeads = leads.data !== null && leads.data.length === 0;
+  const requestedLeadId = isNew && requestLead && !hasNoLeads && leadId ? leadId : null;
 
   const organizerId = meeting?.organizerId ?? currentUser?.id ?? null;
   const startsAt = combineDateTime(values.date, values.startTime);
@@ -221,7 +222,7 @@ export const MeetingFormModal: React.FC<MeetingFormModalProps> = ({
     const errors = validateMeetingForm(values);
     setFieldErrors(errors);
     if (hasErrors(errors) || !startsAt || !endsAt || !signature) return;
-    if (isNew && requestLead && !requestedLeadId) {
+    if (isNew && requestLead && !hasNoLeads && !requestedLeadId) {
       setErrorMessage(t('Escolha a chefia cuja participação pretende pedir, ou desative o pedido.'));
       return;
     }
@@ -373,7 +374,13 @@ export const MeetingFormModal: React.FC<MeetingFormModalProps> = ({
             </ul>
           </div>
         )}
-        {isNew && (
+        {/* Sem chefia configurada não há pedido a fazer: a reunião é criada normalmente (nota informativa). */}
+        {isNew && hasNoLeads && (
+          <p className="text-xs text-text-muted">
+            {t('Sem chefia configurada: a reunião é criada normalmente com os participantes escolhidos. A relação com a chefia é configurada pela administração.')}
+          </p>
+        )}
+        {isNew && !hasNoLeads && (
           <fieldset className="space-y-3 rounded-md border border-border p-3">
             <label className="flex items-start gap-3 text-sm text-text">
               <input type="checkbox" className="mt-0.5 h-4 w-4 accent-primary-hover" checked={requestLead} onChange={(event) => setRequestLead(event.target.checked)} />
@@ -386,11 +393,6 @@ export const MeetingFormModal: React.FC<MeetingFormModalProps> = ({
             </label>
             {requestLead && leads.isLoading && !leads.data && <p className="text-sm text-text-muted">{t('A carregar as suas chefias...')}</p>}
             {requestLead && leads.error && <Alert variant="error">{leads.error}</Alert>}
-            {requestLead && leads.data && leads.data.length === 0 && (
-              <Alert variant="info" title={t('Ainda não tem uma chefia configurada.')}>
-                {t('A relação com a chefia é configurada por um administrador autorizado. Pode criar a reunião sem este pedido.')}
-              </Alert>
-            )}
             {requestLead && leads.data && leads.data.length > 0 && (
               <SelectField label={t('Pedir a participação de')} value={leadId} onChange={(event) => setLeadId(event.target.value)}>
                 {leads.data.map((lead) => (

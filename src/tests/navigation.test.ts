@@ -26,7 +26,12 @@ function permissionsOf(...codes: PermissionCode[]): (permission: PermissionCode)
 console.log('\nAcesso por rota');
 assert(requiredPermissionFor('/dashboard') === null && requiredPermissionFor('/notifications') === null, 'dashboard, perfil e notificações abertos a qualquer conta');
 assert(requiredPermissionFor('/timesheet/tasks/abc-123') === 'TIMESHEET_TASK_READ', 'rota com parâmetro resolve a permissão');
-assert(requiredPermissionFor('/timesheet/absences?tab=TEAM') === 'TIMESHEET_ABSENCE_CREATE', 'parâmetros de pesquisa ignorados');
+assert(requiredPermissionFor('/timesheet/tasks?scope=TEAM') === 'TIMESHEET_TASK_READ', 'parâmetros de pesquisa ignorados');
+assert(
+  canAccessPath('/timesheet/absences', permissionsOf('TIMESHEET_ABSENCE_CREATE')) && canAccessPath('/timesheet/absences', permissionsOf('TIMESHEET_ABSENCE_NOTIFY'))
+    && !canAccessPath('/timesheet/absences', permissionsOf('TIMESHEET_TASK_READ')),
+  'disponibilidade: abre a quem pede (colaborador) ou comunica (gestor e Manager) ausências'
+);
 assert(requiredPermissionFor('/timesheet/tasks') === 'TIMESHEET_TASK_READ' && requiredPermissionFor('/timesheet/meetings') === 'TIMESHEET_MEETING_READ', 'rotas aninhadas distinguidas');
 assert(requiredPermissionFor('/nao-existe') === undefined && requiredPermissionFor('/403') === undefined, 'rotas desconhecidas não têm permissão');
 const employee = permissionsOf('SELF_TIMESHEET_READ', 'IT_TICKET_CREATE', 'TIMESHEET_TASK_READ');

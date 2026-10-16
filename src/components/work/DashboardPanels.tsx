@@ -7,7 +7,7 @@ import { listMyOpenTasks } from '../../services/work/taskService';
 import { listMeetings } from '../../services/work/meetingService';
 import { getCompletionTrend, getOpportunityPipeline, listRecentTeamActivity } from '../../services/work/teamService';
 import type { ReportFilters } from '../../services/work/teamService';
-import type { TeamMemberWorkload } from '../../types/work';
+import type { ProjectTeamMember, TeamMemberWorkload } from '../../types/work';
 import { Panel } from '../ui/Panel';
 import { EmptyState } from '../ui/EmptyState';
 import { ErrorState, LoadingState } from '../ui/States';
@@ -16,6 +16,56 @@ import { StackedBarChart, StackedColumnChart } from '../charts/StackedCharts';
 import { compareTasksForToday, describeWorkEvent, formatMoney, isTaskOverdue } from '../../utils/work';
 import { formatCalendarDate, formatDateTime, formatMinutesAsHours } from '../../utils/format';
 import { t } from '../../lib/i18n';
+
+/**
+ * Equipas dos projetos que quem consulta coordena (responsável ou gestor de execução), agrupadas por projeto.
+ * São relações de projeto (opportunity_members), não a hierarquia formal: não aparecem como "equipa atribuída".
+ */
+export const ProjectTeamPanel: React.FC<{ members: ProjectTeamMember[] }> = ({ members }) => {
+  const projects = new Map<string, { reference: string; title: string; members: ProjectTeamMember[] }>();
+  for (const member of members) {
+    const project = projects.get(member.opportunityId) ?? { reference: member.opportunityReference, title: member.opportunityTitle, members: [] };
+    project.members.push(member);
+    projects.set(member.opportunityId, project);
+  }
+  return (
+    <Panel
+      title={t('Equipas de projeto')}
+      description={t('Pessoas dos projetos que coordena. A equipa de um projeto não altera a hierarquia formal.')}
+      actions={<PanelLink to="/timesheet/opportunities">{t('Oportunidades')}</PanelLink>}
+      flush
+    >
+      <ul className="divide-y divide-border">
+        {[...projects.entries()].map(([opportunityId, project]) => (
+          <li key={opportunityId} className="px-5 py-3">
+            <Link to={`/timesheet/opportunities/${opportunityId}`} className="text-sm font-semibold text-text hover:underline">
+              {project.reference} · {project.title}
+            </Link>
+            <ul className="mt-2 space-y-1.5">
+              {project.members.map((member) => (
+                <li key={member.profileId} className="flex flex-col gap-1 text-sm sm:flex-row sm:items-center sm:justify-between">
+                  <span className="min-w-0">
+                    <span className="font-medium text-text">{member.fullName}</span>
+                    <span className="text-text-secondary">
+                      {' · '}
+                      {member.projectRole === 'EXECUTION_LEAD' ? t('Gestor de execução') : t('Membro')}
+                      {member.departmentName ? ` · ${member.departmentName}` : ''}
+                    </span>
+                  </span>
+                  <span className="flex shrink-0 flex-wrap items-center gap-2 text-xs text-text-secondary">
+                    <span>{t('{count} em aberto', { count: member.tasksOpen })}</span>
+                    {member.tasksOverdue > 0 && <OverdueBadge label={t('{count} em atraso', { count: member.tasksOverdue })} />}
+                    {member.absentToday && <span className="rounded bg-warning-soft px-1.5 py-0.5 text-warning">{t('Ausente hoje')}</span>}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </li>
+        ))}
+      </ul>
+    </Panel>
+  );
+};
 
 export const PanelLink: React.FC<{ to: string; children: React.ReactNode }> = ({ to, children }) => (
   <Link to={to} className="inline-flex items-center gap-1 text-sm font-semibold text-primary-hover hover:underline">

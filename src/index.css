@@ -125,6 +125,19 @@
     @apply bg-background font-sans text-text antialiased;
   }
 
+  /* Listas nativas dos selects: alguns browsers (Windows) desenham as opções com as cores do sistema, ilegíveis
+     no tema escuro. As opções herdam os tokens do tema; caixas e rádios usam o verde da marca. */
+  select option,
+  select optgroup {
+    background-color: var(--color-surface);
+    color: var(--color-text);
+  }
+
+  input[type='checkbox'],
+  input[type='radio'] {
+    accent-color: var(--color-primary-hover);
+  }
+
   :focus-visible {
     outline: 2px solid var(--color-focus);
     outline-offset: 2px;

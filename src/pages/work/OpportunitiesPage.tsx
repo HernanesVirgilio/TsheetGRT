@@ -34,7 +34,7 @@ function toStatuses(value: string): OpportunityStatus[] {
 
 export const OpportunitiesPage: React.FC = () => {
   const navigate = useNavigate();
-  const { hasPermission } = useAuth();
+  const { currentUser, hasPermission } = useAuth();
   const canCreate = hasPermission('TIMESHEET_OPPORTUNITY_CREATE');
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState(ACTIVE);
@@ -47,7 +47,7 @@ export const OpportunitiesPage: React.FC = () => {
     () => listOpportunities({ search: debouncedSearch, statuses: toStatuses(status), ownerId: ownerId === ALL ? null : ownerId, page, pageSize: PAGE_SIZE }),
     [debouncedSearch, status, ownerId, page]
   );
-  const owners = useAsyncData(() => (canCreate ? listWorkPeople('ASSIGNEE') : Promise.resolve([])), [canCreate]);
+  const owners = useAsyncData(() => (canCreate ? listWorkPeople('SCOPE') : Promise.resolve([])), [canCreate]);
   // Equipa do projeto na criação; sem acesso ao diretório, a secção não aparece (a equipa define-se no detalhe).
   const teamLeads = useAsyncData(() => (canCreate ? listWorkPeople('TEAM_LEAD').catch(() => []) : Promise.resolve([])), [canCreate]);
   const directory = useAsyncData(() => (canCreate ? listWorkPeople('PARTICIPANT').catch(() => []) : Promise.resolve([])), [canCreate]);
@@ -143,7 +143,8 @@ export const OpportunitiesPage: React.FC = () => {
         isOpen={isCreateOpen}
         opportunity={null}
         companies={companies.data ?? []}
-        owners={owners.data ?? []}
+        // "Eu próprio" é a opção por omissão: o próprio não se repete na lista.
+        owners={(owners.data ?? []).filter((person) => person.profileId !== currentUser?.id)}
         canCreateCompany={hasPermission('TIMESHEET_OPPORTUNITY_CREATE')}
         teamLeads={teamLeads.data ?? []}
         people={directory.data ?? []}

@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { PermissionCode } from '../../types';
-import { APPROVAL_CENTER_PERMISSIONS, meetsRequirement, REPORTS_PERMISSIONS } from '../../lib/auth/routeAccess';
+import { ABSENCE_PERMISSIONS, APPROVAL_CENTER_PERMISSIONS, meetsRequirement, REPORTS_PERMISSIONS } from '../../lib/auth/routeAccess';
 import type { RouteRequirement } from '../../lib/auth/routeAccess';
 import { isNavigationItemActive } from '../../utils/navigation';
 import type { NavigationTarget } from '../../utils/navigation';
@@ -77,7 +77,7 @@ const NAVIGATION: NavigationSection[] = translatedFields([
     items: [
       { to: '/timesheet/meetings', label: 'Reuniões', icon: MessagesSquare, permission: 'TIMESHEET_MEETING_READ' },
       { to: '/team', label: 'Equipa', icon: UsersRound, permission: 'TEAM_READ' },
-      { to: '/timesheet/absences', label: 'Disponibilidade', icon: CalendarOff, permission: 'TIMESHEET_ABSENCE_CREATE' },
+      { to: '/timesheet/absences', label: 'Disponibilidade', icon: CalendarOff, permission: ABSENCE_PERMISSIONS },
     ],
   },
   {

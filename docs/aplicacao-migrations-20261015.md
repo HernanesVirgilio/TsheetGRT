@@ -2,7 +2,9 @@
 
 Procedimento para aplicar `20261015000000_collaboration_availability_reminders.sql` e `20261015000001_reporting_centre.sql` ao projeto Supabase `iahgopefwixbprfzcwbd`.
 
-Destina-se a quem tem acesso de administração ao projeto. Nada foi aplicado: este documento e os scripts estão para revisão.
+Destina-se a quem tem acesso de administração ao projeto.
+
+**Estado (2026-10-16):** as duas migrations estão aplicadas e registadas no histórico. O conteúdo registado em `supabase_migrations.schema_migrations` é idêntico aos ficheiros deste repositório (83 e 11 instruções). A pós-verificação no projeto real deu 89 verificações: 88 OK, 0 bloqueios e 1 aviso (exposição do esquema `private`, a confirmar em Settings › API › Exposed schemas). Pendente: `20261016000000_role_responsibilities.sql`.
 
 ## 1. O que vai ser aplicado
 
@@ -10,10 +12,19 @@ Destina-se a quem tem acesso de administração ao projeto. Nada foi aplicado: e
 
 | Ficheiro | Linhas | SHA-256 |
 | :--- | ---: | :--- |
-| `supabase/migrations/20261015000000_collaboration_availability_reminders.sql` | 1627 | `14727974d667b95b4ff0209bb4c4be7aa340a1463434684bc59ab3e4eaae2afe` |
+| `supabase/migrations/20261015000000_collaboration_availability_reminders.sql` | 1626 | `e2bffe159725a3336c4a339c5816ded9a5f4245a3dc5c9cd9c7faa0d8a66b5fd` |
 | `supabase/migrations/20261015000001_reporting_centre.sql` | 213 | `58b34224232b88d6888d9637b18194c13c047d73e89cccb904979efc34ce31d4` |
 | `supabase/scripts/20261015_preflight.sql` (só leitura) | | `d003f1cd6ffa4cfd2393874497e9b4232efd9c88aec36bb30e64de6a3821cee9` |
-| `supabase/scripts/20261015_postcheck.sql` (só leitura) | | `2157c4efdba6b8e9ebf0e2c72f2bd3859b2f779a546d6f70768304319ca1eaee` |
+| `supabase/scripts/20261015_postcheck.sql` (só leitura) | | `c32d6a2fee4d44183b344d0195c79600be4c3c81e9171a53a559cbde8c11690b` |
+
+**Reconciliação do histórico (2026-10-16).** O projeto tinha duas versões registadas sem ficheiro local, ambas reparações parciais feitas à mão (só `ADD COLUMN IF NOT EXISTS`). O SQL exato foi recuperado de `supabase_migrations.schema_migrations.statements` e guardado sem alterações; não foi preciso `migration repair`:
+
+| Ficheiro | Linhas | SHA-256 (LF) |
+| :--- | ---: | :--- |
+| `supabase/migrations/20261012144835_repair_meeting_requests_and_absence_kind.sql` | 27 | `7d41796b167d75c239b0ebfbc4ea4a18133182df6a7422fba7b8c2e5fe4cb4d0` |
+| `supabase/migrations/20261013141640_repair_missing_meeting_columns.sql` | 13 | `e77c877cdcf07d07d13ab2b46bd9b43621cb61763be1d4dc188803a9674cfadc` |
+
+Diferenças que ficam depois de aplicar `20261015000000` (inofensivas): `absence_requests.kind` mantém `varchar(30)` (a migration acrescenta-a como `varchar(10)` só quando não existe; a restrição `absence_requests_kind_valid` limita os valores) e o índice `idx_meetings_requested_with_request_status` da reparação mantém-se.
 
 O Git está configurado para converter LF em CRLF ao fazer commit no Windows, o que muda a impressão digital. Depois do commit, compare com `git diff 13093aa -- supabase/migrations`, ou registe o hash do commit que for aplicado.
 
@@ -58,7 +69,7 @@ As funções `CREATE OR REPLACE` sobre funções já existentes mantêm o dono e
 
 **Alterações de regras de negócio, intencionais, a confirmar por quem decide:**
 
-1. Os perfis EMPLOYEE e IT recebem `TIMESHEET_MEETING_CREATE`: podem agendar reuniões com colegas, sem aprovação.
+1. A versão aplicada em produção (2026-10-16) **não** dá `TIMESHEET_MEETING_CREATE` a EMPLOYEE e IT. A especificação de harmonização dos papéis, posterior, pede que os colaboradores agendem reuniões com colegas: a permissão é atribuída pela migration seguinte, `20261016000000_role_responsibilities.sql` (a `20261015000000` já aplicada não é alterada).
 2. Podem ser convidados colegas do mesmo departamento ou da mesma chefia direta, além da equipa, das chefias e dos envolvidos.
 3. GESTOR, MANAGER e ADMIN recebem `TIMESHEET_ABSENCE_NOTIFY` (comunicar ausência). Ajustável em Roles e Permissões.
 
